@@ -23,6 +23,14 @@ Open the local URL Vite prints (usually `http://localhost:5173`).
 2. **Paraplanner Workbench** — agent-drafted IPS / proposals / annual reviews / estate memos with human polish.
 3. **Persona Value & Comps** — value by persona (Advisor, Paraplanner, CRA, Specialist, Leadership/CCO, Client) + competitive map.
 
+### One-click-down review
+
+Click any exception, stage, form section/field, document, meeting, or meeting action → **Recommended review** panel shows why it needs you, what the agent already did, a review checklist, and primary CTAs.
+
+### Meeting management
+
+Per household: **scheduled** meetings, **meetings held** (summary + decisions), and **actions from meetings** with owner/due and recommended review text.
+
 ### CLM framework embedded in the cockpit
 
 Per household (mission-control, not a separate wizard):

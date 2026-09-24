@@ -449,6 +449,15 @@ button {
   padding: 8px 10px;
 }
 
+.clickable-phase {
+  cursor: pointer;
+}
+
+.clickable-phase:hover {
+  border-color: var(--sf-blue);
+  background: var(--sf-blue-light);
+}
+
 .phase-chip-title {
   font-size: 10px;
   font-weight: 700;
@@ -625,6 +634,108 @@ button {
   margin-top: 2px;
 }
 
+.meeting-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.meeting-col-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sf-gray-3);
+  margin-bottom: 8px;
+}
+
+.meeting-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--sf-gray-5);
+  background: var(--sf-gray-6);
+  border-radius: var(--radius);
+  padding: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+
+.meeting-card:hover,
+.meeting-card.active {
+  border-color: var(--sf-blue);
+  background: var(--sf-blue-light);
+}
+
+.meeting-card.action {
+  border-left: 3px solid var(--sf-orange);
+}
+
+.meeting-title {
+  font-size: 13px;
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+
+.meeting-summary {
+  font-size: 12px;
+  margin-top: 6px;
+  line-height: 1.4;
+  color: var(--sf-gray-2);
+}
+
+.doc-btn,
+.gap-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+
+.gap-link {
+  padding: 4px 0;
+}
+
+.doc-btn:hover .doc-name,
+.gap-link:hover {
+  color: var(--sf-blue-dark);
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background: var(--sf-blue-light);
+}
+
+.review-kicker {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.review-checklist {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.sticky-review {
+  position: sticky;
+  top: 12px;
+  align-self: start;
+}
+
 .hh-summary {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -665,6 +776,20 @@ button {
   min-height: 78px;
   background: white;
   font-size: 11px;
+}
+
+button.stage-card {
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  color: inherit;
+}
+
+button.stage-card.clickable:hover,
+button.stage-card.selected {
+  outline: 2px solid var(--sf-blue);
+  outline-offset: 1px;
 }
 
 .stage-card.complete {
@@ -957,7 +1082,8 @@ button {
     grid-template-columns: repeat(3, 1fr);
   }
   .phase-map,
-  .framework-grid {
+  .framework-grid,
+  .meeting-cols {
     grid-template-columns: 1fr;
   }
   .section-list,

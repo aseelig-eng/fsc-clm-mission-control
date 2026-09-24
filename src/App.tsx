@@ -13,6 +13,8 @@ import {
   recordCompleteness,
   type FormSection,
 } from './data/onboardingFramework'
+import { buildDrillItems, type DrillItem } from './data/drilldown'
+import { meetingsForHousehold, openMeetingActions } from './data/meetings'
 import {
   householdProgress,
   overallProgress,
@@ -75,6 +77,67 @@ function docStatusClass(status: string) {
   return 'medium'
 }
 
+function priorityClass(p: string) {
+  if (p === 'critical') return 'critical'
+  if (p === 'high') return 'high'
+  if (p === 'info') return 'done'
+  return 'medium'
+}
+
+function ReviewPanel({
+  item,
+  onAct,
+}: {
+  item: DrillItem | null
+  onAct: (label: string) => void
+}) {
+  if (!item) {
+    return <p className="muted">Click any signal, stage, document, meeting, or action — recommended review appears here.</p>
+  }
+  const r = item.recommended
+  return (
+    <>
+      <div className="review-kicker">
+        <span className={`badge ${priorityClass(item.priority)}`}>{item.priority}</span>
+        <span className="muted">{item.kind.replace('_', ' ')} · one click down</span>
+      </div>
+      <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 15 }}>{r.headline}</div>
+      <p className="muted" style={{ marginTop: 0 }}>
+        {item.subtitle}
+      </p>
+      <div className="callout" style={{ marginBottom: 10 }}>
+        <strong>Why this needs you</strong>
+        {r.why}
+      </div>
+      <div className="callout" style={{ marginBottom: 10 }}>
+        <strong>Agent already did</strong>
+        {r.agentAlreadyDid}
+      </div>
+      <div className="callout">
+        <strong>Recommended for you to review</strong>
+        <ul className="review-checklist">
+          {r.reviewChecklist.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="actions">
+        <button type="button" className="btn success" onClick={() => onAct(r.primaryCta)}>
+          {r.primaryCta}
+        </button>
+        {r.secondaryCta && (
+          <button type="button" className="btn primary" onClick={() => onAct(r.secondaryCta!)}>
+            {r.secondaryCta}
+          </button>
+        )}
+        <button type="button" className="btn" onClick={() => onAct('Delegated with context')}>
+          Delegate
+        </button>
+      </div>
+    </>
+  )
+}
+
 export default function App() {
   const [role, setRole] = useState<Role>('advisor')
   const [selectedHhId, setSelectedHhId] = useState(households[0].id)
@@ -84,6 +147,7 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null)
   const [resolved, setResolved] = useState<Set<string>>(new Set())
   const [openSectionId, setOpenSectionId] = useState<string | null>('funding')
+  const [drillId, setDrillId] = useState<string | null>('ex-ex1')
 
   const household = useMemo(
     () => households.find((h) => h.id === selectedHhId) as Household,
@@ -98,6 +162,10 @@ export default function App() {
 
   const bookProgress = useMemo(() => overallProgress(households), [])
   const clientProgress = useMemo(() => householdProgress(household), [household])
+  const drillItems = useMemo(() => buildDrillItems(household), [household])
+  const drillItem = drillItems.find((d) => d.id === drillId) ?? drillItems[0] ?? null
+  const hhMeetings = useMemo(() => meetingsForHousehold(household.id), [household])
+  const hhMeetingActions = useMemo(() => openMeetingActions(household.id), [household])
 
   const openExceptions = exceptions.filter((e) => !resolved.has(e.id))
   const selectedEx = openExceptions.find((e) => e.id === selectedExId) ?? openExceptions[0]
@@ -105,22 +173,45 @@ export default function App() {
   const persona = personaValues[personaIdx]
   const openSection: FormSection | undefined = onboarding?.sections.find((s) => s.id === openSectionId)
 
+  const scheduledMeetings = hhMeetings.filter((m) => m.status === 'scheduled')
+  const completedMeetings = hhMeetings.filter((m) => m.status === 'completed')
+
   function flash(msg: string) {
     setToast(msg)
     window.setTimeout(() => setToast(null), 2800)
+  }
+
+  function openDrill(id: string) {
+    setDrillId(id)
   }
 
   function approveException(ex: ExceptionItem) {
     setResolved((prev) => new Set(prev).add(ex.id))
     flash(`Agent continuing: ${ex.recommendedAction}`)
     const next = openExceptions.find((e) => e.id !== ex.id)
-    if (next) setSelectedExId(next.id)
+    if (next) {
+      setSelectedExId(next.id)
+      openDrill(`ex-${next.id}`)
+    }
   }
 
   function focusException(ex: ExceptionItem) {
     setSelectedExId(ex.id)
     const match = households.find((h) => ex.household.includes(h.name.split(' ')[0]) || h.name.includes(ex.household.split(' ')[0]))
     if (match) setSelectedHhId(match.id)
+    openDrill(`ex-${ex.id}`)
+  }
+
+  function selectHousehold(id: string) {
+    setSelectedHhId(id)
+    const rec = onboardingByHousehold[id]
+    const gapSection = rec?.sections.find((s) =>
+      s.fields.some((f) => f.status === 'blocked' || f.status === 'missing' || f.status === 'partial'),
+    )
+    setOpenSectionId(gapSection?.id ?? rec?.sections[0]?.id ?? null)
+    const hh = households.find((h) => h.id === id)!
+    const items = buildDrillItems(hh)
+    setDrillId(items[0]?.id ?? null)
   }
 
   return (
@@ -221,12 +312,7 @@ export default function App() {
                     type="button"
                     className={`hh-chip ${selectedHhId === h.id ? 'active' : ''}`}
                     onClick={() => {
-                      setSelectedHhId(h.id)
-                      const rec = onboardingByHousehold[h.id]
-                      const gapSection = rec?.sections.find((s) =>
-                        s.fields.some((f) => f.status === 'blocked' || f.status === 'missing' || f.status === 'partial'),
-                      )
-                      setOpenSectionId(gapSection?.id ?? rec?.sections[0]?.id ?? null)
+                      selectHousehold(h.id)
                     }}
                   >
                     <span className="hh-chip-name">
@@ -286,12 +372,17 @@ export default function App() {
 
                 <div className="lifecycle-rail">
                   {household.stages.map((s) => (
-                    <div key={s.id} className={`stage-card ${s.status}`}>
+                    <button
+                      key={s.id}
+                      type="button"
+                      className={`stage-card ${s.status} clickable ${drillId === `stage-${s.id}` ? 'selected' : ''}`}
+                      onClick={() => openDrill(`stage-${s.id}`)}
+                    >
                       <div className="name">{s.label}</div>
                       <div className="status">{statusLabel(s.status)}</div>
                       {s.agentSummary && <div>{s.agentSummary}</div>}
                       {s.humanAction && <div style={{ fontWeight: 700, marginTop: 4 }}>You: {s.humanAction}</div>}
-                    </div>
+                    </button>
                   ))}
                 </div>
 
@@ -303,7 +394,28 @@ export default function App() {
                         ? Math.round(secs.reduce((a, s) => a + s.pct, 0) / secs.length)
                         : 0
                       return (
-                        <div key={phase} className="phase-chip">
+                        <div
+                          key={phase}
+                          className="phase-chip clickable-phase"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            const first = onboarding.sections.find((s) => s.phase === phase)
+                            if (first) {
+                              setOpenSectionId(first.id)
+                              openDrill(`section-${first.id}`)
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              const first = onboarding.sections.find((s) => s.phase === phase)
+                              if (first) {
+                                setOpenSectionId(first.id)
+                                openDrill(`section-${first.id}`)
+                              }
+                            }
+                          }}
+                        >
                           <div className="phase-chip-title">{PHASE_LABELS[phase]}</div>
                           <ProgressBar size="sm" pct={avg} label="Phase completeness" tone={progressTone(avg)} />
                         </div>
@@ -337,7 +449,10 @@ export default function App() {
                             key={s.id}
                             type="button"
                             className={`section-row ${openSectionId === s.id ? 'active' : ''}`}
-                            onClick={() => setOpenSectionId(s.id === openSectionId ? null : s.id)}
+                            onClick={() => {
+                              setOpenSectionId(s.id === openSectionId ? null : s.id)
+                              openDrill(`section-${s.id}`)
+                            }}
                           >
                             <span className="section-name">{s.label}</span>
                             <span className="section-pct">{stat?.pct ?? 0}%</span>
@@ -361,7 +476,19 @@ export default function App() {
                           </thead>
                           <tbody>
                             {openSection.fields.map((f) => (
-                              <tr key={f.key}>
+                              <tr
+                                key={f.key}
+                                className={
+                                  f.status === 'blocked' || f.status === 'missing' || f.status === 'partial'
+                                    ? 'clickable-row'
+                                    : undefined
+                                }
+                                onClick={() => {
+                                  if (f.status === 'blocked' || f.status === 'missing' || f.status === 'partial') {
+                                    openDrill(`field-${openSection.id}-${f.key}`)
+                                  }
+                                }}
+                              >
                                 <td>{f.label}</td>
                                 <td>{f.value || '—'}</td>
                                 <td>
@@ -377,13 +504,21 @@ export default function App() {
                       <div className="gap-list">
                         <strong>Signal — data gaps</strong>
                         <ul>
-                          {completeness.gaps.slice(0, 6).map((g) => (
-                            <li key={`${g.section}-${g.field}`}>
-                              <span className={`badge ${fieldStatusClass(g.status)}`}>{g.status}</span>
-                              {g.section}: {g.field}
-                              {g.value ? ` — ${g.value}` : ''}
-                            </li>
-                          ))}
+                          {completeness.gaps.slice(0, 6).map((g) => {
+                            const section = onboarding.sections.find((s) => s.label === g.section)
+                            const field = section?.fields.find((f) => f.label === g.field)
+                            const id =
+                              section && field ? `field-${section.id}-${field.key}` : `section-${section?.id}`
+                            return (
+                              <li key={`${g.section}-${g.field}`}>
+                                <button type="button" className="gap-link" onClick={() => openDrill(id)}>
+                                  <span className={`badge ${fieldStatusClass(g.status)}`}>{g.status}</span>
+                                  {g.section}: {g.field}
+                                  {g.value ? ` — ${g.value}` : ''}
+                                </button>
+                              </li>
+                            )
+                          })}
                         </ul>
                       </div>
                     )}
@@ -412,12 +547,14 @@ export default function App() {
                     <ul className="doc-list">
                       {onboarding.documents.map((d) => (
                         <li key={d.id}>
-                          <div className="doc-name">{d.name}</div>
-                          <div className="doc-meta">
-                            <span className={`badge ${docStatusClass(d.status)}`}>{d.status}</span>
-                            {d.filedOn && <span className="muted">Filed {d.filedOn}</span>}
-                            {d.notes && <span className="muted">{d.notes}</span>}
-                          </div>
+                          <button type="button" className="doc-btn" onClick={() => openDrill(`doc-${d.id}`)}>
+                            <div className="doc-name">{d.name}</div>
+                            <div className="doc-meta">
+                              <span className={`badge ${docStatusClass(d.status)}`}>{d.status}</span>
+                              {d.filedOn && <span className="muted">Filed {d.filedOn}</span>}
+                              {d.notes && <span className="muted">{d.notes}</span>}
+                            </div>
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -490,6 +627,82 @@ export default function App() {
               </div>
             )}
 
+            <div className="panel">
+              <div className="panel-header">
+                <span>Meeting management</span>
+                <span className="muted">
+                  {scheduledMeetings.length} upcoming · {hhMeetingActions.length} open actions
+                </span>
+              </div>
+              <div className="panel-body">
+                <div className="meeting-cols">
+                  <div>
+                    <div className="meeting-col-title">Scheduled</div>
+                    {scheduledMeetings.length === 0 && <p className="muted">None</p>}
+                    {scheduledMeetings.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className={`meeting-card ${drillId === `meeting-${m.id}` ? 'active' : ''}`}
+                        onClick={() => openDrill(`meeting-${m.id}`)}
+                      >
+                        <div className="meeting-title">{m.title}</div>
+                        <div className="muted">
+                          {m.when.replace('T', ' · ')} · {m.channel.replace('_', ' ')}
+                        </div>
+                        <div className="muted">
+                          {m.prepBriefReady ? 'Prep brief ready' : 'Prep blocked'}
+                          {m.playbookId ? ` · ${m.playbookId}` : ''}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div>
+                    <div className="meeting-col-title">Meetings held</div>
+                    {completedMeetings.length === 0 && <p className="muted">None</p>}
+                    {completedMeetings.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className={`meeting-card ${drillId === `meeting-${m.id}` ? 'active' : ''}`}
+                        onClick={() => openDrill(`meeting-${m.id}`)}
+                      >
+                        <div className="meeting-title">{m.title}</div>
+                        <div className="muted">{m.when.replace('T', ' · ')}</div>
+                        {m.summary && <div className="meeting-summary">{m.summary}</div>}
+                        {m.decisions && m.decisions.length > 0 && (
+                          <div className="muted">Decisions: {m.decisions.join('; ')}</div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div>
+                    <div className="meeting-col-title">Actions from meetings</div>
+                    {hhMeetingActions.length === 0 && <p className="muted">No open actions</p>}
+                    {hhMeetingActions.map(({ meeting, action }) => (
+                      <button
+                        key={action.id}
+                        type="button"
+                        className={`meeting-card action ${drillId === `ma-${action.id}` ? 'active' : ''}`}
+                        onClick={() => openDrill(`ma-${action.id}`)}
+                      >
+                        <div className="meeting-title">
+                          <span className={`badge ${action.status === 'blocked' ? 'critical' : 'needs'}`}>
+                            {action.status}
+                          </span>{' '}
+                          {action.title}
+                        </div>
+                        <div className="muted">
+                          {action.owner} · due {action.due} · from “{meeting.title}”
+                        </div>
+                        <div className="meeting-summary">{action.recommendedReview}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="detail-grid">
               <div className="panel">
                 <div className="panel-header">
@@ -514,48 +727,22 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="panel">
+              <div className="panel review-panel sticky-review">
                 <div className="panel-header">
-                  <span>Exception detail</span>
+                  <span>Recommended review</span>
+                  <span className="muted">One click down</span>
                 </div>
                 <div className="panel-body">
-                  {selectedEx ? (
-                    <>
-                      <div style={{ fontWeight: 700, marginBottom: 8 }}>{selectedEx.title}</div>
-                      <p className="muted" style={{ marginTop: 0 }}>
-                        {selectedEx.household}
-                      </p>
-                      <div className="callout" style={{ marginBottom: 10 }}>
-                        <strong>Why it surfaced</strong>
-                        {selectedEx.reason}
-                      </div>
-                      <div className="callout" style={{ marginBottom: 10 }}>
-                        <strong>Agent already did</strong>
-                        {selectedEx.agentContext}
-                      </div>
-                      <div className="callout">
-                        <strong>Your move</strong>
-                        {selectedEx.recommendedAction}
-                      </div>
-                      <div className="actions">
-                        <button type="button" className="btn success" onClick={() => approveException(selectedEx)}>
-                          Approve &amp; let agent continue
-                        </button>
-                        <button
-                          type="button"
-                          className="btn primary"
-                          onClick={() => flash('Opening client talk track — agents keep working in background')}
-                        >
-                          Talk to client instead
-                        </button>
-                        <button type="button" className="btn" onClick={() => flash('Routed to CRA / compliance queue')}>
-                          Delegate
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="muted">No open exceptions. Grow the practice.</p>
-                  )}
+                  <ReviewPanel
+                    item={drillItem}
+                    onAct={(label) => {
+                      if (selectedEx && drillItem?.kind === 'exception' && label.includes('Approve')) {
+                        approveException(selectedEx)
+                      } else {
+                        flash(label)
+                      }
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -605,12 +792,20 @@ export default function App() {
 
               <div className="para-detail" style={{ marginTop: 16 }}>
                 <div className="callout">
+                  <strong>Why this needs you</strong>
+                  Deliverable requires human fiduciary polish before client/advisor delivery.
+                </div>
+                <div className="callout">
                   <strong>Agent already did</strong>
                   {selectedPara.agentDid}
                 </div>
                 <div className="callout">
-                  <strong>Your job</strong>
-                  {selectedPara.yourJob}
+                  <strong>Recommended for you to review</strong>
+                  <ul className="review-checklist">
+                    <li>{selectedPara.yourJob}</li>
+                    <li>Check citations / source lineage before approving</li>
+                    <li>Do not regenerate from scratch — edit the agent draft</li>
+                  </ul>
                 </div>
               </div>
               <div className="actions">
