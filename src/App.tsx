@@ -136,31 +136,6 @@ export default function App() {
                       : progressTone(bookProgress.pct)
                   }
                 />
-                <div className="book-progress-clients">
-                  {households.map((h) => {
-                    const p = householdProgress(h)
-                    const blocked = h.stages.some((s) => s.status === 'blocked')
-                    return (
-                      <button
-                        key={h.id}
-                        type="button"
-                        className={`book-client-progress ${selectedHhId === h.id ? 'active' : ''}`}
-                        onClick={() => {
-                          setSelectedHhId(h.id)
-                          setRole('advisor')
-                        }}
-                      >
-                        <ProgressBar
-                          size="sm"
-                          pct={p.pct}
-                          label={h.name}
-                          detail={`${p.complete}/${p.total} stages${blocked ? ' · blocked' : p.inFlight ? ' · in flight' : ''}`}
-                          tone={blocked ? 'blocked' : progressTone(p.pct)}
-                        />
-                      </button>
-                    )
-                  })}
-                </div>
               </div>
             </div>
           </div>

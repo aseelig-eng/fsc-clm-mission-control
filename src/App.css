@@ -239,28 +239,6 @@ button {
   color: var(--sf-gray-3);
 }
 
-.book-progress-clients {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.book-client-progress {
-  border: 1px solid var(--sf-gray-5);
-  background: var(--sf-gray-6);
-  border-radius: var(--radius);
-  padding: 10px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.book-client-progress:hover,
-.book-client-progress.active {
-  border-color: var(--sf-blue);
-  background: var(--sf-blue-light);
-}
-
 .household-bar {
   display: flex;
   gap: 8px;
@@ -787,9 +765,6 @@ button {
 @media (max-width: 1100px) {
   .metrics-strip {
     grid-template-columns: repeat(3, 1fr);
-  }
-  .book-progress-clients {
-    grid-template-columns: repeat(2, 1fr);
   }
   .detail-grid,
   .para-detail,
