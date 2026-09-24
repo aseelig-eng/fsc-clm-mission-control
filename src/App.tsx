@@ -7,11 +7,51 @@ import {
   paraplannerQueue,
   personaValues,
 } from './data/content'
+import {
+  householdProgress,
+  overallProgress,
+  progressTone,
+} from './data/progress'
 import type { ExceptionItem, Household, Role } from './data/types'
 import './App.css'
 
 function statusLabel(s: string) {
   return s.replace('-', ' ')
+}
+
+function ProgressBar({
+  pct,
+  label,
+  detail,
+  size = 'md',
+  tone,
+}: {
+  pct: number
+  label: string
+  detail?: string
+  size?: 'sm' | 'md' | 'lg'
+  tone?: 'good' | 'warn' | 'blocked' | 'neutral'
+}) {
+  const resolvedTone = tone ?? progressTone(pct)
+  return (
+    <div className={`progress-block size-${size}`} role="group" aria-label={label}>
+      <div className="progress-meta">
+        <span className="progress-label">{label}</span>
+        <span className="progress-pct">{pct}%</span>
+      </div>
+      <div
+        className="progress-track"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={label}
+      >
+        <div className={`progress-fill tone-${resolvedTone}`} style={{ width: `${pct}%` }} />
+      </div>
+      {detail && <div className="progress-detail">{detail}</div>}
+    </div>
+  )
 }
 
 export default function App() {
@@ -27,6 +67,9 @@ export default function App() {
     () => households.find((h) => h.id === selectedHhId) as Household,
     [selectedHhId],
   )
+
+  const bookProgress = useMemo(() => overallProgress(households), [])
+  const clientProgress = useMemo(() => householdProgress(household), [household])
 
   const openExceptions = exceptions.filter((e) => !resolved.has(e.id))
   const selectedEx = openExceptions.find((e) => e.id === selectedExId) ?? openExceptions[0]
@@ -78,15 +121,59 @@ export default function App() {
       </header>
 
       {role !== 'value' && (
-        <div className="metrics-strip" aria-label="Firm CLM metrics">
-          {metrics.map((m) => (
-            <div className="metric-card" key={m.label}>
-              <div className="label">{m.label}</div>
-              <div className="value">{m.value}</div>
-              <div className={`delta ${m.tone === 'neutral' ? 'neutral' : ''}`}>{m.delta}</div>
+        <>
+          <div className="progress-strip" aria-label="Lifecycle progress">
+            <div className="panel progress-overall-panel">
+              <div className="panel-body">
+                <ProgressBar
+                  size="lg"
+                  pct={bookProgress.pct}
+                  label="Overall book — lifecycle progress"
+                  detail={`${bookProgress.stagesComplete}/${bookProgress.stagesTotal} stages complete · ${bookProgress.completeClients}/${bookProgress.totalClients} clients at 100%`}
+                  tone={
+                    households.some((h) => h.stages.some((s) => s.status === 'blocked'))
+                      ? 'warn'
+                      : progressTone(bookProgress.pct)
+                  }
+                />
+                <div className="book-progress-clients">
+                  {households.map((h) => {
+                    const p = householdProgress(h)
+                    const blocked = h.stages.some((s) => s.status === 'blocked')
+                    return (
+                      <button
+                        key={h.id}
+                        type="button"
+                        className={`book-client-progress ${selectedHhId === h.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setSelectedHhId(h.id)
+                          setRole('advisor')
+                        }}
+                      >
+                        <ProgressBar
+                          size="sm"
+                          pct={p.pct}
+                          label={h.name}
+                          detail={`${p.complete}/${p.total} stages${blocked ? ' · blocked' : p.inFlight ? ' · in flight' : ''}`}
+                          tone={blocked ? 'blocked' : progressTone(p.pct)}
+                        />
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
+          </div>
+          <div className="metrics-strip" aria-label="Firm CLM metrics">
+            {metrics.map((m) => (
+              <div className="metric-card" key={m.label}>
+                <div className="label">{m.label}</div>
+                <div className="value">{m.value}</div>
+                <div className={`delta ${m.tone === 'neutral' ? 'neutral' : ''}`}>{m.delta}</div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {role === 'advisor' && (
@@ -122,17 +209,31 @@ export default function App() {
 
           <div className="main-col">
             <div className="household-bar">
-              {households.map((h) => (
-                <button
-                  key={h.id}
-                  type="button"
-                  className={`hh-chip ${selectedHhId === h.id ? 'active' : ''}`}
-                  onClick={() => setSelectedHhId(h.id)}
-                >
-                  {h.name}
-                  {h.exceptions > 0 ? ` · ${h.exceptions}` : ''}
-                </button>
-              ))}
+              {households.map((h) => {
+                const p = householdProgress(h)
+                return (
+                  <button
+                    key={h.id}
+                    type="button"
+                    className={`hh-chip ${selectedHhId === h.id ? 'active' : ''}`}
+                    onClick={() => setSelectedHhId(h.id)}
+                  >
+                    <span className="hh-chip-name">
+                      {h.name}
+                      {h.exceptions > 0 ? ` · ${h.exceptions}` : ''}
+                    </span>
+                    <span className="hh-chip-progress">
+                      <span className="hh-chip-track" aria-hidden="true">
+                        <span
+                          className={`hh-chip-fill tone-${h.stages.some((s) => s.status === 'blocked') ? 'blocked' : progressTone(p.pct)}`}
+                          style={{ width: `${p.pct}%` }}
+                        />
+                      </span>
+                      <span className="hh-chip-pct">{p.pct}%</span>
+                    </span>
+                  </button>
+                )
+              })}
             </div>
 
             <div className="panel">
@@ -141,7 +242,19 @@ export default function App() {
                 <span className="muted">{household.agentsActive} agents active</span>
               </div>
               <div className="panel-body">
-                <div className="hh-summary">
+                <ProgressBar
+                  size="md"
+                  pct={clientProgress.pct}
+                  label="Client lifecycle progress"
+                  detail={`${clientProgress.complete} complete · ${clientProgress.inFlight} in flight · ${clientProgress.total - clientProgress.complete - clientProgress.inFlight} upcoming · current: ${household.stageLabel}`}
+                  tone={
+                    household.stages.some((s) => s.status === 'blocked')
+                      ? 'blocked'
+                      : progressTone(clientProgress.pct)
+                  }
+                />
+
+                <div className="hh-summary" style={{ marginTop: 12 }}>
                   <div>
                     <div className="k">AUM / stage</div>
                     <div className="v">{household.aum}</div>

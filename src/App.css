@@ -157,6 +157,186 @@ button {
   padding: 12px 12px 0;
 }
 
+/* Progress bars */
+.progress-strip {
+  padding: 12px 12px 0;
+}
+
+.progress-overall-panel .panel-body {
+  padding: 14px 16px;
+}
+
+.progress-block {
+  width: 100%;
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.progress-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sf-gray-1);
+}
+
+.progress-pct {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sf-blue-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-track {
+  width: 100%;
+  background: var(--sf-gray-5);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-block.size-sm .progress-track {
+  height: 6px;
+}
+
+.progress-block.size-md .progress-track {
+  height: 10px;
+}
+
+.progress-block.size-lg .progress-track {
+  height: 14px;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.35s ease;
+  min-width: 0;
+}
+
+.progress-fill.tone-good {
+  background: linear-gradient(90deg, #2e844a, #3ba755);
+}
+
+.progress-fill.tone-neutral {
+  background: linear-gradient(90deg, #014486, #0176d3);
+}
+
+.progress-fill.tone-warn {
+  background: linear-gradient(90deg, #dd7a01, #f5a623);
+}
+
+.progress-fill.tone-blocked {
+  background: linear-gradient(90deg, #ba0517, #e2445c);
+}
+
+.progress-detail {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--sf-gray-3);
+}
+
+.book-progress-clients {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.book-client-progress {
+  border: 1px solid var(--sf-gray-5);
+  background: var(--sf-gray-6);
+  border-radius: var(--radius);
+  padding: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.book-client-progress:hover,
+.book-client-progress.active {
+  border-color: var(--sf-blue);
+  background: var(--sf-blue-light);
+}
+
+.household-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hh-chip {
+  border: 1px solid var(--sf-gray-5);
+  background: white;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.hh-chip-name {
+  text-align: left;
+}
+
+.hh-chip-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hh-chip-track {
+  flex: 1;
+  height: 5px;
+  background: var(--sf-gray-5);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.hh-chip-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.hh-chip-fill.tone-good {
+  background: var(--sf-green);
+}
+
+.hh-chip-fill.tone-neutral {
+  background: var(--sf-blue);
+}
+
+.hh-chip-fill.tone-warn {
+  background: var(--sf-orange);
+}
+
+.hh-chip-fill.tone-blocked {
+  background: var(--sf-red);
+}
+
+.hh-chip-pct {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--sf-gray-3);
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
+}
+
+.hh-chip.active {
+  border-color: var(--sf-blue);
+  background: var(--sf-blue-light);
+  color: var(--sf-blue-dark);
+}
+
 .metric-card {
   background: var(--sf-white);
   border: 1px solid var(--sf-gray-5);
@@ -269,28 +449,6 @@ button {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-}
-
-.household-bar {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.hh-chip {
-  border: 1px solid var(--sf-gray-5);
-  background: white;
-  border-radius: 16px;
-  padding: 6px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.hh-chip.active {
-  border-color: var(--sf-blue);
-  background: var(--sf-blue-light);
-  color: var(--sf-blue-dark);
 }
 
 .detail-grid {
@@ -629,6 +787,9 @@ button {
 @media (max-width: 1100px) {
   .metrics-strip {
     grid-template-columns: repeat(3, 1fr);
+  }
+  .book-progress-clients {
+    grid-template-columns: repeat(2, 1fr);
   }
   .detail-grid,
   .para-detail,
