@@ -22,6 +22,28 @@ export interface LifecycleStage {
   status: StageStatus
   agentSummary?: string
   humanAction?: string
+  /** Popup content when blocked / needs resolution */
+  unblock?: {
+    title: string
+    whyBlocked: string
+    recommendedActions: AdvisorAction[]
+  }
+}
+
+export type AdvisorActionType =
+  | 'review_docs'
+  | 'review_inputs'
+  | 'update_account'
+  | 'approve_send'
+  | 'escalate'
+  | 'call_client'
+  | 'delegate'
+  | 'schedule'
+
+export interface AdvisorAction {
+  type: AdvisorActionType
+  label: string
+  detail: string
 }
 
 export interface AgentEvent {
@@ -43,6 +65,8 @@ export interface ExceptionItem {
   agentContext: string
   stage: LifecycleStageId
   owner: 'advisor' | 'paraplanner' | 'cra' | 'compliance'
+  /** Explicit advisor moves shown on the signal card */
+  advisorActions: AdvisorAction[]
 }
 
 export interface ParaplannerDeliverable {

@@ -26,6 +26,28 @@ export const exceptions: ExceptionItem[] = [
     agentContext: 'Funding Agent drafted client email + correct envelope.',
     stage: 'funding',
     owner: 'advisor',
+    advisorActions: [
+      {
+        type: 'review_docs',
+        label: 'Review corrected TOD packet',
+        detail: 'Open agent-fixed DocuSign; confirm sibling TOD matches discovery notes.',
+      },
+      {
+        type: 'approve_send',
+        label: 'Approve & resend envelope',
+        detail: 'One-click send — do not recreate forms.',
+      },
+      {
+        type: 'call_client',
+        label: 'Call client (optional)',
+        detail: 'Use 3:30p funding slot if relationship repair needed after NIGO.',
+      },
+      {
+        type: 'update_account',
+        label: 'Update funding status after settle',
+        detail: 'When ACAT clears, mark Funding Status = In progress / Settled.',
+      },
+    ],
   },
   {
     id: 'ex2',
@@ -37,6 +59,28 @@ export const exceptions: ExceptionItem[] = [
     agentContext: 'KYC Agent pre-filled principal checklist with evidence links.',
     stage: 'kyc',
     owner: 'compliance',
+    advisorActions: [
+      {
+        type: 'review_docs',
+        label: 'Review SOW + CPA letter',
+        detail: 'Spot-check agent extraction vs source PDFs before principal sign-off.',
+      },
+      {
+        type: 'review_inputs',
+        label: 'Validate risk score 3/5',
+        detail: 'Confirm EDD fields and investable assets still accurate.',
+      },
+      {
+        type: 'escalate',
+        label: 'Escalate to principal / CCO',
+        detail: 'Route packet with evidence links for supervisor approval.',
+      },
+      {
+        type: 'delegate',
+        label: 'Delegate evidence chase to CRA',
+        detail: 'Only if principal requests more docs — agent already listed gaps.',
+      },
+    ],
   },
   {
     id: 'ex3',
@@ -48,6 +92,23 @@ export const exceptions: ExceptionItem[] = [
     agentContext: 'Lifecycle Agent drafted agenda + specialist brief.',
     stage: 'annual_review',
     owner: 'advisor',
+    advisorActions: [
+      {
+        type: 'review_docs',
+        label: 'Review AR deck + tax brief',
+        detail: 'Check RMD / Roth pages against specialist notes.',
+      },
+      {
+        type: 'schedule',
+        label: 'Book joint specialist segment',
+        detail: 'Approve 20-min tax block on Friday AR calendar.',
+      },
+      {
+        type: 'approve_send',
+        label: 'Approve agenda to client',
+        detail: 'Send prep agenda once tax numbers validated.',
+      },
+    ],
   },
   {
     id: 'ex4',
@@ -59,6 +120,28 @@ export const exceptions: ExceptionItem[] = [
     agentContext: 'All citations mapped to Discovery Framework answers.',
     stage: 'proposal',
     owner: 'paraplanner',
+    advisorActions: [
+      {
+        type: 'review_docs',
+        label: 'Review IPS draft + citations',
+        detail: 'Polish voice; confirm alternatives language.',
+      },
+      {
+        type: 'review_inputs',
+        label: 'Confirm risk 62 & goals',
+        detail: 'Ensure fact-find inputs still match client intent.',
+      },
+      {
+        type: 'approve_send',
+        label: 'Approve for client delivery',
+        detail: 'Mark ready and let agent route to e-sign.',
+      },
+      {
+        type: 'delegate',
+        label: 'Send back to paraplanner',
+        detail: 'If voice/structure needs another pass.',
+      },
+    ],
   },
   {
     id: 'ex5',
@@ -70,6 +153,28 @@ export const exceptions: ExceptionItem[] = [
     agentContext: 'Change Agent mapped UBO graph + document checklist.',
     stage: 'life_event',
     owner: 'cra',
+    advisorActions: [
+      {
+        type: 'review_inputs',
+        label: 'Confirm US person facts',
+        detail: 'Validate beneficiary identity, address, SSN path with client.',
+      },
+      {
+        type: 'review_docs',
+        label: 'Review W-9 / FATCA checklist',
+        detail: 'Agent built multi-account document list — approve before send.',
+      },
+      {
+        type: 'update_account',
+        label: 'Update related accounts',
+        detail: 'Apply tax status change across the 3 linked financial accounts.',
+      },
+      {
+        type: 'escalate',
+        label: 'Route to compliance',
+        detail: 'Structure/tax impact needs compliance sign-off before close.',
+      },
+    ],
   },
 ]
 
@@ -97,6 +202,32 @@ export const households: Household[] = [
         status: 'blocked',
         agentSummary: 'ACAT stalled — TOD NIGO',
         humanAction: 'Approve resend',
+        unblock: {
+          title: 'Unblock Funding — ACAT NIGO',
+          whyBlocked: 'Schwab rejected ACAT because TOD designation lacks a valid signature. Funding and welcome cannot advance.',
+          recommendedActions: [
+            {
+              type: 'review_docs',
+              label: 'Review agent-corrected TOD addendum',
+              detail: 'Confirm beneficiary matches discovery (sibling) before send.',
+            },
+            {
+              type: 'approve_send',
+              label: 'Approve DocuSign resend',
+              detail: 'Release corrected envelope; agent restarts ACAT watch.',
+            },
+            {
+              type: 'update_account',
+              label: 'Update Financial Account transfer status',
+              detail: 'Set ACAT status to Resubmitted after client signs.',
+            },
+            {
+              type: 'escalate',
+              label: 'Escalate to CRA if second NIGO',
+              detail: 'Only if custodian rejects again — attach lineage.',
+            },
+          ],
+        },
       },
       { id: 'welcome', label: 'Welcome 90d', status: 'upcoming' },
       { id: 'ongoing', label: 'Ongoing', status: 'upcoming' },
@@ -152,6 +283,32 @@ export const households: Household[] = [
         status: 'blocked',
         agentSummary: 'EDD packet ready',
         humanAction: 'Principal approve',
+        unblock: {
+          title: 'Unblock KYC — Principal / EDD gate',
+          whyBlocked: 'Investable assets ≥ $1M triggered EDD. Custodian submit is hard-gated on Principal_Approved.',
+          recommendedActions: [
+            {
+              type: 'review_docs',
+              label: 'Review SOW packet + CPA letter',
+              detail: 'Open evidence links prepared by KYC/EDD Agent.',
+            },
+            {
+              type: 'review_inputs',
+              label: 'Confirm EDD checklist fields',
+              detail: 'Validate risk score, PEP clear, and asset figures.',
+            },
+            {
+              type: 'escalate',
+              label: 'Send to principal for approval',
+              detail: 'One-click escalate with audit-ready packet.',
+            },
+            {
+              type: 'call_client',
+              label: 'Hold Thursday trust meeting only after approve',
+              detail: 'Do not discuss custody go-live until gate clears.',
+            },
+          ],
+        },
       },
       { id: 'account_open', label: 'Account Open', status: 'upcoming' },
       { id: 'funding', label: 'ACAT $3.1M', status: 'upcoming' },
@@ -163,6 +320,33 @@ export const households: Household[] = [
         label: 'Life Events',
         status: 'agent-running',
         agentSummary: 'US beneficiary cascade prepped',
+        humanAction: 'Confirm on Thursday call',
+        unblock: {
+          title: 'Resolve Life Event — US beneficiary',
+          whyBlocked: 'FATCA/W-9 cascade spans 3 related accounts. Needs advisor confirmation + compliance route.',
+          recommendedActions: [
+            {
+              type: 'review_inputs',
+              label: 'Confirm US person beneficiary facts',
+              detail: 'Name, address, tax ID path — agent listed required fields.',
+            },
+            {
+              type: 'review_docs',
+              label: 'Approve W-9 / FATCA document checklist',
+              detail: 'Multi-account pack ready for client/counsel.',
+            },
+            {
+              type: 'update_account',
+              label: 'Update tax status on related accounts',
+              detail: 'Apply change across trust-linked financial accounts after confirm.',
+            },
+            {
+              type: 'escalate',
+              label: 'Route structure impact to compliance',
+              detail: 'UBO/tax classification may change — needs sign-off.',
+            },
+          ],
+        },
       },
       { id: 'estate', label: 'Estate / Exit', status: 'upcoming' },
     ],
@@ -219,6 +403,27 @@ export const households: Household[] = [
         status: 'active',
         agentSummary: 'Prep brief + client recap sent',
         humanAction: 'Approve agenda',
+        unblock: {
+          title: 'Advance Annual Review — human approval',
+          whyBlocked: 'Deck and tax specialist handoff are ready; advisor must approve agenda before Friday.',
+          recommendedActions: [
+            {
+              type: 'review_docs',
+              label: 'Review AR deck',
+              detail: 'Focus on RMD timeline and Roth conversion scenarios.',
+            },
+            {
+              type: 'schedule',
+              label: 'Confirm tax specialist on calendar',
+              detail: 'Agent proposed 20-min joint segment.',
+            },
+            {
+              type: 'approve_send',
+              label: 'Approve & send agenda',
+              detail: 'Client prep already delivered — agenda is the remaining gate.',
+            },
+          ],
+        },
       },
       { id: 'life_event', label: 'Life Events', status: 'upcoming' },
       { id: 'estate', label: 'Estate / Exit', status: 'upcoming' },
@@ -278,6 +483,32 @@ export const households: Household[] = [
         status: 'active',
         agentSummary: 'Beneficiary outreach + account retitling checklist',
         humanAction: 'Meet surviving spouse',
+        unblock: {
+          title: 'Advance Estate path — spouse intro',
+          whyBlocked: 'Retitle and successor KYC wait on surviving-spouse meeting and counsel alignment.',
+          recommendedActions: [
+            {
+              type: 'review_docs',
+              label: 'Review estate memo + retitle sequence',
+              detail: 'Paraplanner draft — confirm with counsel before Tuesday.',
+            },
+            {
+              type: 'review_inputs',
+              label: 'Prep successor KYC packet',
+              detail: 'CRA has agent-drafted packet; verify ID requirements.',
+            },
+            {
+              type: 'call_client',
+              label: 'Run spouse intro meeting',
+              detail: 'Use Meeting Concierge playbook; care-first talk track ready.',
+            },
+            {
+              type: 'update_account',
+              label: 'Update retitle status post-meeting',
+              detail: 'Move Financial Account freeze → retitle-in-progress when authorized.',
+            },
+          ],
+        },
       },
     ],
     events: [

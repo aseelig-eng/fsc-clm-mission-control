@@ -15,12 +15,14 @@ import {
 } from './data/onboardingFramework'
 import { buildDrillItems, type DrillItem } from './data/drilldown'
 import { meetingsForHousehold, openMeetingActions } from './data/meetings'
+import { MATURITY_LABELS, personsForHousehold } from './data/portraits'
 import {
   householdProgress,
   overallProgress,
   progressTone,
 } from './data/progress'
-import type { ExceptionItem, Household, Role } from './data/types'
+import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, Role } from './data/types'
+import { LikenessCompass } from './components/LikenessCompass'
 import './App.css'
 
 function statusLabel(s: string) {
@@ -77,6 +79,86 @@ function docStatusClass(status: string) {
   return 'medium'
 }
 
+function actionTypeLabel(type: AdvisorAction['type']) {
+  switch (type) {
+    case 'review_docs':
+      return 'Review docs'
+    case 'review_inputs':
+      return 'Review inputs'
+    case 'update_account':
+      return 'Update account'
+    case 'approve_send':
+      return 'Approve / send'
+    case 'escalate':
+      return 'Escalate'
+    case 'call_client':
+      return 'Call client'
+    case 'delegate':
+      return 'Delegate'
+    case 'schedule':
+      return 'Schedule'
+    default:
+      return type
+  }
+}
+
+function StageUnblockModal({
+  stage,
+  onClose,
+  onAct,
+}: {
+  stage: LifecycleStage
+  onClose: () => void
+  onAct: (label: string) => void
+}) {
+  const unblock = stage.unblock
+  if (!unblock) return null
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="unblock-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div>
+            <div className="muted">Process card · needs resolution</div>
+            <h2 id="unblock-title">{unblock.title}</h2>
+          </div>
+          <button type="button" className="btn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <div className="callout" style={{ marginBottom: 12 }}>
+          <strong>Why this is blocked</strong>
+          {unblock.whyBlocked}
+        </div>
+        {stage.agentSummary && (
+          <div className="callout" style={{ marginBottom: 12 }}>
+            <strong>Agent already did</strong>
+            {stage.agentSummary}
+            {stage.humanAction ? ` · Waiting on: ${stage.humanAction}` : ''}
+          </div>
+        )}
+        <div className="modal-actions-title">Recommended actions to unblock</div>
+        <ul className="advisor-action-list modal">
+          {unblock.recommendedActions.map((a) => (
+            <li key={a.label}>
+              <button type="button" className="advisor-action-btn" onClick={() => onAct(a.label)}>
+                <span className="action-type">{actionTypeLabel(a.type)}</span>
+                <span className="action-label">{a.label}</span>
+                <span className="action-detail">{a.detail}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 function priorityClass(p: string) {
   if (p === 'critical') return 'critical'
   if (p === 'high') return 'high'
@@ -86,9 +168,11 @@ function priorityClass(p: string) {
 
 function ReviewPanel({
   item,
+  advisorActions,
   onAct,
 }: {
   item: DrillItem | null
+  advisorActions?: AdvisorAction[]
   onAct: (label: string) => void
 }) {
   if (!item) {
@@ -121,6 +205,22 @@ function ReviewPanel({
           ))}
         </ul>
       </div>
+      {advisorActions && advisorActions.length > 0 && (
+        <div className="callout" style={{ marginTop: 10 }}>
+          <strong>Advisor actions</strong>
+          <ul className="advisor-action-list">
+            {advisorActions.map((a) => (
+              <li key={a.label}>
+                <button type="button" className="advisor-action-btn compact" onClick={() => onAct(a.label)}>
+                  <span className="action-type">{actionTypeLabel(a.type)}</span>
+                  <span className="action-label">{a.label}</span>
+                  <span className="action-detail">{a.detail}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="actions">
         <button type="button" className="btn success" onClick={() => onAct(r.primaryCta)}>
           {r.primaryCta}
@@ -148,6 +248,9 @@ export default function App() {
   const [resolved, setResolved] = useState<Set<string>>(new Set())
   const [openSectionId, setOpenSectionId] = useState<string | null>('funding')
   const [drillId, setDrillId] = useState<string | null>('ex-ex1')
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null)
+  const [selectedFacetId, setSelectedFacetId] = useState<string | null>(null)
+  const [stageModal, setStageModal] = useState<LifecycleStage | null>(null)
 
   const household = useMemo(
     () => households.find((h) => h.id === selectedHhId) as Household,
@@ -166,6 +269,9 @@ export default function App() {
   const drillItem = drillItems.find((d) => d.id === drillId) ?? drillItems[0] ?? null
   const hhMeetings = useMemo(() => meetingsForHousehold(household.id), [household])
   const hhMeetingActions = useMemo(() => openMeetingActions(household.id), [household])
+  const persons = useMemo(() => personsForHousehold(household.id), [household])
+  const selectedPerson =
+    persons.find((p) => p.id === selectedPersonId) ?? persons[0] ?? null
 
   const openExceptions = exceptions.filter((e) => !resolved.has(e.id))
   const selectedEx = openExceptions.find((e) => e.id === selectedExId) ?? openExceptions[0]
@@ -183,6 +289,20 @@ export default function App() {
 
   function openDrill(id: string) {
     setDrillId(id)
+    if (id.startsWith('likeness-mat-')) {
+      setSelectedPersonId(id.replace('likeness-mat-', ''))
+      setSelectedFacetId(null)
+      return
+    }
+    if (id.startsWith('likeness-')) {
+      const rest = id.slice('likeness-'.length)
+      const facetIds = ['risk', 'engagement', 'channel', 'goals', 'complexity', 'wallet', 'tax_estate', 'trust']
+      const facetId = facetIds.find((f) => rest.endsWith(`-${f}`))
+      if (facetId) {
+        setSelectedPersonId(rest.slice(0, -(facetId.length + 1)))
+        setSelectedFacetId(facetId)
+      }
+    }
   }
 
   function approveException(ex: ExceptionItem) {
@@ -212,6 +332,9 @@ export default function App() {
     const hh = households.find((h) => h.id === id)!
     const items = buildDrillItems(hh)
     setDrillId(items[0]?.id ?? null)
+    const firstPerson = personsForHousehold(id)[0]
+    setSelectedPersonId(firstPerson?.id ?? null)
+    setSelectedFacetId(null)
   }
 
   return (
@@ -293,6 +416,26 @@ export default function App() {
                     <div className="meta">
                       {ex.household} · Owner: {ex.owner}
                     </div>
+                    <div className="signal-recommend">
+                      <span className="signal-recommend-label">Recommended</span>
+                      <span className="signal-recommend-text">{ex.recommendedAction}</span>
+                    </div>
+                    <div className="advisor-action-chips" onClick={(e) => e.stopPropagation()}>
+                      {ex.advisorActions.map((a) => (
+                        <button
+                          key={a.label}
+                          type="button"
+                          className={`action-chip type-${a.type}`}
+                          title={a.detail}
+                          onClick={() => {
+                            focusException(ex)
+                            flash(`${actionTypeLabel(a.type)}: ${a.label}`)
+                          }}
+                        >
+                          {actionTypeLabel(a.type)}
+                        </button>
+                      ))}
+                    </div>
                   </button>
                 </li>
               ))}
@@ -370,20 +513,133 @@ export default function App() {
                   </div>
                 </div>
 
+                {persons.length > 0 && selectedPerson && (
+                  <div className="likeness-panel">
+                    <div className="likeness-header">
+                      <div>
+                        <div className="likeness-kicker">Person likeness · behavioral compass</div>
+                        <h3 className="likeness-title">Who they are — on the Person Account</h3>
+                        <p className="muted" style={{ margin: '4px 0 0' }}>
+                          Individual portraits for everyone in the household. Maturity = how sharp the picture is
+                          (completeness · recency · sources · advisor-confirmed).
+                        </p>
+                      </div>
+                      <div className="person-switcher">
+                        {persons.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className={`person-chip ${selectedPerson.id === p.id ? 'active' : ''}`}
+                            style={
+                              selectedPerson.id === p.id
+                                ? { borderColor: p.accent, background: `${p.accent}14` }
+                                : undefined
+                            }
+                            onClick={() => {
+                              setSelectedPersonId(p.id)
+                              openDrill(`likeness-mat-${p.id}`)
+                            }}
+                          >
+                            <span className="person-avatar" style={{ background: p.accent }}>
+                              {p.initials}
+                            </span>
+                            <span>
+                              <strong>{p.name}</strong>
+                              <span className="muted person-role">{p.role}</span>
+                              <span className="person-mat">
+                                {MATURITY_LABELS[p.maturity.tier].title} · {p.maturity.score}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="likeness-body">
+                      <LikenessCompass
+                        person={selectedPerson}
+                        selectedFacetId={selectedFacetId}
+                        onSelectFacet={(facet) => {
+                          setSelectedFacetId(facet.id)
+                          openDrill(`likeness-${selectedPerson.id}-${facet.id}`)
+                        }}
+                      />
+                      <div className="likeness-story">
+                        <div className="likeness-name-row">
+                          <h4>{selectedPerson.name}</h4>
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => openDrill(`likeness-mat-${selectedPerson.id}`)}
+                          >
+                            Review maturity
+                          </button>
+                        </div>
+                        <p className="likeness-tagline">{selectedPerson.tagline}</p>
+                        <div className="maturity-meters">
+                          {(
+                            [
+                              ['Completeness', selectedPerson.maturity.dataCompleteness],
+                              ['Recency', selectedPerson.maturity.recency],
+                              ['Sources', selectedPerson.maturity.sourceDiversity],
+                              ['Advisor-confirmed', selectedPerson.maturity.advisorConfirmed],
+                            ] as const
+                          ).map(([label, val]) => (
+                            <div key={label} className="maturity-meter">
+                              <ProgressBar size="sm" pct={val} label={label} tone={progressTone(val)} />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="facet-strip">
+                          {selectedPerson.facets.map((f) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              className={`facet-pill ${selectedFacetId === f.id ? 'active' : ''}`}
+                              onClick={() => {
+                                setSelectedFacetId(f.id)
+                                openDrill(`likeness-${selectedPerson.id}-${f.id}`)
+                              }}
+                            >
+                              <span className="facet-score">{f.score}</span>
+                              <span>{f.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <p className="muted" style={{ marginTop: 10 }}>
+                          Sources: {selectedPerson.maturity.sources.join(' · ')} · Last touched{' '}
+                          {selectedPerson.maturity.lastTouched}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="lifecycle-rail">
-                  {household.stages.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      className={`stage-card ${s.status} clickable ${drillId === `stage-${s.id}` ? 'selected' : ''}`}
-                      onClick={() => openDrill(`stage-${s.id}`)}
-                    >
-                      <div className="name">{s.label}</div>
-                      <div className="status">{statusLabel(s.status)}</div>
-                      {s.agentSummary && <div>{s.agentSummary}</div>}
-                      {s.humanAction && <div style={{ fontWeight: 700, marginTop: 4 }}>You: {s.humanAction}</div>}
-                    </button>
-                  ))}
+                  {household.stages.map((s) => {
+                    const needsResolution =
+                      s.status === 'blocked' ||
+                      ((s.status === 'active' || s.status === 'agent-running') && !!s.unblock)
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className={`stage-card ${s.status} clickable ${drillId === `stage-${s.id}` ? 'selected' : ''} ${needsResolution ? 'needs-resolution' : ''}`}
+                        onClick={() => {
+                          openDrill(`stage-${s.id}`)
+                          if (needsResolution && s.unblock) {
+                            setStageModal(s)
+                          }
+                        }}
+                      >
+                        <div className="name">{s.label}</div>
+                        <div className="status">{statusLabel(s.status)}</div>
+                        {s.agentSummary && <div>{s.agentSummary}</div>}
+                        {s.humanAction && <div style={{ fontWeight: 700, marginTop: 4 }}>You: {s.humanAction}</div>}
+                        {needsResolution && <div className="stage-cta">Click for unblock actions</div>}
+                      </button>
+                    )
+                  })}
                 </div>
 
                 {onboarding && completeness && (
@@ -735,7 +991,15 @@ export default function App() {
                 <div className="panel-body">
                   <ReviewPanel
                     item={drillItem}
+                    advisorActions={
+                      drillItem?.kind === 'exception' && selectedEx ? selectedEx.advisorActions : undefined
+                    }
                     onAct={(label) => {
+                      if (label === 'Open weakest facet' && selectedPerson) {
+                        const weakest = [...selectedPerson.facets].sort((a, b) => a.score - b.score)[0]
+                        openDrill(`likeness-${selectedPerson.id}-${weakest.id}`)
+                        return
+                      }
                       if (selectedEx && drillItem?.kind === 'exception' && label.includes('Approve')) {
                         approveException(selectedEx)
                       } else {
@@ -922,6 +1186,17 @@ export default function App() {
             </div>
           </div>
         </>
+      )}
+
+      {stageModal && (
+        <StageUnblockModal
+          stage={stageModal}
+          onClose={() => setStageModal(null)}
+          onAct={(label) => {
+            flash(label)
+            setStageModal(null)
+          }}
+        />
       )}
 
       {toast && (

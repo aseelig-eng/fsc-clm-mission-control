@@ -1,9 +1,11 @@
 import { exceptions } from './content'
 import { onboardingByHousehold, recordCompleteness } from './onboardingFramework'
 import { openMeetingActions, meetingsForHousehold } from './meetings'
+import { personsForHousehold } from './portraits'
 import type { LifecycleStage, Household } from './types'
 import type { ComplianceDocument, FormField, FormSection } from './onboardingFramework'
 import type { Meeting, MeetingActionItem } from './meetings'
+import type { BehavioralFacet, PersonLikeness } from './portraits'
 
 export type DrillKind =
   | 'exception'
@@ -13,6 +15,8 @@ export type DrillKind =
   | 'document'
   | 'meeting'
   | 'meeting_action'
+  | 'likeness_facet'
+  | 'likeness_maturity'
 
 export interface RecommendedReview {
   headline: string
@@ -38,6 +42,8 @@ export interface DrillItem {
   field?: FormField
   document?: ComplianceDocument
   stage?: LifecycleStage
+  person?: PersonLikeness
+  facet?: BehavioralFacet
 }
 
 function fieldReview(section: FormSection, field: FormField): RecommendedReview {
@@ -327,6 +333,59 @@ export function buildDrillItems(household: Household): DrillItem[] {
         secondaryCta: 'Reassign',
       },
     })
+  }
+
+  for (const person of personsForHousehold(household.id)) {
+    const m = person.maturity
+    items.push({
+      id: `likeness-mat-${person.id}`,
+      kind: 'likeness_maturity',
+      title: `${person.name} — likeness maturity`,
+      subtitle: `${m.tier.replace('_', ' ')} · ${m.score}`,
+      priority: m.score < 45 ? 'high' : 'info',
+      householdId: household.id,
+      person,
+      recommended: {
+        headline: `How sharp is our picture of ${person.name}?`,
+        why: `Maturity blends data completeness (${m.dataCompleteness}), recency (${m.recency}), source diversity (${m.sourceDiversity}), and advisor-confirmed share (${m.advisorConfirmed}). Last touched: ${m.lastTouched}.`,
+        agentAlreadyDid: `Sources in the likeness: ${m.sources.join(', ')}.`,
+        reviewChecklist: [
+          m.score < 55
+            ? 'Prioritize a discovery or confirmation pass on weakest facets'
+            : 'Maintain freshness — confirm any agent-inferred facets before high-stakes advice',
+          'Click individual compass points to review behavioral evidence',
+          'Do not treat low-maturity likenesses as exam-ready',
+        ],
+        primaryCta: 'Open weakest facet',
+        secondaryCta: 'Schedule confirmation touch',
+      },
+    })
+
+    for (const facet of person.facets) {
+      items.push({
+        id: `likeness-${person.id}-${facet.id}`,
+        kind: 'likeness_facet',
+        title: `${person.name} · ${facet.label}`,
+        subtitle: `Signal ${facet.score} · ${facet.inferredBy}`,
+        priority: facet.score < 40 || facet.inferredBy === 'agent' ? 'medium' : 'info',
+        householdId: household.id,
+        person,
+        facet,
+        recommended: {
+          headline: facet.label,
+          why: facet.blurb,
+          agentAlreadyDid: `Evidence: ${facet.evidence.join(' · ')}. Inferred by: ${facet.inferredBy}.`,
+          reviewChecklist: [
+            facet.recommendedReview,
+            facet.inferredBy === 'agent'
+              ? 'Confirm or correct — this is still agent-inferred'
+              : 'Advisor-confirmed — spot-check only if life changed',
+          ],
+          primaryCta: 'Confirm likeness',
+          secondaryCta: 'Flag for re-discovery',
+        },
+      })
+    }
   }
 
   const order = { critical: 0, high: 1, medium: 2, info: 3 }
