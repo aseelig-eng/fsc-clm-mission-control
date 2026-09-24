@@ -2,10 +2,15 @@
 
 Clickable Lightning-look React prototype for **agentic Client Lifecycle Management** in Financial Services Cloud (US RIA / hybrid).
 
-## Run
+## Live demo (share this)
+
+**https://aseelig-eng.github.io/fsc-clm-mission-control/**
+
+Anyone with the link can open the interactive experience in the browser (no install).
+
+## Run locally
 
 ```bash
-cd "fsc-clm-mission-control"
 npm install
 npm run dev
 ```
