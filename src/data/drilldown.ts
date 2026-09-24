@@ -353,6 +353,15 @@ export function buildDrillItems(household: Household): DrillItem[] {
           m.score < 55
             ? 'Prioritize a discovery or confirmation pass on weakest facets'
             : 'Maintain freshness — confirm any agent-inferred facets before high-stakes advice',
+          (() => {
+            const heirs = person.facets.find((f) => f.id === 'heir_readiness')
+            if (!heirs) return 'Review heir readiness for wealth-transfer retention'
+            if (heirs.score < 45)
+              return `Heir readiness is low (${heirs.score}) — plan next-gen intro before transfer events to keep the household`
+            if (heirs.score < 70)
+              return `Heir readiness is forming (${heirs.score}) — deepen next-gen engagement this quarter`
+            return `Heir readiness looks solid (${heirs.score}) — keep next-gen touches on the calendar`
+          })(),
           'Click individual compass points to review behavioral evidence',
           'Do not treat low-maturity likenesses as exam-ready',
         ],
@@ -367,7 +376,12 @@ export function buildDrillItems(household: Household): DrillItem[] {
         kind: 'likeness_facet',
         title: `${person.name} · ${facet.label}`,
         subtitle: `Signal ${facet.score} · ${facet.inferredBy}`,
-        priority: facet.score < 40 || facet.inferredBy === 'agent' ? 'medium' : 'info',
+        priority:
+          facet.id === 'heir_readiness' && facet.score < 50
+            ? 'high'
+            : facet.score < 40 || facet.inferredBy === 'agent'
+              ? 'medium'
+              : 'info',
         householdId: household.id,
         person,
         facet,

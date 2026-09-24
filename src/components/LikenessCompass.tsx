@@ -14,10 +14,10 @@ export function LikenessCompass({
   selectedFacetId: string | null
   onSelectFacet: (facet: BehavioralFacet) => void
 }) {
-  const size = 280
+  const size = 300
   const cx = size / 2
   const cy = size / 2
-  const maxR = 102
+  const maxR = 108
   const tier = MATURITY_LABELS[person.maturity.tier]
 
   const points = FACET_META.map((meta) => {
@@ -75,7 +75,7 @@ export function LikenessCompass({
                 y={labelPos.y}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fontSize="10"
+                fontSize="9.5"
                 fontWeight={selected ? 700 : 600}
                 fill={selected ? person.accent : 'var(--sf-gray-2)'}
               >

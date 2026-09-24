@@ -521,7 +521,8 @@ export default function App() {
                         <h3 className="likeness-title">Who they are — on the Person Account</h3>
                         <p className="muted" style={{ margin: '4px 0 0' }}>
                           Individual portraits for everyone in the household. Maturity = how sharp the picture is
-                          (completeness · recency · sources · advisor-confirmed).
+                          (completeness · recency · sources · advisor-confirmed). Compass includes heir readiness —
+                          are next-gen ready so wealth transfer keeps the relationship.
                         </p>
                       </div>
                       <div className="person-switcher">

@@ -8,6 +8,7 @@ export type FacetId =
   | 'complexity'
   | 'wallet'
   | 'tax_estate'
+  | 'heir_readiness'
   | 'trust'
 
 export interface BehavioralFacet {
@@ -49,13 +50,14 @@ export interface PersonLikeness {
 
 export const FACET_META: { id: FacetId; short: string; angle: number }[] = [
   { id: 'risk', short: 'Risk', angle: -90 },
-  { id: 'engagement', short: 'Engage', angle: -45 },
-  { id: 'channel', short: 'Channel', angle: 0 },
-  { id: 'goals', short: 'Goals', angle: 45 },
-  { id: 'complexity', short: 'Life', angle: 90 },
-  { id: 'wallet', short: 'Wallet', angle: 135 },
-  { id: 'tax_estate', short: 'Tax/Estate', angle: 180 },
-  { id: 'trust', short: 'Trust', angle: 225 },
+  { id: 'engagement', short: 'Engage', angle: -50 },
+  { id: 'channel', short: 'Channel', angle: -10 },
+  { id: 'goals', short: 'Goals', angle: 30 },
+  { id: 'complexity', short: 'Life', angle: 70 },
+  { id: 'wallet', short: 'Wallet', angle: 110 },
+  { id: 'tax_estate', short: 'Tax/Est', angle: 150 },
+  { id: 'heir_readiness', short: 'Heirs', angle: 190 },
+  { id: 'trust', short: 'Trust', angle: 230 },
 ]
 
 export const MATURITY_LABELS: Record<MaturityTier, { title: string; hint: string }> = {
@@ -173,6 +175,15 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           recommendedReview: 'Validate sibling TOD matches discovery intent before DocuSign resend.',
         },
         {
+          id: 'heir_readiness',
+          label: 'Heir readiness',
+          score: 18,
+          blurb: 'Early-career — no next-gen cultivation yet; sibling TOD is paperwork, not a relationship.',
+          evidence: ['No adult children', 'Sibling TOD only', 'No family meeting on file'],
+          inferredBy: 'agent',
+          recommendedReview: 'Park heir work for now; revisit if household expands or TOD becomes multi-party.',
+        },
+        {
           id: 'trust',
           label: 'Relationship trust',
           score: 74,
@@ -266,6 +277,15 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           recommendedReview: 'Confirm W-9/FATCA checklist with him personally on the call.',
         },
         {
+          id: 'heir_readiness',
+          label: 'Heir readiness',
+          score: 42,
+          blurb: 'Docs point to transfer; next-gen barely knows the firm — retention risk at legacy event.',
+          evidence: ['Trust primary beneficiary', 'No heir intro meeting', 'Counsel knows kids; we do not'],
+          inferredBy: 'mixed',
+          recommendedReview: 'Propose a soft next-gen intro after principal clears — Eleanor owns the invite.',
+        },
+        {
           id: 'trust',
           label: 'Relationship trust',
           score: 70,
@@ -357,6 +377,15 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           recommendedReview: 'Avoid jargon; agent can draft plain-language FATCA explainer for you to own.',
         },
         {
+          id: 'heir_readiness',
+          label: 'Heir readiness',
+          score: 58,
+          blurb: 'Family thread started (granddaughter trusted contact) but heirs are not yet firm clients.',
+          evidence: ['Granddaughter as trusted contact', 'Asked about family continuity', 'No adult-child IPS'],
+          inferredBy: 'advisor',
+          recommendedReview: 'Offer a family wealth-meeting after funding — she will champion it if framed as care.',
+        },
+        {
           id: 'trust',
           label: 'Relationship trust',
           score: 76,
@@ -446,6 +475,15 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           evidence: ['Lifecycle Monitor KYC refresh', 'Tax specialist queued'],
           inferredBy: 'mixed',
           recommendedReview: 'Validate tax numbers with specialist before you voice them.',
+        },
+        {
+          id: 'heir_readiness',
+          label: 'Heir readiness',
+          score: 48,
+          blurb: 'Daughter is trusted contact only — not yet oriented to the firm or transfer plan.',
+          evidence: ['Daughter trusted contact', 'No next-gen meeting', 'Estate docs stale vs AR depth'],
+          inferredBy: 'mixed',
+          recommendedReview: 'Use AR close to propose a 30-min family continuity touch this quarter — retention hedge.',
         },
         {
           id: 'trust',
@@ -540,6 +578,15 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           recommendedReview: 'Frame Roth conversion as lifestyle tax bill, not strategy jargon.',
         },
         {
+          id: 'heir_readiness',
+          label: 'Heir readiness',
+          score: 52,
+          blurb: 'Family milestones matter to her — natural bridge to introduce next-gen without “estate talk.”',
+          evidence: ['Daughter trusted contact', 'Gift/travel goals', 'No heir education session'],
+          inferredBy: 'advisor',
+          recommendedReview: 'Ask Sam to host a short intro of daughter after AR — she will make it warm.',
+        },
+        {
           id: 'trust',
           label: 'Relationship trust',
           score: 86,
@@ -630,6 +677,15 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           recommendedReview: 'Bring counsel-aligned talk track Tuesday.',
         },
         {
+          id: 'heir_readiness',
+          label: 'Heir readiness',
+          score: 35,
+          blurb: 'Transfer in motion; surviving spouse not yet firm-ready — classic AUM attrition window.',
+          evidence: ['Spouse intro pending', 'No successor IPS', 'Letters testamentary in flight'],
+          inferredBy: 'agent',
+          recommendedReview: 'Treat Tuesday as heir-readiness work: care + path clarity, not portfolio.',
+        },
+        {
           id: 'trust',
           label: 'Relationship trust',
           score: 80,
@@ -718,6 +774,15 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           evidence: ['Counsel attending', 'Retitle checklist'],
           inferredBy: 'mixed',
           recommendedReview: 'Defer legal answers to counsel; you own relationship + next steps.',
+        },
+        {
+          id: 'heir_readiness',
+          label: 'Heir readiness',
+          score: 28,
+          blurb: 'She is the heir — low readiness to stay means household AUM is at risk this quarter.',
+          evidence: ['First formal intro pending', 'No goals captured', 'Industry attrition spike at death'],
+          inferredBy: 'mixed',
+          recommendedReview: 'Primary job Tuesday: make her feel known and safe — readiness before advice.',
         },
         {
           id: 'trust',
