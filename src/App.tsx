@@ -8,6 +8,12 @@ import {
   personaValues,
 } from './data/content'
 import {
+  PHASE_LABELS,
+  onboardingByHousehold,
+  recordCompleteness,
+  type FormSection,
+} from './data/onboardingFramework'
+import {
   householdProgress,
   overallProgress,
   progressTone,
@@ -54,6 +60,21 @@ function ProgressBar({
   )
 }
 
+function fieldStatusClass(status: string) {
+  if (status === 'complete') return 'done'
+  if (status === 'blocked') return 'critical'
+  if (status === 'missing') return 'needs'
+  if (status === 'partial') return 'high'
+  return 'medium'
+}
+
+function docStatusClass(status: string) {
+  if (status === 'filed') return 'done'
+  if (status === 'nigo') return 'critical'
+  if (status === 'pending') return 'needs'
+  return 'medium'
+}
+
 export default function App() {
   const [role, setRole] = useState<Role>('advisor')
   const [selectedHhId, setSelectedHhId] = useState(households[0].id)
@@ -62,10 +83,17 @@ export default function App() {
   const [personaIdx, setPersonaIdx] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
   const [resolved, setResolved] = useState<Set<string>>(new Set())
+  const [openSectionId, setOpenSectionId] = useState<string | null>('funding')
 
   const household = useMemo(
     () => households.find((h) => h.id === selectedHhId) as Household,
     [selectedHhId],
+  )
+
+  const onboarding = onboardingByHousehold[household.id]
+  const completeness = useMemo(
+    () => (onboarding ? recordCompleteness(onboarding) : null),
+    [onboarding],
   )
 
   const bookProgress = useMemo(() => overallProgress(households), [])
@@ -75,6 +103,7 @@ export default function App() {
   const selectedEx = openExceptions.find((e) => e.id === selectedExId) ?? openExceptions[0]
   const selectedPara = paraplannerQueue.find((p) => p.id === selectedParaId) ?? paraplannerQueue[0]
   const persona = personaValues[personaIdx]
+  const openSection: FormSection | undefined = onboarding?.sections.find((s) => s.id === openSectionId)
 
   function flash(msg: string) {
     setToast(msg)
@@ -191,7 +220,14 @@ export default function App() {
                     key={h.id}
                     type="button"
                     className={`hh-chip ${selectedHhId === h.id ? 'active' : ''}`}
-                    onClick={() => setSelectedHhId(h.id)}
+                    onClick={() => {
+                      setSelectedHhId(h.id)
+                      const rec = onboardingByHousehold[h.id]
+                      const gapSection = rec?.sections.find((s) =>
+                        s.fields.some((f) => f.status === 'blocked' || f.status === 'missing' || f.status === 'partial'),
+                      )
+                      setOpenSectionId(gapSection?.id ?? rec?.sections[0]?.id ?? null)
+                    }}
                   >
                     <span className="hh-chip-name">
                       {h.name}
@@ -258,8 +294,201 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+
+                {onboarding && completeness && (
+                  <div className="phase-map" aria-label="Four-phase CLM map">
+                    {(['1_intake', '2_kyc', '3_custody', '4_orientation'] as const).map((phase) => {
+                      const secs = completeness.sectionStats.filter((s) => s.phase === phase)
+                      const avg = secs.length
+                        ? Math.round(secs.reduce((a, s) => a + s.pct, 0) / secs.length)
+                        : 0
+                      return (
+                        <div key={phase} className="phase-chip">
+                          <div className="phase-chip-title">{PHASE_LABELS[phase]}</div>
+                          <ProgressBar size="sm" pct={avg} label="Phase completeness" tone={progressTone(avg)} />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
+
+            {onboarding && completeness && (
+              <div className="framework-grid">
+                <div className="panel">
+                  <div className="panel-header">
+                    <span>Data &amp; forms — Person Account</span>
+                    <span className="muted">{onboarding.personAccountId}</span>
+                  </div>
+                  <div className="panel-body">
+                    <ProgressBar
+                      size="md"
+                      pct={completeness.pct}
+                      label="Field completeness"
+                      detail={`${completeness.gaps.length} gaps · goal: ${onboarding.primaryGoal} · horizon: ${onboarding.timeHorizonYears ?? '—'} yrs`}
+                      tone={completeness.gaps.some((g) => g.status === 'blocked') ? 'blocked' : progressTone(completeness.pct)}
+                    />
+                    <div className="section-list">
+                      {onboarding.sections.map((s) => {
+                        const stat = completeness.sectionStats.find((x) => x.id === s.id)
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            className={`section-row ${openSectionId === s.id ? 'active' : ''}`}
+                            onClick={() => setOpenSectionId(s.id === openSectionId ? null : s.id)}
+                          >
+                            <span className="section-name">{s.label}</span>
+                            <span className="section-pct">{stat?.pct ?? 0}%</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {openSection && (
+                      <div className="field-panel">
+                        <div className="field-panel-title">
+                          {openSection.label}
+                          <span className="muted"> · {PHASE_LABELS[openSection.phase]}</span>
+                        </div>
+                        <table className="field-table">
+                          <thead>
+                            <tr>
+                              <th>Field</th>
+                              <th>Value</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {openSection.fields.map((f) => (
+                              <tr key={f.key}>
+                                <td>{f.label}</td>
+                                <td>{f.value || '—'}</td>
+                                <td>
+                                  <span className={`badge ${fieldStatusClass(f.status)}`}>{f.status}</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    {completeness.gaps.length > 0 && (
+                      <div className="gap-list">
+                        <strong>Signal — data gaps</strong>
+                        <ul>
+                          {completeness.gaps.slice(0, 6).map((g) => (
+                            <li key={`${g.section}-${g.field}`}>
+                              <span className={`badge ${fieldStatusClass(g.status)}`}>{g.status}</span>
+                              {g.section}: {g.field}
+                              {g.value ? ` — ${g.value}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="panel">
+                  <div className="panel-header">
+                    <span>Compliance document vault</span>
+                    <span className="muted">
+                      {completeness.docsFiled}/{completeness.docsTotal} filed
+                    </span>
+                  </div>
+                  <div className="panel-body">
+                    <ProgressBar
+                      size="md"
+                      pct={completeness.docsPct}
+                      label="Document pack"
+                      detail="IAA · CRS · ADV 2A/2B · IPS · Fee Schedule A · Custodial · Tax · E-sign trail"
+                      tone={
+                        onboarding.documents.some((d) => d.status === 'nigo')
+                          ? 'blocked'
+                          : progressTone(completeness.docsPct)
+                      }
+                    />
+                    <ul className="doc-list">
+                      {onboarding.documents.map((d) => (
+                        <li key={d.id}>
+                          <div className="doc-name">{d.name}</div>
+                          <div className="doc-meta">
+                            <span className={`badge ${docStatusClass(d.status)}`}>{d.status}</span>
+                            {d.filedOn && <span className="muted">Filed {d.filedOn}</span>}
+                            {d.notes && <span className="muted">{d.notes}</span>}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="panel">
+                  <div className="panel-header">
+                    <span>Lifecycle Monitor Agent</span>
+                    <span className={`badge ${onboarding.monitor.status === 'monitoring' || onboarding.monitor.status === 'activated' ? 'done' : 'needs'}`}>
+                      {statusLabel(onboarding.monitor.status)}
+                    </span>
+                  </div>
+                  <div className="panel-body">
+                    <div className="callout" style={{ marginBottom: 10 }}>
+                      <strong>Decision</strong>
+                      {onboarding.monitor.decision}
+                    </div>
+                    <ul className="monitor-list">
+                      <li>
+                        Annual KYC refresh:{' '}
+                        {onboarding.monitor.annualKycRefreshScheduled
+                          ? `scheduled ${onboarding.monitor.annualKycRefreshDate ?? ''}`
+                          : 'not scheduled'}
+                      </li>
+                      <li>
+                        Life-event listener:{' '}
+                        {onboarding.monitor.lifeEventListenerArmed ? 'armed' : 'not armed'}
+                      </li>
+                      <li>Reminders scheduled: {onboarding.monitor.remindersScheduled}</li>
+                      <li>Portal provisioned: {onboarding.monitor.portalProvisioned ? 'yes' : 'no'}</li>
+                      <li>Welcome kit / 30-60-90: {onboarding.monitor.cadence30_60_90 ? 'active' : 'pending'}</li>
+                      <li>Billing initialized: {onboarding.monitor.billingInitialized ? 'yes' : 'no'}</li>
+                    </ul>
+                    {onboarding.monitor.orientation && (
+                      <div className="callout" style={{ marginTop: 10 }}>
+                        <strong>Orientation / Meeting Concierge</strong>
+                        {onboarding.monitor.orientation.datetime.replace('T', ' · ')}
+                        <br />
+                        Playbook {onboarding.monitor.orientation.playbookId}
+                        {onboarding.monitor.orientation.filedOnPersonAccount
+                          ? ' · filed on Person Account'
+                          : ''}
+                      </div>
+                    )}
+                    <div className="intake-keys">
+                      <div>
+                        <span className="k">Gov ID</span>
+                        <span className="v">{onboarding.governmentIdType}</span>
+                      </div>
+                      <div>
+                        <span className="k">Source of wealth</span>
+                        <span className="v">{onboarding.sourceOfWealth}</span>
+                      </div>
+                      <div>
+                        <span className="k">Funding method</span>
+                        <span className="v">{onboarding.fundingMethod}</span>
+                      </div>
+                      <div>
+                        <span className="k">Funding amount</span>
+                        <span className="v">
+                          {onboarding.fundingAmountUsd != null
+                            ? `$${onboarding.fundingAmountUsd.toLocaleString()}`
+                            : '—'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="detail-grid">
               <div className="panel">
