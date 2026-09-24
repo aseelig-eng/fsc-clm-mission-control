@@ -19,13 +19,13 @@ Open the local URL Vite prints (usually `http://localhost:5173`).
 
 ## Views
 
-1. **Advisor Cockpit** — exception-first mission control; full lifecycle rail (prospect → estate); agent feed; one-click approve; **Needs you** signals with recommended advisor actions; blocked process cards with unblock popup.
+1. **Advisor Cockpit** — exception-first mission control; **household pulse**; full lifecycle rail; agent feed; Needs you signals with recommended actions; blocked process cards with unblock popup.
 2. **Paraplanner Workbench** — agent-drafted IPS / proposals / annual reviews / estate memos with human polish.
 3. **Persona Value & Comps** — value by persona (Advisor, Paraplanner, CRA, Specialist, Leadership/CCO, Client) + competitive map — including multi-gen / heir retention and likeness maturity.
 
-### Person likeness & heir readiness
+### Household pulse
 
-Per Person Account in the household: behavioral compass (risk, engagement, channel, goals, life complexity, wallet, tax/estate, **heir readiness**, trust) plus likeness **maturity** (completeness · recency · sources · advisor-confirmed). Heir readiness surfaces next-gen preparedness so wealth transfer keeps the relationship — and the AUM.
+Per household: status visual (Engage · Lifecycle · Likeness maturity · Heirs · Custodian) with attention usage, progress, and impact. Node clicks open the same one-click recommended review (or stage unblock popup) as Needs you signals.
 
 ### One-click-down review
 

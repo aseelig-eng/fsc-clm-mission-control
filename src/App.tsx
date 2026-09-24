@@ -15,14 +15,14 @@ import {
 } from './data/onboardingFramework'
 import { buildDrillItems, type DrillItem } from './data/drilldown'
 import { meetingsForHousehold, openMeetingActions } from './data/meetings'
-import { MATURITY_LABELS, personsForHousehold } from './data/portraits'
+import { personsForHousehold } from './data/portraits'
+import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
 import {
   householdProgress,
   overallProgress,
   progressTone,
 } from './data/progress'
 import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, Role } from './data/types'
-import { LikenessCompass } from './components/LikenessCompass'
 import './App.css'
 
 function statusLabel(s: string) {
@@ -249,7 +249,7 @@ export default function App() {
   const [openSectionId, setOpenSectionId] = useState<string | null>('funding')
   const [drillId, setDrillId] = useState<string | null>('ex-ex1')
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null)
-  const [selectedFacetId, setSelectedFacetId] = useState<string | null>(null)
+  const [pulseNodeId, setPulseNodeId] = useState<PulseNodeId | null>('custodian')
   const [stageModal, setStageModal] = useState<LifecycleStage | null>(null)
 
   const household = useMemo(
@@ -272,6 +272,10 @@ export default function App() {
   const persons = useMemo(() => personsForHousehold(household.id), [household])
   const selectedPerson =
     persons.find((p) => p.id === selectedPersonId) ?? persons[0] ?? null
+  const hhExceptions = useMemo(
+    () => exceptionsForHousehold(household, exceptions.filter((e) => !resolved.has(e.id))),
+    [household, resolved],
+  )
 
   const openExceptions = exceptions.filter((e) => !resolved.has(e.id))
   const selectedEx = openExceptions.find((e) => e.id === selectedExId) ?? openExceptions[0]
@@ -291,16 +295,76 @@ export default function App() {
     setDrillId(id)
     if (id.startsWith('likeness-mat-')) {
       setSelectedPersonId(id.replace('likeness-mat-', ''))
-      setSelectedFacetId(null)
+      setPulseNodeId('likeness')
+      return
+    }
+    if (id.startsWith('ex-')) {
+      setPulseNodeId('custodian')
+      return
+    }
+    if (id.startsWith('stage-')) {
+      setPulseNodeId('lifecycle')
       return
     }
     if (id.startsWith('likeness-')) {
       const rest = id.slice('likeness-'.length)
-      const facetIds = ['risk', 'engagement', 'channel', 'goals', 'complexity', 'wallet', 'tax_estate', 'trust']
+      const facetIds = [
+        'risk',
+        'engagement',
+        'channel',
+        'goals',
+        'complexity',
+        'wallet',
+        'tax_estate',
+        'heir_readiness',
+        'trust',
+      ]
       const facetId = facetIds.find((f) => rest.endsWith(`-${f}`))
       if (facetId) {
         setSelectedPersonId(rest.slice(0, -(facetId.length + 1)))
-        setSelectedFacetId(facetId)
+        if (facetId === 'engagement') setPulseNodeId('engage')
+        else if (facetId === 'heir_readiness') setPulseNodeId('heirs')
+        else setPulseNodeId('likeness')
+      }
+    }
+  }
+
+  function selectPulseNode(nodeId: PulseNodeId) {
+    setPulseNodeId(nodeId)
+    if (!selectedPerson) return
+    if (nodeId === 'engage') {
+      openDrill(`likeness-${selectedPerson.id}-engagement`)
+      return
+    }
+    if (nodeId === 'heirs') {
+      openDrill(`likeness-${selectedPerson.id}-heir_readiness`)
+      return
+    }
+    if (nodeId === 'likeness') {
+      openDrill(`likeness-mat-${selectedPerson.id}`)
+      return
+    }
+    if (nodeId === 'lifecycle') {
+      const stage =
+        household.stages.find((s) => s.status === 'blocked') ||
+        household.stages.find((s) => s.status === 'active' || s.status === 'agent-running') ||
+        household.stages.find((s) => s.id === household.stage)
+      if (stage) {
+        openDrill(`stage-${stage.id}`)
+        const needsResolution =
+          stage.status === 'blocked' ||
+          ((stage.status === 'active' || stage.status === 'agent-running') && !!stage.unblock)
+        if (needsResolution && stage.unblock) setStageModal(stage)
+      }
+      return
+    }
+    if (nodeId === 'custodian') {
+      const ex = hhExceptions[0]
+      if (ex) {
+        setSelectedExId(ex.id)
+        openDrill(`ex-${ex.id}`)
+      } else {
+        flash('Custodian STP clear for this household')
       }
     }
   }
@@ -334,7 +398,8 @@ export default function App() {
     setDrillId(items[0]?.id ?? null)
     const firstPerson = personsForHousehold(id)[0]
     setSelectedPersonId(firstPerson?.id ?? null)
-    setSelectedFacetId(null)
+    const hhEx = exceptionsForHousehold(hh, exceptions.filter((e) => !resolved.has(e.id)))
+    setPulseNodeId(hhEx[0] ? 'custodian' : 'lifecycle')
   }
 
   return (
@@ -514,106 +579,18 @@ export default function App() {
                 </div>
 
                 {persons.length > 0 && selectedPerson && (
-                  <div className="likeness-panel">
-                    <div className="likeness-header">
-                      <div>
-                        <div className="likeness-kicker">Person likeness · behavioral compass</div>
-                        <h3 className="likeness-title">Who they are — on the Person Account</h3>
-                        <p className="muted" style={{ margin: '4px 0 0' }}>
-                          Individual portraits for everyone in the household. Maturity = how sharp the picture is
-                          (completeness · recency · sources · advisor-confirmed). Compass includes heir readiness —
-                          are next-gen ready so wealth transfer keeps the relationship.
-                        </p>
-                      </div>
-                      <div className="person-switcher">
-                        {persons.map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            className={`person-chip ${selectedPerson.id === p.id ? 'active' : ''}`}
-                            style={
-                              selectedPerson.id === p.id
-                                ? { borderColor: p.accent, background: `${p.accent}14` }
-                                : undefined
-                            }
-                            onClick={() => {
-                              setSelectedPersonId(p.id)
-                              openDrill(`likeness-mat-${p.id}`)
-                            }}
-                          >
-                            <span className="person-avatar" style={{ background: p.accent }}>
-                              {p.initials}
-                            </span>
-                            <span>
-                              <strong>{p.name}</strong>
-                              <span className="muted person-role">{p.role}</span>
-                              <span className="person-mat">
-                                {MATURITY_LABELS[p.maturity.tier].title} · {p.maturity.score}
-                              </span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="likeness-body">
-                      <LikenessCompass
-                        person={selectedPerson}
-                        selectedFacetId={selectedFacetId}
-                        onSelectFacet={(facet) => {
-                          setSelectedFacetId(facet.id)
-                          openDrill(`likeness-${selectedPerson.id}-${facet.id}`)
-                        }}
-                      />
-                      <div className="likeness-story">
-                        <div className="likeness-name-row">
-                          <h4>{selectedPerson.name}</h4>
-                          <button
-                            type="button"
-                            className="btn"
-                            onClick={() => openDrill(`likeness-mat-${selectedPerson.id}`)}
-                          >
-                            Review maturity
-                          </button>
-                        </div>
-                        <p className="likeness-tagline">{selectedPerson.tagline}</p>
-                        <div className="maturity-meters">
-                          {(
-                            [
-                              ['Completeness', selectedPerson.maturity.dataCompleteness],
-                              ['Recency', selectedPerson.maturity.recency],
-                              ['Sources', selectedPerson.maturity.sourceDiversity],
-                              ['Advisor-confirmed', selectedPerson.maturity.advisorConfirmed],
-                            ] as const
-                          ).map(([label, val]) => (
-                            <div key={label} className="maturity-meter">
-                              <ProgressBar size="sm" pct={val} label={label} tone={progressTone(val)} />
-                            </div>
-                          ))}
-                        </div>
-                        <div className="facet-strip">
-                          {selectedPerson.facets.map((f) => (
-                            <button
-                              key={f.id}
-                              type="button"
-                              className={`facet-pill ${selectedFacetId === f.id ? 'active' : ''}`}
-                              onClick={() => {
-                                setSelectedFacetId(f.id)
-                                openDrill(`likeness-${selectedPerson.id}-${f.id}`)
-                              }}
-                            >
-                              <span className="facet-score">{f.score}</span>
-                              <span>{f.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                        <p className="muted" style={{ marginTop: 10 }}>
-                          Sources: {selectedPerson.maturity.sources.join(' · ')} · Last touched{' '}
-                          {selectedPerson.maturity.lastTouched}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <HouseholdPulse
+                    household={household}
+                    person={selectedPerson}
+                    persons={persons}
+                    exceptions={hhExceptions}
+                    selectedNodeId={pulseNodeId}
+                    onSelectPerson={(id) => {
+                      setSelectedPersonId(id)
+                      openDrill(`likeness-mat-${id}`)
+                    }}
+                    onSelectNode={selectPulseNode}
+                  />
                 )}
 
                 <div className="lifecycle-rail">
@@ -1099,7 +1076,7 @@ export default function App() {
             <h1>FSC Client Lifecycle Management — value by persona</h1>
             <p>
               Agents orchestrate prospect → funded → annual review → life events → estate. Humans stay in a
-              mission-control seat for judgment, relationships, and fiduciary polish — with person likeness
+              mission-control seat for judgment, relationships, and fiduciary polish — with household pulse
               (including heir readiness), signal-only recommended actions, and unblock paths on blocked stages —
               not swivel-chair admin.
             </p>

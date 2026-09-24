@@ -596,7 +596,7 @@ export const personaValues: PersonaValue[] = [
     valueProps: [
       'Mission control shows only exceptions needing judgment — with recommended actions (review docs/inputs, escalate, update account, call, delegate)',
       'Blocked process cards open an unblock popup: why stalled + moves to clear the gate',
-      'Person likeness compass (incl. heir readiness) so every touch starts from who they are',
+      'Person likeness pulse (incl. heir readiness) so every touch starts from who they are',
       'One-click recommended review: agent work, checklist, and CTAs — no swivel-chair hunting',
       'Meeting held / actions / next touch stay attached to the household rail',
       'Hours return to client conversations, next-gen cultivation, and practice growth',

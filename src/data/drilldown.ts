@@ -362,7 +362,7 @@ export function buildDrillItems(household: Household): DrillItem[] {
               return `Heir readiness is forming (${heirs.score}) — deepen next-gen engagement this quarter`
             return `Heir readiness looks solid (${heirs.score}) — keep next-gen touches on the calendar`
           })(),
-          'Click individual compass points to review behavioral evidence',
+          'Click Household Pulse nodes (Engage, Lifecycle, Likeness, Heirs, Custodian) for evidence',
           'Do not treat low-maturity likenesses as exam-ready',
         ],
         primaryCta: 'Open weakest facet',
