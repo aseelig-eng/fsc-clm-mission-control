@@ -19,13 +19,17 @@ Open the local URL Vite prints (usually `http://localhost:5173`).
 
 ## Views
 
-1. **Advisor Cockpit** — exception-first mission control; full lifecycle rail (prospect → estate); agent feed; one-click approve.
+1. **Advisor Cockpit** — exception-first mission control; full lifecycle rail (prospect → estate); agent feed; one-click approve; **Needs you** signals with recommended advisor actions; blocked process cards with unblock popup.
 2. **Paraplanner Workbench** — agent-drafted IPS / proposals / annual reviews / estate memos with human polish.
-3. **Persona Value & Comps** — value by persona (Advisor, Paraplanner, CRA, Specialist, Leadership/CCO, Client) + competitive map.
+3. **Persona Value & Comps** — value by persona (Advisor, Paraplanner, CRA, Specialist, Leadership/CCO, Client) + competitive map — including multi-gen / heir retention and likeness maturity.
+
+### Person likeness & heir readiness
+
+Per Person Account in the household: behavioral compass (risk, engagement, channel, goals, life complexity, wallet, tax/estate, **heir readiness**, trust) plus likeness **maturity** (completeness · recency · sources · advisor-confirmed). Heir readiness surfaces next-gen preparedness so wealth transfer keeps the relationship — and the AUM.
 
 ### One-click-down review
 
-Click any exception, stage, form section/field, document, meeting, or meeting action → **Recommended review** panel shows why it needs you, what the agent already did, a review checklist, and primary CTAs.
+Click any exception, stage, form section/field, document, meeting, meeting action, likeness facet, or maturity → **Recommended review** panel shows why it needs you, what the agent already did, a review checklist, and primary CTAs.
 
 ### Meeting management
 
@@ -45,4 +49,4 @@ Per household (mission-control, not a separate wizard):
 - Segment: US RIA / hybrid (EP Wealth–style)
 - Lifecycle: prospect → death/estate
 - Interaction: mission control (agents work; humans decide)
-- Metrics: TTC, NIGO, advisor hours, consolidation, audit, transition AUM
+- Metrics: TTC, NIGO, advisor hours, consolidation, audit, transition AUM, **estate/heir AUM retained**

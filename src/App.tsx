@@ -1099,7 +1099,9 @@ export default function App() {
             <h1>FSC Client Lifecycle Management — value by persona</h1>
             <p>
               Agents orchestrate prospect → funded → annual review → life events → estate. Humans stay in a
-              mission-control seat for judgment, relationships, and fiduciary polish — not swivel-chair admin.
+              mission-control seat for judgment, relationships, and fiduciary polish — with person likeness
+              (including heir readiness), signal-only recommended actions, and unblock paths on blocked stages —
+              not swivel-chair admin.
             </p>
           </div>
 
