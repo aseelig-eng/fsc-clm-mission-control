@@ -543,10 +543,25 @@ export default function App() {
 
             <div className="panel">
               <div className="panel-header">
-                <span>{household.name} — lifecycle rail</span>
+                <span>{household.name} — household pulse</span>
                 <span className="muted">{household.agentsActive} agents active</span>
               </div>
               <div className="panel-body">
+                {persons.length > 0 && selectedPerson && (
+                  <HouseholdPulse
+                    household={household}
+                    person={selectedPerson}
+                    persons={persons}
+                    exceptions={hhExceptions}
+                    selectedNodeId={pulseNodeId}
+                    onSelectPerson={(id) => {
+                      setSelectedPersonId(id)
+                      openDrill(`likeness-mat-${id}`)
+                    }}
+                    onSelectNode={selectPulseNode}
+                  />
+                )}
+
                 <ProgressBar
                   size="md"
                   pct={clientProgress.pct}
@@ -577,21 +592,6 @@ export default function App() {
                     <div className="v">{household.nextClientTouch}</div>
                   </div>
                 </div>
-
-                {persons.length > 0 && selectedPerson && (
-                  <HouseholdPulse
-                    household={household}
-                    person={selectedPerson}
-                    persons={persons}
-                    exceptions={hhExceptions}
-                    selectedNodeId={pulseNodeId}
-                    onSelectPerson={(id) => {
-                      setSelectedPersonId(id)
-                      openDrill(`likeness-mat-${id}`)
-                    }}
-                    onSelectNode={selectPulseNode}
-                  />
-                )}
 
                 <div className="lifecycle-rail">
                   {household.stages.map((s) => {

@@ -112,7 +112,7 @@ export function HouseholdPulse({
     <div className="pulse-panel">
       <div className="pulse-header">
         <div>
-          <div className="likeness-kicker">Household pulse</div>
+          <div className="likeness-kicker">Household pulse · status &amp; usage</div>
           <h3 className="likeness-title">{household.name}</h3>
           <p className="muted" style={{ margin: '4px 0 0' }}>
             {person.name} · {person.role}. Tap a node for recommended review — same one-click path as Needs you.
