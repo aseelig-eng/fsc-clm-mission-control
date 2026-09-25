@@ -21,6 +21,7 @@ import {
   householdProgress,
   overallProgress,
   progressTone,
+  selectedStageProgress,
 } from './data/progress'
 import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, Role } from './data/types'
 import './App.css'
@@ -341,6 +342,7 @@ export default function App() {
     household.stages.find((s) => s.id === selectedStageId) ??
     [...household.stages].reverse().find((s) => s.status !== 'upcoming') ??
     household.stages[0]
+  const stageBar = selectedStage ? selectedStageProgress(household.stages, selectedStage) : null
   const selectedEx = openExceptions.find((e) => e.id === selectedExId) ?? openExceptions[0]
   const selectedPara = paraplannerQueue.find((p) => p.id === selectedParaId) ?? paraplannerQueue[0]
   const persona = personaValues[personaIdx]
@@ -747,14 +749,13 @@ export default function App() {
 
                 <ProgressBar
                   size="md"
-                  pct={clientProgress.pct}
+                  pct={stageBar?.pct ?? clientProgress.pct}
                   label="Client Lifecycle Progress"
-                  detail={`${clientProgress.complete} complete · ${clientProgress.inFlight} in flight · ${clientProgress.total - clientProgress.complete - clientProgress.inFlight} upcoming · current: ${household.stageLabel}`}
-                  tone={
-                    household.stages.some((s) => s.status === 'blocked')
-                      ? 'blocked'
-                      : progressTone(clientProgress.pct)
+                  detail={
+                    stageBar?.detail ??
+                    `${clientProgress.complete} complete · ${clientProgress.inFlight} in flight · current: ${household.stageLabel}`
                   }
+                  tone={stageBar?.tone ?? progressTone(clientProgress.pct)}
                 />
 
                 <div className="hh-summary" style={{ marginTop: 12 }}>

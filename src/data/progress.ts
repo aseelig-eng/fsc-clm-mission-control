@@ -39,3 +39,38 @@ export function progressTone(pct: number): 'good' | 'warn' | 'blocked' | 'neutra
   if (pct >= 40) return 'neutral'
   return 'warn'
 }
+
+const STAGE_PCT: Record<StageStatus, number> = {
+  complete: 100,
+  active: 60,
+  'agent-running': 55,
+  blocked: 35,
+  upcoming: 0,
+}
+
+/** Progress for the stage the advisor has selected, not the whole household. */
+export function selectedStageProgress(stages: LifecycleStage[], stage: LifecycleStage) {
+  const index = Math.max(0, stages.findIndex((s) => s.id === stage.id))
+  const step = index + 1
+  const pct = STAGE_PCT[stage.status]
+  const state =
+    stage.status === 'complete'
+      ? 'Done'
+      : stage.status === 'blocked'
+        ? 'Blocked'
+        : stage.status === 'active'
+          ? 'In progress'
+          : stage.status === 'agent-running'
+            ? 'Agent running'
+            : 'Not started'
+  const note =
+    stage.agentSummary ??
+    (stage.humanAction ? `You: ${stage.humanAction}` : stage.status === 'upcoming' ? 'No work recorded yet' : stage.label)
+  const tone: 'good' | 'warn' | 'blocked' | 'neutral' =
+    stage.status === 'blocked' ? 'blocked' : stage.status === 'complete' ? 'good' : stage.status === 'upcoming' ? 'warn' : 'neutral'
+  return {
+    pct,
+    tone,
+    detail: `${state} · step ${step} of ${stages.length} · ${note}`,
+  }
+}
