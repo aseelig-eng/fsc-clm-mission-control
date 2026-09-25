@@ -35,6 +35,17 @@ export interface MaturityBreakdown {
   sources: string[]
 }
 
+export type Sex = 'female' | 'male' | 'unspecified'
+export type Interest = 'tech' | 'travel' | 'family' | 'markets' | 'garden' | 'art'
+export type Occasion = 'birthday' | 'wedding'
+
+export interface PersonProfile {
+  sex: Sex
+  interests: Interest[]
+  occasion?: Occasion
+  deceased?: boolean
+}
+
 export interface PersonLikeness {
   id: string
   householdId: string
@@ -44,6 +55,7 @@ export interface PersonLikeness {
   initials: string
   accent: string
   tagline: string
+  profile: PersonProfile
   facets: BehavioralFacet[]
   maturity: MaturityBreakdown
 }
@@ -109,6 +121,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'EV',
       accent: '#706e6b',
       tagline: 'Name and email only. Too early to describe how she decides or who inherits.',
+      profile: { sex: 'female', interests: [] },
       facets: (
         [
           ['risk', 'Risk posture', 8, 'No score. Nothing to confirm.'],
@@ -143,6 +156,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'MC',
       accent: '#0176d3',
       tagline: 'Growth-minded builder who wants speed without losing the human touch at key gates.',
+      profile: { sex: 'female', interests: ['tech'] },
       facets: [
         {
           id: 'risk',
@@ -245,6 +259,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'RW',
       accent: '#014486',
       tagline: 'Preserver who wants control, clarity on trusts, and no surprises from compliance.',
+      profile: { sex: 'male', interests: ['markets'] },
       facets: [
         {
           id: 'risk',
@@ -345,6 +360,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'EW',
       accent: '#2e844a',
       tagline: 'Family steward — less market talk, more “will this take care of our people?”',
+      profile: { sex: 'female', interests: ['family', 'garden'] },
       facets: [
         {
           id: 'risk',
@@ -445,6 +461,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'JA',
       accent: '#0176d3',
       tagline: 'Seasoned client — wants tax craft and calm annual rhythm, not product theater.',
+      profile: { sex: 'male', interests: ['markets'] },
       facets: [
         {
           id: 'risk',
@@ -546,6 +563,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'SA',
       accent: '#dd7a01',
       tagline: 'Quieter voice in meetings — decisive on lifestyle cash and family milestones.',
+      profile: { sex: 'female', interests: ['travel', 'family'], occasion: 'birthday' },
       facets: [
         {
           id: 'risk',
@@ -645,6 +663,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'JO',
       accent: '#706e6b',
       tagline: 'Historical likeness — locked for audit; guides retitle and successor care.',
+      profile: { sex: 'male', interests: [], deceased: true },
       facets: [
         {
           id: 'risk',
@@ -744,6 +763,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'AO',
       accent: '#ba0517',
       tagline: 'New relationship chapter — high care need, low tolerance for process fog.',
+      profile: { sex: 'female', interests: ['family'] },
       facets: [
         {
           id: 'risk',

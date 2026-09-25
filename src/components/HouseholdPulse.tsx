@@ -1,6 +1,7 @@
 import { MATURITY_LABELS, type BehavioralFacet, type PersonLikeness } from '../data/portraits'
 import type { ExceptionItem, Household, LifecycleStage } from '../data/types'
 import { LikenessCompass } from './LikenessCompass'
+import { HouseholdFigures } from './HouseholdFigures'
 
 export type PulseNodeId = 'engage' | 'lifecycle' | 'likeness' | 'heirs' | 'custodian'
 
@@ -156,23 +157,12 @@ export function HouseholdPulse({
       <div className="pulse-visual">
         <div className="pulse-stage">
           <svg className="pulse-scene" viewBox="0 0 400 400" role="img" aria-label={`${household.name} pulse`}>
-            <line x1="200" y1="165" x2="200" y2="48" stroke="var(--sf-blue)" strokeWidth="2" strokeDasharray="5 4" />
-            <line x1="278" y1="222" x2="332" y2="168" stroke={needsResolution ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
-            <line x1="270" y1="286" x2="312" y2="292" stroke={heirScore < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
-            <line x1="135" y1="248" x2="86" y2="252" stroke={maturity.score < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
-            <line x1="190" y1="293" x2="168" y2="348" stroke={topEx ? 'var(--sf-red)' : 'var(--sf-green)'} strokeWidth="2.5" />
-            <g transform="translate(80 130)">
-              <ellipse cx="120" cy="168" rx="88" ry="8" fill="#c5d8e8" opacity="0.7" />
-              <path d="M40 95 L120 35 L200 95 Z" fill={person.accent} />
-              <rect x="55" y="95" width="130" height="68" fill="#f4f8fb" stroke={person.accent} strokeWidth="2" />
-              <rect x="100" y="118" width="28" height="45" fill={person.accent} opacity="0.85" />
-              <rect x="70" y="110" width="22" height="18" fill="#9fd4ff" stroke={person.accent} />
-              <rect x="148" y="110" width="22" height="18" fill="#ffe8a3" stroke="var(--sf-orange)" />
-              <circle cx="120" cy="78" r="18" fill="#fff" stroke={person.accent} strokeWidth="2" />
-              <text x="120" y="82" textAnchor="middle" fontSize="11" fontWeight="800" fill={person.accent} fontFamily="system-ui, sans-serif">
-                {person.initials}
-              </text>
-            </g>
+            <line x1="200" y1="188" x2="200" y2="48" stroke="var(--sf-blue)" strokeWidth="2" strokeDasharray="5 4" />
+            <line x1="248" y1="230" x2="332" y2="168" stroke={needsResolution ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
+            <line x1="236" y1="286" x2="312" y2="292" stroke={heirScore < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
+            <line x1="152" y1="236" x2="86" y2="252" stroke={maturity.score < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
+            <line x1="188" y1="292" x2="168" y2="348" stroke={topEx ? 'var(--sf-red)' : 'var(--sf-green)'} strokeWidth="2.5" />
+            <HouseholdFigures persons={persons} />
           </svg>
           {(
             [
