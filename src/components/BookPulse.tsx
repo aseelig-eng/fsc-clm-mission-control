@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { metrics } from '../data/content'
 import { meetings } from '../data/meetings'
-import { personsForHousehold } from '../data/portraits'
+import { allHandoffs, compositeScore, weakestPillar } from '../data/generational'
 import type { ExceptionItem, Household } from '../data/types'
 
 const FUNDED = new Set(['welcome', 'ongoing', 'annual_review', 'life_event', 'estate'])
@@ -179,15 +179,15 @@ function buildMetrics(households: Household[], exceptions: ExceptionItem[]): Boo
   const blocked = households.flatMap((h) =>
     h.stages.filter((s) => s.status === 'blocked').map((s) => ({ household: h.name, label: s.label, why: s.unblock?.whyBlocked })),
   )
-  const heirBars: Bar[] = households.map((h) => {
-    const people = personsForHousehold(h.id)
-    const scores = people.map((p) => p.facets.find((f) => f.id === 'heir_readiness')?.score ?? 0)
-    const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
+  const heirBars: Bar[] = allHandoffs().map((profile) => {
+    const score = compositeScore(profile)
+    const weak = weakestPillar(profile)
+    const household = households.find((item) => item.id === profile.householdId)
     return {
-      label: h.name.split(' ')[0],
-      note: `${avg}%`,
-      pct: avg,
-      tone: avg < 45 ? 'warn' : 'ok',
+      label: household?.name.split(' ')[0] ?? profile.principal.split(' ')[0],
+      note: `${score} · ${weak.label}`,
+      pct: score,
+      tone: score < 45 ? 'danger' : score < 80 ? 'warn' : 'ok',
     }
   })
 
@@ -419,7 +419,7 @@ function buildMetrics(households: Household[], exceptions: ExceptionItem[]): Boo
       value: heirs.value,
       glyph: 'heirs',
       x: 96,
-      story: 'Assets still here after a death or transfer to the next generation. The second chart is how ready each household is.',
+      story: 'Assets still here after a death or transfer. The second chart is household handoff readiness. A score under 80 is still forming. The note is the weakest pillar.',
       visuals: [
         {
           kind: 'bars',
@@ -431,7 +431,7 @@ function buildMetrics(households: Household[], exceptions: ExceptionItem[]): Boo
         },
         {
           kind: 'bars',
-          caption: 'Heir Readiness by Household',
+          caption: 'Handoff Readiness by Household',
           bars: heirBars,
         },
       ],
@@ -488,41 +488,53 @@ export function BookPulse({
     <div className="pulse-panel">
       <div className="likeness-kicker">Book Pulse</div>
       <p className="muted" style={{ margin: '4px 0 12px' }}>
-        The path runs from pipeline to assets kept. Select an icon for the picture behind the number.
+        A scoreboard for the whole book. Select a tile for the picture behind the number.
       </p>
-      <div className="pulse-visual book-visual">
-        <div className="pulse-stage book-stage">
-          <svg className="pulse-scene" viewBox="0 0 1200 340" role="img" aria-label="Book metrics">
-            <rect x="20" y="78" width="320" height="200" rx="18" fill="#e8f3fb" />
-            <rect x="356" y="78" width="490" height="200" rx="18" fill="#f4f8fc" />
-            <rect x="862" y="78" width="318" height="200" rx="18" fill="#eef8f2" />
-            <line x1="70" y1="210" x2="1130" y2="210" stroke="#0176d3" strokeWidth="2" strokeDasharray="6 5" />
-          </svg>
-          <span className="book-zone" style={{ left: '16%' }}>
-            Coming In
-          </span>
-          <span className="book-zone" style={{ left: '50%' }}>
-            This Week
-          </span>
-          <span className="book-zone" style={{ left: '86%' }}>
-            Kept
-          </span>
-          {items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="book-metric"
-              style={{ left: `${item.x}%`, top: '62%' }}
-              onClick={() => setOpenId(item.id)}
-            >
-              <span className="book-metric-icon">
-                <MetricGlyph kind={item.glyph} />
-              </span>
-              <span className="book-metric-name">{item.short}</span>
-              <span className="book-metric-value">{item.value}</span>
-            </button>
-          ))}
-        </div>
+      <div className="book-board">
+        {(
+          [
+            { title: 'Coming in', ids: ['pipeline', 'time', 'nigo'] },
+            { title: 'This week', ids: ['meetings', 'agents', 'hours', 'signals', 'blocked'] },
+            { title: 'Kept', ids: ['wallet', 'audit', 'aum', 'heirs'] },
+          ] as const
+        ).map((zone) => (
+          <section key={zone.title} className="book-column">
+            <h4>{zone.title}</h4>
+            <div className="book-tiles">
+              {zone.ids.map((id) => {
+                const item = items.find((metric) => metric.id === id)
+                if (!item) return null
+                const fill =
+                  (
+                    {
+                      pipeline: 60,
+                      time: 81,
+                      nigo: 93,
+                      meetings: 70,
+                      agents: 80,
+                      hours: 72,
+                      signals: 40,
+                      blocked: 30,
+                      wallet: 100,
+                      audit: 100,
+                      aum: 94,
+                      heirs: 91,
+                    } as Record<string, number>
+                  )[item.id] ?? 50
+                return (
+                  <button key={item.id} type="button" className="book-tile" onClick={() => setOpenId(item.id)}>
+                    <span className="book-tile-fill" style={{ height: `${fill}%` }} />
+                    <span className="book-metric-icon">
+                      <MetricGlyph kind={item.glyph} />
+                    </span>
+                    <strong>{item.value}</strong>
+                    <span>{item.short}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        ))}
       </div>
 
       {open && (

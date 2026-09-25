@@ -137,7 +137,7 @@ function baseSections(overrides: {
     ...(x[key] ?? {}),
   })
 
-  return [
+  return orderSections([
     {
       id: 'client_details',
       label: 'Client & Details',
@@ -318,7 +318,33 @@ function baseSections(overrides: {
         f('billing', 'Billing engine initialized', { key: '', label: '', value: '', status: 'complete' }, x.billing),
       ],
     },
-  ]
+  ])
+}
+
+const SECTION_SEQUENCE = [
+  'client_details',
+  'prospect_advisor',
+  'employment',
+  'financial_profile',
+  'risk',
+  'beneficiary',
+  'portfolio',
+  'disclosures',
+  'kyc',
+  'tax',
+  'principal',
+  'custody',
+  'alts',
+  'funding',
+  'orientation',
+]
+
+function orderSections(sections: FormSection[]) {
+  return [...sections].sort((a, b) => {
+    const ai = SECTION_SEQUENCE.indexOf(a.id)
+    const bi = SECTION_SEQUENCE.indexOf(b.id)
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
+  })
 }
 
 export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {

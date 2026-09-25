@@ -19,6 +19,10 @@ import { MATURITY_LABELS, personsForHousehold } from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
 import { BookPulse } from './components/BookPulse'
 import { ClientDossier } from './components/ClientDossier'
+import { AdviceDesk } from './components/AdviceDesk'
+import { initialPlans, initialPortfolios, PLAN_STAGES, PORTFOLIO_STAGES, type PlanState, type PortfolioState } from './data/advice'
+import { GenerationalHandoff } from './components/GenerationalHandoff'
+import { handoffFor } from './data/generational'
 import {
   householdProgress,
   overallProgress,
@@ -387,6 +391,9 @@ export default function App() {
     actions: AdvisorAction[]
   } | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [handoffOpen, setHandoffOpen] = useState(false)
+  const [plans, setPlans] = useState<Record<string, PlanState>>(() => initialPlans)
+  const [portfolios, setPortfolios] = useState<Record<string, PortfolioState>>(() => initialPortfolios)
 
   const household = useMemo(
     () => households.find((h) => h.id === selectedHhId) as Household,
@@ -484,7 +491,6 @@ export default function App() {
     setPulseNodeId(nodeId)
     if (!selectedPerson) return
     const engageFacet = selectedPerson.facets.find((f) => f.id === 'engagement')
-    const heirFacet = selectedPerson.facets.find((f) => f.id === 'heir_readiness')
     const weakest = [...selectedPerson.facets].sort((a, b) => a.score - b.score)[0]
     const stage =
       household.stages.find((s) => s.status === 'blocked') ||
@@ -494,7 +500,7 @@ export default function App() {
     if (nodeId === 'engage' && engageFacet) {
       setPulseDialog({
         kicker: 'Engage',
-        title: `${engageFacet.label} · ${engageFacet.score}`,
+        title: `Engagement score · ${engageFacet.score}`,
         why: engageFacet.blurb,
         agentDid: engageFacet.evidence.join(' · '),
         actionsTitle: 'Actions to Take',
@@ -508,21 +514,8 @@ export default function App() {
       })
       return
     }
-    if (nodeId === 'heirs' && heirFacet) {
-      setPulseDialog({
-        kicker: 'Heirs',
-        title: `Heir Readiness · ${heirFacet.score}%`,
-        why: heirFacet.blurb,
-        agentDid: heirFacet.evidence.join(' · '),
-        actionsTitle: 'Actions to Take',
-        actions: [
-          {
-            type: heirFacet.score < 45 ? 'schedule' : 'review_inputs',
-            label: heirFacet.recommendedReview,
-            detail: 'Wealth transfer keeps the household only if next-gen is known.',
-          },
-        ],
-      })
+    if (nodeId === 'heirs') {
+      setHandoffOpen(true)
       return
     }
     if (nodeId === 'likeness') {
@@ -829,6 +822,8 @@ export default function App() {
                       setSelectedFacetId(facet.id)
                       openDrill(`likeness-${selectedPerson.id}-${facet.id}`)
                     }}
+                    plan={plans[household.id]}
+                    portfolio={portfolios[household.id]}
                   />
                 )}
 
@@ -899,11 +894,38 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {(PLAN_STAGES.includes(selectedStage?.id ?? '') ||
+                  PORTFOLIO_STAGES.includes(selectedStage?.id ?? '')) && (
+                  <AdviceDesk
+                    plan={plans[household.id]}
+                    portfolio={portfolios[household.id]}
+                    showPlan={PLAN_STAGES.includes(selectedStage?.id ?? '')}
+                    showPortfolio={PORTFOLIO_STAGES.includes(selectedStage?.id ?? '')}
+                    onPlan={(patch) =>
+                      setPlans((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
+                    }
+                    onPortfolio={(patch) =>
+                      setPortfolios((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
+                    }
+                  />
+                )}
               </div>
             </div>
             )}
 
             {!showingBook && cockpitView === 'record' && onboarding && completeness && (
+              <>
+              <AdviceDesk
+                plan={plans[household.id]}
+                portfolio={portfolios[household.id]}
+                showPlan
+                showPortfolio
+                onPlan={(patch) => setPlans((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))}
+                onPortfolio={(patch) =>
+                  setPortfolios((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
+                }
+              />
               <div className="framework-grid">
                 <div className="panel">
                   <div className="panel-header">
@@ -1080,6 +1102,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              </>
             )}
 
             {!showingBook && cockpitView === 'status' && (
@@ -1506,6 +1529,17 @@ export default function App() {
             </div>
           </div>
         </>
+      )}
+
+      {handoffOpen && (
+        <GenerationalHandoff
+          profile={handoffFor(household.id)}
+          onClose={() => setHandoffOpen(false)}
+          onAct={(label) => {
+            flash(label)
+            setHandoffOpen(false)
+          }}
+        />
       )}
 
       {profileOpen && selectedPerson && (

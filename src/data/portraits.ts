@@ -90,7 +90,10 @@ export const MATURITY_LABELS: Record<MaturityTier, { title: string; hint: string
   forming: { title: 'Forming', hint: 'Skeleton in place; still guessing in places' },
   clear: { title: 'Clear', hint: 'Advisor can act with confidence on most topics' },
   vivid: { title: 'Vivid', hint: 'Rich, multi-source likeness — ready for nuanced advice' },
-  exam_ready: { title: 'Exam-ready', hint: 'Defensible, cited, and human-confirmed' },
+  exam_ready: {
+    title: 'Confirmed',
+    hint: 'Complete, recent, and advisor-confirmed. This is what “exam-ready” means: the likeness can be defended in an exam.',
+  },
 }
 
 function tierFromScore(score: number): MaturityTier {

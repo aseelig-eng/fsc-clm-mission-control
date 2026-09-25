@@ -1,7 +1,11 @@
 import { MATURITY_LABELS, type BehavioralFacet, type PersonLikeness } from '../data/portraits'
+import { compositeScore, handoffFor, readinessBand } from '../data/generational'
+import { adviceFlags, goalProgress, type PlanGoal, type PlanState, type PortfolioState } from '../data/advice'
 import type { ExceptionItem, Household, LifecycleStage } from '../data/types'
 import { LikenessCompass } from './LikenessCompass'
 import { HouseholdFigures } from './HouseholdFigures'
+import { GoalMark } from './GoalMark'
+import { useState } from 'react'
 
 export type PulseNodeId = 'engage' | 'lifecycle' | 'likeness' | 'heirs' | 'custodian'
 
@@ -15,6 +19,15 @@ type Props = {
   onSelectPerson: (personId: string) => void
   onSelectNode: (nodeId: PulseNodeId) => void
   onSelectFacet: (facet: BehavioralFacet) => void
+  plan: PlanState
+  portfolio: PortfolioState
+}
+
+function engageStatus(score: number) {
+  if (score < 25) return 'First touch'
+  if (score < 50) return 'Early'
+  if (score < 75) return 'Steady'
+  return 'Deep'
 }
 
 function statusLabel(status: LifecycleStage['status']) {
@@ -36,9 +49,13 @@ export function HouseholdPulse({
   onSelectPerson,
   onSelectNode,
   onSelectFacet,
+  plan,
+  portfolio,
 }: Props) {
+  const [openGoal, setOpenGoal] = useState<PlanGoal | null>(null)
+  const [portfolioOpen, setPortfolioOpen] = useState(false)
   const engage = person.facets.find((f) => f.id === 'engagement')
-  const heirs = person.facets.find((f) => f.id === 'heir_readiness')
+  const heirScore = compositeScore(handoffFor(household.id))
   const maturity = person.maturity
   const tier = MATURITY_LABELS[maturity.tier]
 
@@ -54,8 +71,6 @@ export function HouseholdPulse({
 
   const topEx = exceptions[0]
   const signalCount = Math.max(exceptions.length, household.exceptions)
-  const capacity = 11
-  const attentionPct = Math.min(100, Math.round((signalCount / capacity) * 100))
   const stagesCleared = household.stages.filter((s) => s.status === 'complete').length
 
   const statusLine = topEx
@@ -64,11 +79,10 @@ export function HouseholdPulse({
       ? `Needs you · ${activeStage.unblock.title} · unblock required`
       : `On track · ${household.stageLabel}`
 
-  const heirScore = heirs?.score ?? 0
   const impactLine =
     heirScore < 45
       ? `Heir readiness ${heirScore}% — retention risk if transfer nears`
-      : heirScore < 70
+      : heirScore < 80
         ? `Heir readiness ${heirScore}% — deepen next-gen this quarter`
         : `Heir readiness ${heirScore}% — next-gen path solid`
 
@@ -84,7 +98,7 @@ export function HouseholdPulse({
       tone: 'ok',
       k: 'Engage',
       v: String(engage?.score ?? '—'),
-      s: 'Meetings',
+      s: engageStatus(engage?.score ?? 0),
     },
     {
       id: 'lifecycle',
@@ -102,10 +116,10 @@ export function HouseholdPulse({
     },
     {
       id: 'heirs',
-      tone: heirScore < 45 ? 'warn' : 'ok',
+      tone: heirScore < 45 ? 'danger' : heirScore < 80 ? 'warn' : 'ok',
       k: 'Heirs',
       v: `${heirScore}%`,
-      s: heirScore < 45 ? 'At risk' : heirScore < 70 ? 'Forming' : 'Ready',
+      s: readinessBand(heirScore),
     },
     {
       id: 'custodian',
@@ -120,7 +134,7 @@ export function HouseholdPulse({
     <div className="pulse-panel">
       <div className="pulse-header">
         <div>
-          <div className="likeness-kicker">Household Pulse · Status &amp; Usage</div>
+          <div className="likeness-kicker">Household Pulse</div>
           <h3 className="likeness-title">{household.name}</h3>
           <p className="muted" style={{ margin: '4px 0 0' }}>
             {person.name} · {person.role}. Tap a node for recommended review.
@@ -164,6 +178,29 @@ export function HouseholdPulse({
             <line x1="188" y1="292" x2="168" y2="348" stroke={topEx ? 'var(--sf-red)' : 'var(--sf-green)'} strokeWidth="2.5" />
             <HouseholdFigures persons={persons} />
           </svg>
+          {plan.goals.map((goal, index) => (
+            <button
+              key={goal.id}
+              type="button"
+              className="pulse-goal"
+              style={{
+                left: `${42 + index * 12}%`,
+                top: '38%',
+              }}
+              onClick={() => setOpenGoal(goal)}
+            >
+              <GoalMark name={goal.name} />
+              <span>{goal.name.split(' ')[0]}</span>
+            </button>
+          ))}
+          <button type="button" className="pulse-book" onClick={() => setPortfolioOpen(true)}>
+            <span>Portfolio</span>
+            <strong>
+              {portfolio.equity + portfolio.fixed + portfolio.cash + portfolio.alts === 0
+                ? 'Not set'
+                : `${portfolio.equity}/${portfolio.fixed}/${portfolio.cash}`}
+            </strong>
+          </button>
           {(
             [
               { id: 'engage' as const, x: 200, y: 48 },
@@ -197,25 +234,6 @@ export function HouseholdPulse({
         <strong>{statusLine}</strong>
       </div>
 
-      <div className="pulse-attn">
-        <div className="pulse-attn-label">
-          <span>Attention in Use</span>
-          <span>
-            {signalCount} signal{signalCount === 1 ? '' : 's'} · capacity ~{capacity}
-          </span>
-        </div>
-        <div
-          className="pulse-bar"
-          role="progressbar"
-          aria-valuenow={signalCount}
-          aria-valuemin={0}
-          aria-valuemax={capacity}
-          aria-label="Attention in Use"
-        >
-          <span style={{ width: `${Math.max(8, attentionPct)}%` }} />
-        </div>
-      </div>
-
       <div className="pulse-metrics">
         <div className="pulse-metric">
           <div className="label">Progress</div>
@@ -230,6 +248,97 @@ export function HouseholdPulse({
       </div>
 
       <p className="muted pulse-tagline">{person.tagline}</p>
+      {openGoal && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setOpenGoal(null)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div className="book-metric-head">
+                <span className="book-metric-icon">
+                  <GoalMark name={openGoal.name} />
+                </span>
+                <div>
+                  <div className="muted">Goal</div>
+                  <h2>{openGoal.name}</h2>
+                </div>
+              </div>
+              <button type="button" className="btn" onClick={() => setOpenGoal(null)}>
+                Close
+              </button>
+            </div>
+            <p>{openGoal.note || 'No detail yet.'}</p>
+            <div className="advice-grid">
+              <div>
+                <div className="k">Target</div>
+                <div className="v">{openGoal.targetUsd == null ? 'Not set' : `$${openGoal.targetUsd.toLocaleString()}`}</div>
+              </div>
+              <div>
+                <div className="k">Funded</div>
+                <div className="v">{openGoal.fundedUsd == null ? 'Not set' : `$${openGoal.fundedUsd.toLocaleString()}`}</div>
+              </div>
+              <div>
+                <div className="k">Horizon</div>
+                <div className="v">{openGoal.horizonYears == null ? 'Not set' : `${openGoal.horizonYears} years`}</div>
+              </div>
+            </div>
+            {goalProgress(openGoal) != null && (
+              <div className="advice-progress">
+                <span>Funding {goalProgress(openGoal)}%</span>
+                <div className="book-meter-track">
+                  <div className="book-meter-fill tone-neutral" style={{ width: `${Math.min(goalProgress(openGoal) ?? 0, 100)}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {portfolioOpen && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setPortfolioOpen(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <div className="muted">Portfolio</div>
+                <h2>
+                  {portfolio.equity}% equity
+                  {portfolio.targetEquity != null ? ` · IPS ${portfolio.targetEquity}%` : ''}
+                </h2>
+              </div>
+              <button type="button" className="btn" onClick={() => setPortfolioOpen(false)}>
+                Close
+              </button>
+            </div>
+            {(
+              [
+                ['Equity', portfolio.equity],
+                ['Fixed income', portfolio.fixed],
+                ['Cash', portfolio.cash],
+                ['Alternatives', portfolio.alts],
+              ] as const
+            ).map(([label, value]) => (
+              <div className="book-meter-row" key={label}>
+                <div className="book-meter-label">
+                  <strong>{label}</strong>
+                  <span>{value}%</span>
+                </div>
+                <div className="book-meter-track">
+                  <div className="book-meter-fill tone-neutral" style={{ width: `${value}%` }} />
+                </div>
+              </div>
+            ))}
+            <ul className="advice-flags">
+              {adviceFlags(plan, portfolio)
+                .filter((flag) => flag.scope !== 'plan')
+                .map((flag) => (
+                  <li key={flag.title} className={flag.severity}>
+                    <strong>{flag.severity === 'block' ? 'Anti-pattern' : 'Watch'}</strong>
+                    <span>
+                      {flag.title}. {flag.detail}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
