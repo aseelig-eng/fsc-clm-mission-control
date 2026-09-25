@@ -255,7 +255,7 @@ export function ClientPortal({
           <img
             className="portal-logo"
             src={`${import.meta.env.BASE_URL}benificial-lockup.png`}
-            alt="Benificial Wealth"
+            alt="BENiFICIAL WEALTH"
           />
           <div>
             <h2>

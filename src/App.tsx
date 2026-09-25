@@ -1029,7 +1029,7 @@ export default function App() {
           <img
             className="brand-logo"
             src={`${import.meta.env.BASE_URL}benificial-lockup.png`}
-            alt="Benificial Wealth"
+            alt="BENiFICIAL WEALTH"
           />
           {role === 'advisor' && <span className="advisor-greet">{dayPart()}, Drew</span>}
         </div>
