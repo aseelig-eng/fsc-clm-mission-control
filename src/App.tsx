@@ -797,11 +797,11 @@ export default function App() {
     else setShowingBook(true)
   }
 
-  function chooseClient(id: string) {
-    selectHousehold(id)
-    setClientQuery('')
-    setSearchOpen(false)
-    setSearchIndex(0)
+  function toggleClient(id: string) {
+    // Multi-select: toggle a client in/out of the open tabs without closing the
+    // dropdown, so several can be opened from one search.
+    if (openTabs.includes(id)) closeHouseholdTab(id)
+    else selectHousehold(id)
   }
 
   function confirmNotice(notice: ClientNotice) {
@@ -1138,14 +1138,14 @@ export default function App() {
                     } else if (event.key === 'Enter') {
                       event.preventDefault()
                       const hit = clientMatches.shown[activeSearchIndex]
-                      if (hit) chooseClient(hit.household.id)
+                      if (hit) toggleClient(hit.household.id)
                     } else if (event.key === 'Escape') {
                       setSearchOpen(false)
                     }
                   }}
                 />
                 {searchOpen && (
-                  <ul className="client-search-list" id="client-search-list" role="listbox" aria-label="Clients">
+                  <ul className="client-search-list" id="client-search-list" role="listbox" aria-multiselectable="true" aria-label="Clients">
                     {clientMatches.shown.length === 0 && <li className="client-search-empty">No clients match.</li>}
                     {clientMatches.shown.map((item, index) => {
                       const progress = householdProgress(item.household)
@@ -1156,17 +1156,22 @@ export default function App() {
                             type="button"
                             role="option"
                             id={`client-opt-${item.household.id}`}
-                            aria-selected={index === activeSearchIndex}
-                            className={`client-search-option ${index === activeSearchIndex ? 'active' : ''}`}
+                            aria-selected={open}
+                            className={`client-search-option ${index === activeSearchIndex ? 'active' : ''} ${open ? 'selected' : ''}`}
                             onMouseDown={(event) => {
                               event.preventDefault()
-                              chooseClient(item.household.id)
+                              toggleClient(item.household.id)
                             }}
                             onMouseEnter={() => setSearchIndex(index)}
                           >
-                            <strong>{item.household.name}</strong>
-                            <span>
-                              {item.stage} · {progress.pct}%{open ? ' · open' : ''}
+                            <span className="client-search-check" aria-hidden="true">
+                              {open ? '✓' : ''}
+                            </span>
+                            <span className="client-search-text">
+                              <strong>{item.household.name}</strong>
+                              <span>
+                                {item.stage} · {progress.pct}%{open ? ' · open' : ''}
+                              </span>
                             </span>
                           </button>
                         </li>
@@ -1174,8 +1179,8 @@ export default function App() {
                     })}
                     <li className="client-search-foot">
                       {clientQuery.trim()
-                        ? `${clientMatches.shown.length} of ${clientMatches.total}`
-                        : `${households.length} clients. Type a name or a stage.`}
+                        ? `${clientMatches.shown.length} of ${clientMatches.total} · tap to open several`
+                        : `${households.length} clients. Tap to open several at once.`}
                     </li>
                   </ul>
                 )}
