@@ -3210,6 +3210,8 @@ button.stage-card.selected {
 .portal-vault > p {
   margin-top: 0;
 }
+
+.portal-facts em {
   font-style: normal;
   color: #2e844a;
   font-weight: 700;
