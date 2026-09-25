@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Household } from '../data/types'
 import type { PlanState } from '../data/advice'
 import { goalProgress } from '../data/advice'
-import type { ClientOnboardingRecord } from '../data/onboardingFramework'
+import type { ClientOnboardingRecord, ComplianceDocument } from '../data/onboardingFramework'
+import { DOC_TYPE_LABEL, docStatusLabel } from '../data/onboardingFramework'
 import {
   accountsFromPlaid,
   accountFromManual,
@@ -29,6 +30,7 @@ export function ClientPortal({
   onClose,
   onAddAccounts,
   onUpdateField,
+  onSignDocument,
 }: {
   households: Household[]
   householdId: string
@@ -40,6 +42,7 @@ export function ClientPortal({
   onClose: () => void
   onAddAccounts: (accounts: FinancialAccount[]) => void
   onUpdateField: (householdId: string, sectionId: string, fieldKey: string, label: string, value: string) => void
+  onSignDocument: (householdId: string, documentId: string, signedName: string) => void
 }) {
   const household = households.find((item) => item.id === householdId) ?? households[0]
   const plan = plans[household.id]
@@ -49,6 +52,17 @@ export function ClientPortal({
   const [plaid, setPlaid] = useState<PlaidOffer | 'pick' | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
   const [sent, setSent] = useState<Record<string, string>>({})
+  const [signingId, setSigningId] = useState<string | null>(null)
+  const [signName, setSignName] = useState('')
+  const [signConsent, setSignConsent] = useState(false)
+  const [signError, setSignError] = useState('')
+
+  useEffect(() => {
+    setSigningId(null)
+    setSignName('')
+    setSignConsent(false)
+    setSignError('')
+  }, [household.id])
 
   const gaps =
     record?.sections.flatMap((section) =>
@@ -64,9 +78,29 @@ export function ClientPortal({
         })),
     ) ?? []
 
+  const toSign = (record?.documents ?? []).filter((doc) => doc.status === 'needs_signature').length
+  const signing = record?.documents.find((doc) => doc.id === signingId) ?? null
+
   function addPlaid(offer: PlaidOffer) {
     onAddAccounts(accountsFromPlaid(household.id, offer))
     setPlaid(null)
+  }
+
+  function submitSignature(doc: ComplianceDocument) {
+    const expected = doc.signerName ?? ''
+    if (!signConsent) {
+      setSignError('Confirm that you agree to sign electronically.')
+      return
+    }
+    if (signName.trim().toLowerCase() !== expected.toLowerCase()) {
+      setSignError(`Type ${expected} to match the account registration.`)
+      return
+    }
+    onSignDocument(household.id, doc.id, signName.trim())
+    setSigningId(null)
+    setSignName('')
+    setSignConsent(false)
+    setSignError('')
   }
 
   return (
@@ -110,6 +144,7 @@ export function ClientPortal({
             <button key={id} type="button" className={view === id ? 'active' : ''} onClick={() => setView(id)}>
               {label}
               {id === 'facts' && gaps.length > 0 ? ` · ${gaps.length}` : ''}
+              {id === 'vault' && toSign > 0 ? ` · ${toSign}` : ''}
             </button>
           ))}
         </nav>
@@ -156,19 +191,46 @@ export function ClientPortal({
             />
           )}
           {view === 'vault' && (
-            <ul className="portal-docs">
-              {(record?.documents ?? []).map((doc) => (
-                <li key={doc.id}>
-                  <div>
-                    <strong>{doc.name}</strong>
-                    <span className="muted">{doc.status === 'filed' ? 'Shared with you' : 'Not shared yet'}</span>
-                  </div>
-                  <button type="button" className="btn" disabled={doc.status !== 'filed'}>
-                    {doc.status === 'filed' ? 'Open' : 'Waiting'}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="portal-vault">
+              <p>
+                Schwab, Fidelity, and Pershing accept an account, a transfer, and a money movement only when the registration, the delivering account, and the signature all match.
+              </p>
+              <table className="portal-doc-table">
+                <thead>
+                  <tr>
+                    <th>Document</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(record?.documents ?? []).map((doc) => (
+                    <tr key={doc.id}>
+                      <td>
+                        <strong>{doc.name}</strong>
+                        {doc.notes && <span>{doc.notes}</span>}
+                      </td>
+                      <td>{DOC_TYPE_LABEL[doc.category]}</td>
+                      <td>
+                        <span className={`doc-status status-${doc.status}`}>{docStatusLabel(doc.status)}</span>
+                      </td>
+                      <td>
+                        {doc.status === 'needs_signature' ? (
+                          <button type="button" className="btn primary" onClick={() => setSigningId(doc.id)}>
+                            Sign
+                          </button>
+                        ) : (
+                          <button type="button" className="btn" disabled={doc.status !== 'filed'}>
+                            {doc.status === 'filed' ? 'Open' : 'Waiting'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           {view === 'facts' && (
             <div>
@@ -209,6 +271,56 @@ export function ClientPortal({
           )}
         </main>
       </div>
+      {signing && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setSigningId(null)}>
+          <form
+            className="plaid-modal esign-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="esign-title"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault()
+              submitSignature(signing)
+            }}
+          >
+            <div className="plaid-brand">E-sign</div>
+            <h3 id="esign-title">{signing.name}</h3>
+            <p>Sign as {signing.signerName}. The custodian matches this name to the account registration.</p>
+            <ul className="esign-packet">
+              {(signing.packet ?? []).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <label className="esign-consent">
+              <input type="checkbox" checked={signConsent} onChange={(event) => setSignConsent(event.target.checked)} />
+              I agree to sign this document electronically.
+            </label>
+            <label>
+              Full legal name
+              <input
+                value={signName}
+                onChange={(event) => setSignName(event.target.value)}
+                placeholder={signing.signerName}
+                aria-label="Full legal name"
+                autoComplete="name"
+              />
+            </label>
+            <div className={`esign-line ${signName.trim() ? 'signed' : ''}`} aria-hidden="true">
+              {signName.trim() || 'Signature'}
+            </div>
+            {signError && <p className="esign-error">{signError}</p>}
+            <div className="actions">
+              <button type="button" className="btn" onClick={() => setSigningId(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="btn primary">
+                Sign document
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       {plaid && (
         <div className="modal-backdrop" role="presentation" onClick={() => setPlaid(null)}>
           <div className="plaid-modal" role="dialog" aria-modal="true" aria-labelledby="plaid-title" onClick={(event) => event.stopPropagation()}>

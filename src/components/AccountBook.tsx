@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { accountTotals, usd, type FinancialAccount } from '../data/accounts'
+import { accountBalance, accountTotals, usd, type FinancialAccount } from '../data/accounts'
 
 const TYPE_LABEL: Record<FinancialAccount['type'], string> = {
   brokerage: 'Brokerage',
@@ -71,7 +71,7 @@ export function AccountBook({ accounts }: { accounts: FinancialAccount[] }) {
               </span>
               <span className="acct-card-side">
                 {account.review === 'pending' && <b>Advisor review</b>}
-                <strong>{usd(account.balance)}</strong>
+                <strong>{usd(accountBalance(account))}</strong>
               </span>
             </button>
           </li>
@@ -89,7 +89,7 @@ export function AccountBook({ accounts }: { accounts: FinancialAccount[] }) {
                 {open.addedBy === 'client' ? ` · added by the client via ${open.link === 'plaid' ? 'Plaid' : 'manual entry'}` : ''}
               </p>
             </div>
-            <strong>{usd(open.balance)}</strong>
+            <strong>{usd(accountBalance(open))}</strong>
           </header>
           <h4>Holdings</h4>
           {open.holdings.length === 0 ? (
@@ -118,6 +118,15 @@ export function AccountBook({ accounts }: { accounts: FinancialAccount[] }) {
                     <td>{position.assetClass}</td>
                   </tr>
                 ))}
+                <tr>
+                  <td colSpan={4}>
+                    <strong>Total</strong>
+                  </td>
+                  <td>
+                    <strong>{usd(accountBalance(open))}</strong>
+                  </td>
+                  <td />
+                </tr>
               </tbody>
             </table>
           )}

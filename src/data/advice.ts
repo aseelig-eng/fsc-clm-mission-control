@@ -295,7 +295,7 @@ export const initialPlans: Record<string, PlanState> = {
         targetUsd: 2500000,
         fundedUsd: 248000,
         horizonYears: 25,
-        note: 'Roth IRA and taxable brokerage. The account is not funded yet.',
+        note: 'Roth IRA and taxable brokerage hold the managed positions. The Fidelity transfer is still outstanding.',
       },
       {
         id: 'maya-home',

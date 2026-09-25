@@ -2904,8 +2904,6 @@ button.stage-card.selected {
   padding: 0;
 }
 
-.holding-list li,
-.portal-docs li,
 .portal-facts li {
   display: grid;
   grid-template-columns: 1.4fr auto auto;
@@ -3076,6 +3074,142 @@ button.stage-card.selected {
 }
 
 .portal-facts em {
+  font-style: normal;
+  color: #2e844a;
+  font-weight: 700;
+}
+
+.holding-list li {
+  display: grid;
+  grid-template-columns: 1.4fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--sf-gray-5);
+  font-size: 13px;
+}
+
+.portal-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border: 1px solid var(--sf-gray-5);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.portal-doc-table th,
+.portal-doc-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--sf-gray-5);
+}
+
+.portal-doc-table th {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sf-gray-3);
+  background: #f7f9fc;
+}
+
+.portal-doc-table td:nth-child(1) {
+  width: 46%;
+}
+
+.portal-doc-table td:nth-child(2),
+.portal-doc-table th:nth-child(2) {
+  width: 18%;
+}
+
+.portal-doc-table td:nth-child(3),
+.portal-doc-table th:nth-child(3) {
+  width: 18%;
+}
+
+.portal-doc-table td strong,
+.portal-doc-table td span {
+  display: block;
+}
+
+.portal-doc-table td span {
+  margin-top: 4px;
+  color: var(--sf-gray-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.doc-status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--sf-gray-6);
+}
+
+.doc-status.status-filed {
+  background: #e3f5e1;
+  color: #1b6b32;
+}
+
+.doc-status.status-needs_signature,
+.doc-status.status-nigo {
+  background: #fde8e4;
+  color: #8c2f1b;
+}
+
+.doc-status.status-pending {
+  background: #fff4d6;
+  color: #8a5a00;
+}
+
+.esign-packet {
+  list-style: disc;
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.esign-packet li {
+  display: list-item;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: default;
+}
+
+.esign-consent {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.esign-line {
+  min-height: 48px;
+  border-bottom: 1px solid #16325c;
+  font-family: "Snell Roundhand", "Segoe Script", cursive;
+  font-size: 28px;
+  color: #16325c;
+  padding: 8px 2px 4px;
+}
+
+.esign-line.signed {
+  color: #16325c;
+}
+
+.esign-error {
+  color: #8c2f1b;
+  font-weight: 700;
+}
+
+.portal-vault > p {
+  margin-top: 0;
+}
   font-style: normal;
   color: #2e844a;
   font-weight: 700;

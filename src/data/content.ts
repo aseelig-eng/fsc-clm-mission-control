@@ -227,7 +227,7 @@ export const households: Household[] = [
   {
     id: 'h1',
     name: 'Maya Chen',
-    aum: '$248K → funding',
+    aum: '$496K · $248K managed',
     stage: 'funding',
     stageLabel: 'ACAT / Funding',
     risk: 'Growth · Score 71',
@@ -302,7 +302,7 @@ export const households: Household[] = [
         agent: 'Custodian Agent',
         action: 'Opened Roth IRA + Individual brokerage via DAIM mock',
         detail:
-          'Submitted the Schwab new-account pack through the custodian connector and opened a Roth IRA and an individual brokerage. Account numbers and registration were written back to the Person Account. The TOD addendum was not in the signed set, so the accounts opened clean and funding did not.',
+          'Submitted the Schwab new-account pack through the custodian connector and opened a Roth IRA and an individual brokerage. The managed positions are on those accounts. The TOD addendum was not in the signed set, so the Fidelity ACAT did not settle.',
         outcome: 'done',
         stage: 'account_open',
       },

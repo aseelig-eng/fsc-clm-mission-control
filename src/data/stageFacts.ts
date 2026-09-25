@@ -50,7 +50,7 @@ const FACTS: Record<string, StageFacts> = {
     nextTouch: 'Funding was started',
   },
   'h1:funding': {
-    aum: '$248K → funding',
+    aum: '$496K · $248K managed',
     risk: 'Growth · Score 71',
     nextTouch: 'You: Approve resend',
   },

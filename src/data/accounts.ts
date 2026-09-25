@@ -69,9 +69,18 @@ export function usd(value: number, digits = 0) {
   })
 }
 
+export function accountBalance(account: FinancialAccount) {
+  if (account.holdings.length === 0) return account.balance
+  return account.holdings.reduce((sum, position) => sum + position.value, 0)
+}
+
 export function accountTotals(accounts: FinancialAccount[]) {
-  const managed = accounts.filter((account) => account.custody === 'managed').reduce((sum, account) => sum + account.balance, 0)
-  const heldAway = accounts.filter((account) => account.custody === 'held-away').reduce((sum, account) => sum + account.balance, 0)
+  const managed = accounts
+    .filter((account) => account.custody === 'managed')
+    .reduce((sum, account) => sum + accountBalance(account), 0)
+  const heldAway = accounts
+    .filter((account) => account.custody === 'held-away')
+    .reduce((sum, account) => sum + accountBalance(account), 0)
   return { managed, heldAway, total: managed + heldAway }
 }
 
@@ -93,14 +102,21 @@ export const initialAccounts: FinancialAccount[] = [
     mask: '8821',
     type: 'roth',
     custody: 'managed',
-    balance: 0,
+    balance: 140000,
     asOf: '2026-09-24',
-    status: 'Open · ACAT not settled',
+    status: 'Managed · holdings posted · ACAT still open',
     addedBy: 'book',
     review: 'clear',
     link: 'custodian',
-    holdings: [],
+    holdings: [
+      { symbol: 'VTI', name: 'Vanguard Total Stock Market', shares: 280, price: 280, value: 78400, assetClass: 'US equity' },
+      { symbol: 'VXUS', name: 'Vanguard Total International', shares: 400, price: 65, value: 26000, assetClass: 'International' },
+      { symbol: 'BND', name: 'Vanguard Total Bond', shares: 284, price: 74, value: 21016, assetClass: 'Fixed income' },
+      cash(14584),
+    ],
     transactions: [
+      { id: 'maya-roth-buy', date: '2026-09-10', type: 'Buy', description: 'Bought VTI', amount: -78400 },
+      { id: 'maya-roth-div', date: '2026-09-15', type: 'Dividend', description: 'VTI dividend', amount: 186 },
       {
         id: 'maya-roth-tx',
         date: '2026-09-18',
@@ -118,21 +134,21 @@ export const initialAccounts: FinancialAccount[] = [
     mask: '8822',
     type: 'brokerage',
     custody: 'managed',
-    balance: 0,
+    balance: 108000,
     asOf: '2026-09-24',
-    status: 'Open · ACAT not settled',
+    status: 'Managed · holdings posted',
     addedBy: 'book',
     review: 'clear',
     link: 'custodian',
-    holdings: [],
+    holdings: [
+      { symbol: 'VTI', name: 'Vanguard Total Stock Market', shares: 250, price: 280, value: 70000, assetClass: 'US equity' },
+      { symbol: 'VXUS', name: 'Vanguard Total International', shares: 252, price: 65, value: 16380, assetClass: 'International' },
+      { symbol: 'BND', name: 'Vanguard Total Bond', shares: 219, price: 74, value: 16206, assetClass: 'Fixed income' },
+      cash(5414),
+    ],
     transactions: [
-      {
-        id: 'maya-tax-tx',
-        date: '2026-09-12',
-        type: 'Transfer',
-        description: 'Account opened. No cash or securities posted.',
-        amount: 0,
-      },
+      { id: 'maya-tax-buy', date: '2026-09-11', type: 'Buy', description: 'Bought VTI', amount: -70000 },
+      { id: 'maya-tax-div', date: '2026-09-15', type: 'Dividend', description: 'VTI dividend', amount: 94 },
     ],
   },
   {

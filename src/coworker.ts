@@ -1,6 +1,6 @@
 import type { ExceptionItem, Household } from './data/types'
 import { goalProgress, successOdds, type PlanState, type PortfolioState } from './data/advice'
-import { accountTotals, usd, type ClientNotice, type FinancialAccount } from './data/accounts'
+import { accountBalance, accountTotals, usd, type ClientNotice, type FinancialAccount } from './data/accounts'
 import { meetings } from './data/meetings'
 import { allHandoffs, compositeScore, weakestPillar } from './data/generational'
 import { metrics } from './data/content'
@@ -64,7 +64,7 @@ function accountBrief(accounts: FinancialAccount[]) {
   const totals = accountTotals(accounts)
   const lines = accounts.map(
     (account) =>
-      `${account.custody === 'managed' ? 'Managed' : 'Held-away'} · ${account.institution} ${account.name} ···${account.mask}: ${usd(account.balance)} (${account.status})`,
+      `${account.custody === 'managed' ? 'Managed' : 'Held-away'} · ${account.institution} ${account.name} ···${account.mask}: ${usd(accountBalance(account))} (${account.status})`,
   )
   return `Total ${usd(totals.total)}. Managed ${usd(totals.managed)}. Held-away ${usd(totals.heldAway)}.\n${lines.join('\n')}`
 }

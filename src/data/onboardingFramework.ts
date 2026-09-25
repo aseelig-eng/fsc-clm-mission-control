@@ -1,7 +1,7 @@
 import type { LifecycleStageId } from './types'
 
 export type FieldStatus = 'complete' | 'partial' | 'missing' | 'blocked' | 'n/a'
-export type DocStatus = 'filed' | 'pending' | 'nigo' | 'not_started'
+export type DocStatus = 'filed' | 'pending' | 'nigo' | 'not_started' | 'needs_signature'
 
 export interface FormField {
   key: string
@@ -21,10 +21,12 @@ export interface FormSection {
 export interface ComplianceDocument {
   id: string
   name: string
-  category: 'legal' | 'disclosure' | 'suitability' | 'custodial' | 'tax' | 'audit'
+  category: 'legal' | 'disclosure' | 'suitability' | 'custodial' | 'tax' | 'audit' | 'transfer' | 'movement'
   status: DocStatus
   filedOn?: string
   notes?: string
+  signerName?: string
+  packet?: string[]
 }
 
 export interface LifecycleMonitor {
@@ -96,26 +98,50 @@ export function recordCompleteness(record: ClientOnboardingRecord) {
   }
 }
 
-const STANDARD_DOCS: Omit<ComplianceDocument, 'status' | 'filedOn' | 'notes'>[] = [
+const STANDARD_DOCS: Omit<ComplianceDocument, 'status' | 'filedOn' | 'notes' | 'signerName' | 'packet'>[] = [
   { id: 'iaa', name: 'Investment Advisory Agreement (IAA)', category: 'legal' },
   { id: 'crs', name: 'Form CRS', category: 'disclosure' },
   { id: 'adv2a', name: 'ADV Part 2A Brochure', category: 'disclosure' },
   { id: 'adv2b', name: 'ADV Part 2B Brochure Supplement', category: 'disclosure' },
   { id: 'ips', name: 'Investment Policy Statement (IPS)', category: 'suitability' },
   { id: 'fee', name: 'Fee Schedule A', category: 'legal' },
-  { id: 'custodial', name: 'Custodial new-account application', category: 'custodial' },
+  { id: 'custodial', name: 'New account application', category: 'custodial' },
+  { id: 'tod', name: 'TOD / beneficiary designation', category: 'custodial' },
+  { id: 'acatForm', name: 'ACAT transfer form', category: 'transfer' },
+  { id: 'ach', name: 'ACH money-movement authorization', category: 'movement' },
   { id: 'tax', name: 'Tax form (W-9 / W-8BEN)', category: 'tax' },
   { id: 'esign', name: 'E-sign audit trail', category: 'audit' },
 ]
 
+export const DOC_TYPE_LABEL: Record<ComplianceDocument['category'], string> = {
+  legal: 'Agreement',
+  disclosure: 'Disclosure',
+  suitability: 'Suitability',
+  custodial: 'Account open',
+  transfer: 'ACAT',
+  movement: 'Money movement',
+  tax: 'Tax',
+  audit: 'E-sign',
+}
+
+export function docStatusLabel(status: DocStatus) {
+  if (status === 'filed') return 'Filed'
+  if (status === 'pending') return 'In review'
+  if (status === 'nigo') return 'NIGO'
+  if (status === 'needs_signature') return 'Needs signature'
+  return 'Not started'
+}
+
 function docs(
-  map: Partial<Record<string, Pick<ComplianceDocument, 'status' | 'filedOn' | 'notes'>>>,
+  map: Partial<Record<string, Pick<ComplianceDocument, 'status' | 'filedOn' | 'notes' | 'signerName' | 'packet'>>>,
 ): ComplianceDocument[] {
   return STANDARD_DOCS.map((d) => ({
     ...d,
     status: map[d.id]?.status ?? 'not_started',
     filedOn: map[d.id]?.filedOn,
     notes: map[d.id]?.notes,
+    signerName: map[d.id]?.signerName,
+    packet: map[d.id]?.packet,
   }))
 }
 
@@ -231,6 +257,8 @@ function baseSections(overrides: {
       stageIds: ['proposal', 'disclosures'],
       fields: [
         f('beneficiary', 'Primary Beneficiary', { key: '', label: '', value: '', status: 'complete' }, x.beneficiary),
+        f('benShare', 'Beneficiary share', { key: '', label: '', value: '', status: 'missing' }, x.benShare),
+        f('contingent', 'Contingent beneficiary', { key: '', label: '', value: '', status: 'missing' }, x.contingent),
         f('tod', 'TOD / Per Stirpes', { key: '', label: '', value: '', status: 'complete' }, x.tod),
         f('trusted', 'Trusted Contact (FINRA 4512)', { key: '', label: '', value: '', status: 'complete' }, x.trusted),
       ],
@@ -279,7 +307,9 @@ function baseSections(overrides: {
       fields: [
         f('custodian', 'Custodian', { key: '', label: '', value: 'Schwab', status: 'complete' }, x.custodian),
         f('custAcct', 'Custodian Account #', { key: '', label: '', value: '', status: 'complete' }, x.custAcct),
+        f('registration', 'Account registration', { key: '', label: '', value: '', status: 'missing' }, x.registration),
         f('acat', 'ACAT / in-kind transfer', { key: '', label: '', value: '', status: 'complete' }, x.acat),
+        f('acatMatch', 'ACAT registration match', { key: '', label: '', value: '', status: 'missing' }, x.acatMatch),
         f('delivering', 'Delivering firm / account', { key: '', label: '', value: '', status: 'complete' }, x.delivering),
       ],
     },
@@ -291,6 +321,9 @@ function baseSections(overrides: {
       fields: [
         f('fundMethod', 'Funding method', { key: '', label: '', value: 'ACH', status: 'complete' }, overrides.fundingMethod),
         f('fundAmt', 'Initial funding amount (USD)', { key: '', label: '', value: '', status: 'complete' }, overrides.fundingAmount),
+        f('bankName', 'Bank name', { key: '', label: '', value: '', status: 'missing' }, x.bankName),
+        f('routing', 'ABA routing number', { key: '', label: '', value: '', status: 'missing' }, x.routing),
+        f('bankTitle', 'Bank account title', { key: '', label: '', value: '', status: 'missing' }, x.bankTitle),
         f('wire', 'Wire / bank instructions', { key: '', label: '', value: 'Linked · verified', status: 'complete' }, x.wire),
         f('fundStatus', 'Funding Status', { key: '', label: '', value: '', status: 'complete' }, x.fundStatus),
       ],
@@ -463,7 +496,7 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
         source: { value: 'Schwab referral', status: 'complete' },
         netWorth: { value: '$420K', status: 'complete' },
         income: { value: '$185K', status: 'complete' },
-        investable: { value: '$248K', status: 'complete' },
+        investable: { value: '$496K', status: 'complete' },
         employer: { value: 'Northwind Soft', status: 'complete' },
         title: { value: 'Staff Engineer', status: 'complete' },
         riskTol: { value: '71 / Growth', status: 'complete' },
@@ -471,14 +504,21 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
         model: { value: 'Growth 80/20', status: 'complete' },
         acctTypes: { value: 'Roth IRA + Individual', status: 'complete' },
         allocation: { value: '80/20', status: 'complete' },
-        beneficiary: { value: 'Sibling — TOD', status: 'partial' },
-        tod: { value: 'Missing wet signature on TOD', status: 'blocked' },
+        beneficiary: { value: 'Jordan Chen, sibling', status: 'partial' },
+        benShare: { value: '100%', status: 'complete' },
+        contingent: { value: 'None designated', status: 'complete' },
+        tod: { value: 'Addendum drafted · signature missing', status: 'blocked' },
         trusted: { value: 'Jordan Chen', status: 'complete' },
-        custodian: { value: 'Schwab DAIM', status: 'complete' },
-        custAcct: { value: '…8821 / …8822', status: 'complete' },
-        acat: { value: 'Rejected — TOD NIGO', status: 'blocked' },
-        delivering: { value: 'Fidelity · …3391', status: 'complete' },
-        wire: { value: 'ACH linked · ACAT not settled', status: 'partial' },
+        custodian: { value: 'Schwab', status: 'complete' },
+        custAcct: { value: 'Roth ···8821 / Individual ···8822', status: 'complete' },
+        registration: { value: 'Maya Chen — matches the Schwab application', status: 'complete' },
+        acat: { value: 'Rejected — TOD signature NIGO', status: 'blocked' },
+        acatMatch: { value: 'Fidelity Roth ···3391 → Schwab Roth ···8821, same owner', status: 'complete' },
+        delivering: { value: 'Fidelity · ···3391', status: 'complete' },
+        bankName: { value: 'Chase', status: 'complete' },
+        routing: { value: '•••0021', status: 'complete' },
+        bankTitle: { value: 'Maya Chen — matches registration', status: 'complete' },
+        wire: { value: 'ACH standing instruction signed', status: 'complete' },
         fundStatus: { value: 'Blocked on ACAT', status: 'blocked' },
         principal: { value: 'Approved', status: 'complete' },
         principalDate: { value: '2026-09-18', status: 'complete' },
@@ -495,9 +535,22 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
       adv2b: { status: 'filed', filedOn: '2026-09-18' },
       ips: { status: 'filed', filedOn: '2026-09-19' },
       fee: { status: 'filed', filedOn: '2026-09-18' },
-      custodial: { status: 'nigo', notes: 'TOD designation signature gap' },
+      custodial: { status: 'filed', filedOn: '2026-09-18', notes: 'Registration, CIP, and W-9 accepted. Accounts open.' },
+      tod: {
+        status: 'needs_signature',
+        signerName: 'Maya Chen',
+        notes: 'Schwab rejected ACAT #48291. The addendum is complete except the signature.',
+        packet: [
+          'Custodian: Schwab. Account: Roth IRA ···8821. Registration: Maya Chen.',
+          'Primary beneficiary: Jordan Chen, sibling, 100%. Contingent: none.',
+          'Delivering account: Fidelity Roth ···3391, same owner. Full transfer.',
+          'Schwab, Fidelity, and Pershing reject this form when the signature name does not match the registration.',
+        ],
+      },
+      acatForm: { status: 'pending', notes: 'Held until the TOD addendum is signed. Registration already matches.' },
+      ach: { status: 'filed', filedOn: '2026-09-18', notes: 'Chase title matches Maya Chen.' },
       tax: { status: 'filed', filedOn: '2026-09-18' },
-      esign: { status: 'filed', filedOn: '2026-09-18', notes: 'Envelope complete except TOD addendum' },
+      esign: { status: 'filed', filedOn: '2026-09-18', notes: 'New account envelope signed. TOD addendum was not in it.' },
     }),
     monitor: {
       status: 'not_armed',
@@ -549,6 +602,8 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
         allocation: { value: '40/40/20', status: 'complete' },
         feeSchedule: { value: 'Pending principal lock', status: 'partial' },
         beneficiary: { value: 'Whitfield Family Trust', status: 'complete' },
+        benShare: { value: 'Trust is primary', status: 'complete' },
+        contingent: { value: 'Children are with counsel, not on the firm file', status: 'complete' },
         tod: { value: 'Trust primary', status: 'complete' },
         trusted: { value: 'Granddaughter — Ava Whitfield', status: 'complete' },
         cip: { value: 'Pass', status: 'complete' },
@@ -581,7 +636,10 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
       adv2b: { status: 'filed', filedOn: '2026-09-20' },
       ips: { status: 'pending', notes: 'Awaiting principal before fee lock' },
       fee: { status: 'pending' },
-      custodial: { status: 'not_started' },
+      custodial: { status: 'not_started', notes: 'Not submitted. The principal gate is still open, so this is not a custodian reject.' },
+      tod: { status: 'not_started' },
+      acatForm: { status: 'not_started', notes: 'Do not send until the account exists and the registration is final.' },
+      ach: { status: 'not_started' },
       tax: { status: 'filed', filedOn: '2026-09-20' },
       esign: { status: 'pending', notes: 'IAA complete; custodial packet not sent' },
     }),
@@ -635,12 +693,20 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
         model: { value: 'Balanced 60/40', status: 'complete' },
         acctTypes: { value: 'Joint + IRA + Trust', status: 'complete' },
         allocation: { value: '60/40 — drift flagged for Friday review', status: 'partial' },
-        beneficiary: { value: 'Spouse + trust', status: 'complete' },
-        tod: { value: 'On file', status: 'complete' },
+        beneficiary: { value: 'Spouse, then the trust', status: 'complete' },
+        benShare: { value: '100% spouse, trust contingent', status: 'complete' },
+        contingent: { value: 'Adams Family Trust', status: 'complete' },
+        tod: { value: 'On file · signed 2025-10-30', status: 'complete' },
         trusted: { value: 'Daughter — Priya Adams', status: 'complete' },
         custodian: { value: 'Schwab', status: 'complete' },
-        custAcct: { value: '…2201–2204', status: 'complete' },
+        custAcct: { value: 'IRA ···5510 / Joint ···5511', status: 'complete' },
+        registration: { value: 'Jordan Adams — matches Schwab', status: 'complete' },
         acat: { value: 'Settled (prior year)', status: 'complete' },
+        acatMatch: { value: 'Settled like-to-like', status: 'complete' },
+        bankName: { value: 'Schwab Bank', status: 'complete' },
+        routing: { value: 'On file', status: 'complete' },
+        bankTitle: { value: 'Jordan Adams — matches registration', status: 'complete' },
+        wire: { value: 'Standing ACH on file', status: 'complete' },
         fundStatus: { value: 'Funded', status: 'complete' },
         orientDate: { value: '2025-11-12 (completed)', status: 'complete' },
         portal: { value: 'Provisioned', status: 'complete' },
@@ -656,7 +722,10 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
       adv2b: { status: 'filed', filedOn: '2025-10-28' },
       ips: { status: 'filed', filedOn: '2025-10-29' },
       fee: { status: 'filed', filedOn: '2025-10-28' },
-      custodial: { status: 'filed', filedOn: '2025-10-30' },
+      custodial: { status: 'filed', filedOn: '2025-10-30', notes: 'Registration and CIP matched.' },
+      tod: { status: 'filed', filedOn: '2025-10-30', notes: 'Spouse primary, trust contingent.' },
+      acatForm: { status: 'filed', filedOn: '2025-11-02', notes: 'Settled like-to-like.' },
+      ach: { status: 'filed', filedOn: '2025-10-30', notes: 'Bank title matches the registration.' },
       tax: { status: 'filed', filedOn: '2025-10-28' },
       esign: { status: 'filed', filedOn: '2025-10-30' },
     }),
@@ -738,8 +807,21 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
       adv2b: { status: 'filed', filedOn: '2021-04-12' },
       ips: { status: 'pending', notes: 'Successor IPS after spouse meeting' },
       fee: { status: 'filed', filedOn: '2021-04-12' },
-      custodial: { status: 'nigo', notes: 'Retitle package in process' },
-      tax: { status: 'pending', notes: 'Estate tax ID / successor W-9' },
+      custodial: {
+        status: 'needs_signature',
+        signerName: 'Amara Okonkwo',
+        notes: 'Retitle package is complete except the surviving spouse signature.',
+        packet: [
+          'Custodian: Schwab. Accounts: IRA ···9001 and TOD brokerage ···9002, frozen.',
+          'Signer: Amara Okonkwo, surviving spouse. Decedent: James Okonkwo.',
+          'Letters testamentary are on file. The signature name must match the spouse, not the decedent.',
+          'Money movement stays restricted until Schwab accepts this retitle.',
+        ],
+      },
+      tod: { status: 'pending', notes: 'Existing TOD claim waits on the retitle signature.' },
+      acatForm: { status: 'not_started', notes: 'Not a new transfer. Existing Schwab accounts.' },
+      ach: { status: 'pending', notes: 'No money movement until the retitle is accepted.' },
+      tax: { status: 'pending', notes: 'Estate EIN is on the draft W-9. Not a signature defect.' },
       esign: { status: 'pending' },
     }),
     monitor: {

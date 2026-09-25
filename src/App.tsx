@@ -89,7 +89,7 @@ function fieldStatusClass(status: string) {
 
 function docStatusClass(status: string) {
   if (status === 'filed') return 'done'
-  if (status === 'nigo') return 'critical'
+  if (status === 'nigo' || status === 'needs_signature') return 'critical'
   if (status === 'pending') return 'needs'
   return 'medium'
 }
@@ -744,6 +744,61 @@ export default function App() {
       },
       ...prev,
     ])
+  }
+
+  function acceptEsign(householdId: string, documentId: string, signedName: string) {
+    const householdName = households.find((item) => item.id === householdId)?.name ?? 'Client'
+    const next = structuredClone(records)
+    const record = next[householdId]
+    const doc = record?.documents.find((item) => item.id === documentId)
+    if (!record || !doc) return
+    doc.status = 'filed'
+    doc.filedOn = '2026-09-24'
+    doc.notes = `E-signed by ${signedName}`
+    const trail = record.documents.find((item) => item.id === 'esign')
+    if (trail) {
+      trail.status = 'filed'
+      trail.filedOn = '2026-09-24'
+      trail.notes = `${signedName} e-signed ${doc.name}`
+    }
+    const touched: ClientNotice['touched'] = []
+    const setField = (sectionId: string, fieldKey: string, value: string, status: 'complete' | 'partial') => {
+      const field = record.sections.find((section) => section.id === sectionId)?.fields.find((item) => item.key === fieldKey)
+      if (!field || field.status === 'n/a') return
+      field.value = value
+      field.status = status
+      touched.push({ sectionId, fieldKey })
+    }
+    if (documentId === 'tod') {
+      setField('beneficiary', 'beneficiary', 'Jordan Chen, sibling', 'complete')
+      setField('beneficiary', 'tod', 'Jordan Chen, sibling, 100% · e-signed 2026-09-24', 'complete')
+      setField('custody', 'acat', 'In good order · resubmit ACAT #48291', 'complete')
+      setField('funding', 'fundStatus', 'Ready to resubmit', 'partial')
+      const transfer = record.documents.find((item) => item.id === 'acatForm')
+      if (transfer && transfer.status !== 'filed') {
+        transfer.status = 'filed'
+        transfer.filedOn = '2026-09-24'
+        transfer.notes = 'Released with the TOD signature. Registration matches.'
+      }
+    }
+    if (documentId === 'custodial') {
+      setField('custody', 'custAcct', `Retitle e-signed by ${signedName}`, 'partial')
+    }
+    setRecords(next)
+    setClientNotices((prev) => [
+      {
+        id: `n-${Date.now()}`,
+        householdId,
+        householdName,
+        title: `${signedName} e-signed ${doc.name}`,
+        detail: 'The signature matches the registration. Resubmit the packet. The custodian had rejected it for the missing signature.',
+        sectionId: 'custody',
+        touched,
+        reviewed: false,
+      },
+      ...prev,
+    ])
+    flash(`${signedName} signed ${doc.name}. The packet is in good order for resubmit.`)
   }
 
   function runCoworker(action: CoworkerAction) {
@@ -1858,6 +1913,7 @@ export default function App() {
           onClose={() => setPortalOpen(false)}
           onAddAccounts={acceptClientAccounts}
           onUpdateField={acceptProfileAnswer}
+          onSignDocument={acceptEsign}
         />
       )}
     </div>
