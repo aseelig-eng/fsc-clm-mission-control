@@ -56,16 +56,18 @@ function Figure({ person, x }: { person: PersonLikeness; x: number }) {
   )
 }
 
-export function HouseholdFigures({ persons }: { persons: PersonLikeness[] }) {
+export function HouseholdFigures({ persons, mini = false }: { persons: PersonLikeness[]; mini?: boolean }) {
   const n = persons.length
   const gap = n <= 1 ? 0 : n === 2 ? 56 : 48
   const start = -((n - 1) * gap) / 2
-  return (
-    <g transform="translate(200 268)">
+  const body = (
+    <>
       <ellipse cx="0" cy="22" rx={36 + n * 24} ry="9" fill="#d5e6f2" />
       {persons.map((person, i) => (
         <Figure key={person.id} person={person} x={start + i * gap} />
       ))}
-    </g>
+    </>
   )
+  if (mini) return <g>{body}</g>
+  return <g transform="translate(200 268)">{body}</g>
 }
