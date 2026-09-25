@@ -17,7 +17,8 @@ import { buildDrillItems, type DrillItem } from './data/drilldown'
 import { meetingsForHousehold, openMeetingActions } from './data/meetings'
 import { MATURITY_LABELS, personsForHousehold } from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
-import { BookPulse, type BookBubbleId } from './components/BookPulse'
+import { BookPulse } from './components/BookPulse'
+import { ClientDossier } from './components/ClientDossier'
 import {
   householdProgress,
   overallProgress,
@@ -385,6 +386,7 @@ export default function App() {
     actionsTitle: string
     actions: AdvisorAction[]
   } | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
 
   const household = useMemo(
     () => households.find((h) => h.id === selectedHhId) as Household,
@@ -728,6 +730,7 @@ export default function App() {
             </div>
 
             {!showingBook && (
+            <div className="client-toolbar">
             <div className="view-tabs" role="tablist" aria-label="Cockpit views">
               <button
                 type="button"
@@ -760,71 +763,17 @@ export default function App() {
                 <span>What’s On File</span>
               </button>
             </div>
+            <button type="button" className="profile-entry" onClick={() => setProfileOpen(true)}>
+              Relationship File
+            </button>
+            </div>
             )}
 
             <div className="cockpit-split no-review">
               <div className="main-col">
           {showingBook && (
             <>
-              <BookPulse
-                households={households}
-                openSignalCount={openExceptions.length}
-                onOpenHousehold={selectHousehold}
-                onOpenBubble={(id: BookBubbleId) => {
-                  const people = households.flatMap((h) => personsForHousehold(h.id))
-                  const heirAvg = Math.round(
-                    people.reduce((s, p) => s + (p.facets.find((f) => f.id === 'heir_readiness')?.score ?? 0), 0) /
-                      Math.max(people.length, 1),
-                  )
-                  const early = households.filter((h) => !['welcome', 'ongoing', 'annual_review', 'life_event', 'estate'].includes(h.stage))
-                  if (id === 'pipeline') {
-                    setPulseDialog({
-                      kicker: 'Pipeline',
-                      title: `${early.length} households not yet funded`,
-                      why: early.map((h) => `${h.name} · ${h.stageLabel}`).join(' · ') || 'Every household is funded.',
-                      actionsTitle: 'Actions to Take',
-                      actions: early[0]
-                        ? [{ type: 'review_inputs', label: `Open ${early[0].name}`, detail: 'Earliest household still before funding.' }]
-                        : [],
-                    })
-                  } else if (id === 'nigo') {
-                    setPulseDialog({
-                      kicker: 'NIGO',
-                      title: `${openExceptions.length} open signals`,
-                      why: openExceptions.map((ex) => ex.title).slice(0, 4).join(' · ') || 'No open signals.',
-                      actionsTitle: 'Actions to Take',
-                      actions: openExceptions[0]
-                        ? [{ type: 'review_docs', label: openExceptions[0].recommendedAction, detail: openExceptions[0].reason }]
-                        : [],
-                    })
-                  } else if (id === 'heirs') {
-                    setPulseDialog({
-                      kicker: 'Heirs',
-                      title: `Book heir readiness ${heirAvg}%`,
-                      why: 'Average across every person. Low scores are households that can leave at transfer.',
-                      actionsTitle: 'Actions to Take',
-                      actions: [{ type: 'schedule', label: 'Open the weakest household', detail: 'Start with the client whose heirs are least known.' }],
-                    })
-                  } else {
-                    setPulseDialog({
-                      kicker: 'Capacity',
-                      title: `${openExceptions.length} signals across ${households.length} households`,
-                      why: 'Capacity is the open work against the book, not one client.',
-                      actionsTitle: 'Actions to Take',
-                      actions: [{ type: 'review_inputs', label: 'Clear the list below', detail: 'Needs You is the book queue.' }],
-                    })
-                  }
-                }}
-              />
-              <div className="metrics-strip" aria-label="Firm CLM metrics" style={{ padding: 0 }}>
-                {metrics.map((m) => (
-                  <div className="metric-card" key={m.label}>
-                    <div className="label">{m.label}</div>
-                    <div className="value">{m.value}</div>
-                    <div className={`delta ${m.tone === 'neutral' ? 'neutral' : ''}`}>{m.delta}</div>
-                  </div>
-                ))}
-              </div>
+              <BookPulse households={households} exceptions={openExceptions} />
               <aside className="panel" style={{ overflow: 'auto' }}>
                 <div className="panel-header">
                   <span>Needs You — Signal Only</span>
@@ -1557,6 +1506,15 @@ export default function App() {
             </div>
           </div>
         </>
+      )}
+
+      {profileOpen && selectedPerson && (
+        <ClientDossier
+          householdName={household.name}
+          persons={persons}
+          initialPersonId={selectedPerson.id}
+          onClose={() => setProfileOpen(false)}
+        />
       )}
 
       {pulseDialog && (

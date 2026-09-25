@@ -39,11 +39,24 @@ export type Sex = 'female' | 'male' | 'unspecified'
 export type Interest = 'tech' | 'travel' | 'family' | 'markets' | 'garden' | 'art'
 export type Occasion = 'birthday' | 'wedding'
 
+export interface LifeEventNote {
+  when: string
+  label: string
+}
+
+export type ContactChannel = 'text' | 'email' | 'whatsapp' | 'phone' | 'video' | 'in_person'
+
 export interface PersonProfile {
   sex: Sex
   interests: Interest[]
   occasion?: Occasion
   deceased?: boolean
+  email?: string
+  phone?: string
+  address?: string
+  preferredContact?: ContactChannel[]
+  sentiment?: string
+  lifeEvents?: LifeEventNote[]
 }
 
 export interface PersonLikeness {
@@ -121,7 +134,15 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'EV',
       accent: '#706e6b',
       tagline: 'Name and email only. Too early to describe how she decides or who inherits.',
-      profile: { sex: 'female', interests: [] },
+      profile: {
+        sex: 'female',
+        interests: [],
+        email: 'elena.vasquez@example.com',
+        address: 'Not on file',
+        preferredContact: ['email'],
+        sentiment: 'Unknown — one form, no conversation yet',
+        lifeEvents: [],
+      },
       facets: (
         [
           ['risk', 'Risk posture', 8, 'No score. Nothing to confirm.'],
@@ -156,7 +177,16 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'MC',
       accent: '#0176d3',
       tagline: 'Growth-minded builder who wants speed without losing the human touch at key gates.',
-      profile: { sex: 'female', interests: ['tech'] },
+      profile: {
+        sex: 'female',
+        interests: ['tech'],
+        email: 'maya.chen@example.com',
+        phone: '+1 415-555-0142',
+        address: '88 Folsom St, San Francisco, CA',
+        preferredContact: ['text', 'email', 'whatsapp'],
+        sentiment: 'Warm, and watching whether funding is handled well',
+        lifeEvents: [{ when: 'Ahead', label: 'Home purchase is a later moment, not this quarter' }],
+      },
       facets: [
         {
           id: 'risk',
@@ -259,7 +289,16 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'RW',
       accent: '#014486',
       tagline: 'Preserver who wants control, clarity on trusts, and no surprises from compliance.',
-      profile: { sex: 'male', interests: ['markets'] },
+      profile: {
+        sex: 'male',
+        interests: ['markets'],
+        email: 'r.whitfield@example.com',
+        phone: '+1 212-555-0199',
+        address: '12 Gramercy Park, New York, NY',
+        preferredContact: ['email', 'in_person'],
+        sentiment: 'Exacting. Trust is personal, and he reads every packet',
+        lifeEvents: [{ when: 'This week', label: 'US beneficiary added on the trust' }],
+      },
       facets: [
         {
           id: 'risk',
@@ -360,7 +399,16 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'EW',
       accent: '#2e844a',
       tagline: 'Family steward — less market talk, more “will this take care of our people?”',
-      profile: { sex: 'female', interests: ['family', 'garden'] },
+      profile: {
+        sex: 'female',
+        interests: ['family', 'garden'],
+        email: 'e.whitfield@example.com',
+        phone: '+1 212-555-0199',
+        address: '12 Gramercy Park, New York, NY',
+        preferredContact: ['text', 'whatsapp', 'in_person'],
+        sentiment: 'Caring. She engages when the topic is family, not markets',
+        lifeEvents: [{ when: 'Ongoing', label: 'Granddaughter is the trusted contact' }],
+      },
       facets: [
         {
           id: 'risk',
@@ -461,7 +509,16 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'JA',
       accent: '#0176d3',
       tagline: 'Seasoned client — wants tax craft and calm annual rhythm, not product theater.',
-      profile: { sex: 'male', interests: ['markets'] },
+      profile: {
+        sex: 'male',
+        interests: ['markets'],
+        email: 'jordan.adams@example.com',
+        phone: '+1 650-555-0177',
+        address: '400 University Ave, Palo Alto, CA',
+        preferredContact: ['email', 'video'],
+        sentiment: 'Steady and loyal. Wants tax craft, not a new pitch',
+        lifeEvents: [{ when: 'This year', label: 'RMD window opening' }],
+      },
       facets: [
         {
           id: 'risk',
@@ -563,7 +620,17 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'SA',
       accent: '#dd7a01',
       tagline: 'Quieter voice in meetings — decisive on lifestyle cash and family milestones.',
-      profile: { sex: 'female', interests: ['travel', 'family'], occasion: 'birthday' },
+      profile: {
+        sex: 'female',
+        interests: ['travel', 'family'],
+        occasion: 'birthday',
+        email: 'sam.adams@example.com',
+        phone: '+1 650-555-0188',
+        address: '400 University Ave, Palo Alto, CA',
+        preferredContact: ['text', 'whatsapp'],
+        sentiment: 'Quiet in meetings, decisive about lifestyle cash',
+        lifeEvents: [{ when: 'This month', label: 'Birthday — family gifts and travel cash' }],
+      },
       facets: [
         {
           id: 'risk',
@@ -663,7 +730,14 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'JO',
       accent: '#706e6b',
       tagline: 'Historical likeness — locked for audit; guides retitle and successor care.',
-      profile: { sex: 'male', interests: [], deceased: true },
+      profile: {
+        sex: 'male',
+        interests: [],
+        deceased: true,
+        address: 'Chicago, IL',
+        sentiment: 'Historical. The relationship now belongs to Amara',
+        lifeEvents: [{ when: '2026-08-02', label: 'Death — estate path opened' }],
+      },
       facets: [
         {
           id: 'risk',
@@ -763,7 +837,15 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
       initials: 'AO',
       accent: '#ba0517',
       tagline: 'New relationship chapter — high care need, low tolerance for process fog.',
-      profile: { sex: 'female', interests: ['family'] },
+      profile: {
+        sex: 'female',
+        interests: ['family'],
+        phone: '+1 312-555-0160',
+        address: 'Chicago, IL',
+        preferredContact: ['text', 'in_person'],
+        sentiment: 'Fragile. Borrowed trust from James, not yet her own',
+        lifeEvents: [{ when: '2026-08', label: 'Death of spouse — first formal intro still ahead' }],
+      },
       facets: [
         {
           id: 'risk',

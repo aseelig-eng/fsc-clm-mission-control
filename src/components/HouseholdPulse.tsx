@@ -123,7 +123,7 @@ export function HouseholdPulse({
           <div className="likeness-kicker">Household Pulse · Status &amp; Usage</div>
           <h3 className="likeness-title">{household.name}</h3>
           <p className="muted" style={{ margin: '4px 0 0' }}>
-            {person.name} · {person.role}. Tap a node for recommended review — same one-click path as Needs you.
+            {person.name} · {person.role}. Tap a node for recommended review.
           </p>
         </div>
         {persons.length > 1 && (
