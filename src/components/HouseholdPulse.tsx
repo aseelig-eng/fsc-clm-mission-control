@@ -1,6 +1,6 @@
 import { MATURITY_LABELS, type BehavioralFacet, type PersonLikeness } from '../data/portraits'
 import { compositeScore, handoffFor, readinessBand } from '../data/generational'
-import { adviceFlags, goalProgress, type PlanGoal, type PlanState, type PortfolioState } from '../data/advice'
+import { goalProgress, type PlanGoal, type PlanState } from '../data/advice'
 import type { ExceptionItem, Household, LifecycleStage } from '../data/types'
 import { LikenessCompass } from './LikenessCompass'
 import { HouseholdFigures } from './HouseholdFigures'
@@ -20,7 +20,6 @@ type Props = {
   onSelectNode: (nodeId: PulseNodeId) => void
   onSelectFacet: (facet: BehavioralFacet) => void
   plan: PlanState
-  portfolio: PortfolioState
 }
 
 function goalShort(name: string) {
@@ -63,10 +62,8 @@ export function HouseholdPulse({
   onSelectNode,
   onSelectFacet,
   plan,
-  portfolio,
 }: Props) {
   const [openGoal, setOpenGoal] = useState<PlanGoal | null>(null)
-  const [portfolioOpen, setPortfolioOpen] = useState(false)
   const engage = person.facets.find((f) => f.id === 'engagement')
   const heirScore = compositeScore(handoffFor(household.id))
   const maturity = person.maturity
@@ -213,14 +210,6 @@ export function HouseholdPulse({
               })}
             </div>
           )}
-          <button type="button" className="pulse-book" onClick={() => setPortfolioOpen(true)}>
-            <span>Portfolio</span>
-            <strong>
-              {portfolio.equity + portfolio.fixed + portfolio.cash + portfolio.alts === 0
-                ? 'Not set'
-                : `${portfolio.equity}/${portfolio.fixed}/${portfolio.cash}`}
-            </strong>
-          </button>
           {(
             [
               { id: 'engage' as const, x: 200, y: 48 },
@@ -308,54 +297,6 @@ export function HouseholdPulse({
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
-      {portfolioOpen && (
-        <div className="modal-backdrop" role="presentation" onClick={() => setPortfolioOpen(false)}>
-          <div className="modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <div className="muted">Portfolio</div>
-                <h2>
-                  {portfolio.equity}% equity
-                  {portfolio.targetEquity != null ? ` · IPS ${portfolio.targetEquity}%` : ''}
-                </h2>
-              </div>
-              <button type="button" className="btn" onClick={() => setPortfolioOpen(false)}>
-                Close
-              </button>
-            </div>
-            {(
-              [
-                ['Equity', portfolio.equity],
-                ['Fixed income', portfolio.fixed],
-                ['Cash', portfolio.cash],
-                ['Alternatives', portfolio.alts],
-              ] as const
-            ).map(([label, value]) => (
-              <div className="book-meter-row" key={label}>
-                <div className="book-meter-label">
-                  <strong>{label}</strong>
-                  <span>{value}%</span>
-                </div>
-                <div className="book-meter-track">
-                  <div className="book-meter-fill tone-neutral" style={{ width: `${value}%` }} />
-                </div>
-              </div>
-            ))}
-            <ul className="advice-flags">
-              {adviceFlags(plan, portfolio)
-                .filter((flag) => flag.scope !== 'plan')
-                .map((flag) => (
-                  <li key={flag.title} className={flag.severity}>
-                    <strong>{flag.severity === 'block' ? 'Anti-pattern' : 'Watch'}</strong>
-                    <span>
-                      {flag.title}. {flag.detail}
-                    </span>
-                  </li>
-                ))}
-            </ul>
           </div>
         </div>
       )}

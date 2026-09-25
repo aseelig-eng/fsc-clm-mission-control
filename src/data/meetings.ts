@@ -36,6 +36,12 @@ export interface Meeting {
   decisions?: string[]
   actions: MeetingActionItem[]
   playbookId?: string
+  /** Meeting Concierge template, matching the org playbooks */
+  playbookName?: string
+  /** Pre-meeting brief written from the household file */
+  preBrief?: string[]
+  /** Post-meeting next steps, the way an interaction summary publishes them */
+  nextSteps?: string[]
   prepBriefReady?: boolean
 }
 
@@ -64,6 +70,12 @@ export const meetings: Meeting[] = [
       },
     ],
     playbookId: 'a0Cfn00001fPROS01',
+    playbookName: 'Prospect Pre Meeting',
+    preBrief: [
+      'The file is a name and an email. Do not draft an IPS.',
+      'Ask for a phone number, one goal, and whether any account would move.',
+      'Ask who would receive an account only if she offers a name.',
+    ],
     prepBriefReady: true,
   },
 
@@ -93,6 +105,12 @@ export const meetings: Meeting[] = [
       },
     ],
     playbookId: 'a0Cfn00001fDISC01',
+    playbookName: 'Prospect Post Meeting',
+    nextSteps: [
+      'Open the Schwab Roth IRA and the individual brokerage.',
+      'Draft the IPS at Growth, score 71.',
+      'Name the sibling on the TOD, then add a contingent.',
+    ],
     prepBriefReady: true,
   },
   {
@@ -118,6 +136,13 @@ export const meetings: Meeting[] = [
       },
     ],
     playbookId: 'a0Cfn00001fFUND01',
+    playbookName: 'Wealth — Financial Goal Funding & Execution',
+    preBrief: [
+      'Schwab Roth ···8821 and brokerage ···8822 are open. Managed book is $248,000.',
+      'Fidelity Roth ···3391 is still held away. ACAT #48291 was rejected for the TOD signature.',
+      'Primary beneficiary is Jordan Chen, sibling, 100%. Contingent is blank.',
+      'Resolve that case before you talk about the home goal. The home is not this quarter.',
+    ],
     prepBriefReady: true,
   },
   {
@@ -143,6 +168,8 @@ export const meetings: Meeting[] = [
       },
     ],
     playbookId: 'a0Cfn00001fMN4iEAG',
+    playbookName: 'Advisor 30/60/90',
+    preBrief: ['Hold this meeting. The ACAT has not settled, so the welcome cadence is not armed.'],
     prepBriefReady: false,
   },
 
@@ -172,6 +199,12 @@ export const meetings: Meeting[] = [
       },
     ],
     playbookId: 'a0Cfn00001fPROP01',
+    playbookName: 'Prospect Post Meeting',
+    nextSteps: [
+      'Send the EDD packet to the principal. Do not open the custodian account yet.',
+      'Keep the fee schedule locked until that approval.',
+      'Eleanor hosts a next-generation intro only after the gate clears.',
+    ],
     prepBriefReady: true,
   },
   {
@@ -207,6 +240,13 @@ export const meetings: Meeting[] = [
       },
     ],
     playbookId: 'a0Cfn00001fTRUST01',
+    playbookName: 'Life event — beneficiary',
+    preBrief: [
+      'A US person was added on the trust this week. The contingent path is still open.',
+      'Nothing is at the firm. Northern Trust, Goldman, and JPMorgan still hold the $5.2M.',
+      'Risk score is 44, conservative. The outside book is 62% equity against a 40% IPS.',
+      'Principal has not approved EDD. Do not talk about opening the account until that case is clear.',
+    ],
     prepBriefReady: true,
   },
 
@@ -244,6 +284,14 @@ export const meetings: Meeting[] = [
       },
     ],
     playbookId: 'a0Cfn00001fADAMS01',
+    playbookName: 'Annual Review Pre Meeting',
+    preBrief: [
+      'Income goal is funded at $3.8M. The Roth conversion has no dollar target and a two-year window.',
+      'Equity is 68% against an IPS target of 60%. Risk score is 55.',
+      'About 90% of known assets are here. The Empower 401(k) is the piece still outside.',
+      'Open cases: reallocation, and a missing IRA contingent. The daughter is a trusted contact, not a client.',
+      'Close with a 30-minute family touch. Sam can host.',
+    ],
     prepBriefReady: true,
   },
   {
@@ -258,6 +306,10 @@ export const meetings: Meeting[] = [
     agenda: ['Performance', 'Cash need', 'Life updates'],
     summary: 'No material life changes. Client asked about Roth conversion window in 2026–27. Flagged for AR.',
     decisions: ['Keep 60/40', 'Park Roth conversion for annual review'],
+    nextSteps: [
+      'Carry the Roth conversion into the annual review deck.',
+      'Leave the 60/40 policy in place until Friday.',
+    ],
     actions: [
       {
         id: 'ma-a3',
@@ -306,6 +358,13 @@ export const meetings: Meeting[] = [
       },
     ],
     playbookId: 'a0Cfn00001fESTATE01',
+    playbookName: 'Estate intro',
+    preBrief: [
+      'James died 2 Aug 2026. The $1.1M is still at Schwab and frozen.',
+      'Letters testamentary are on file. The retitle still needs Amara’s signature.',
+      'Estate EIN and the successor W-9 are not in. Do not run a risk quiz.',
+      'She is the heir. The first meeting has not happened. Lead with the path, not a portfolio.',
+    ],
     prepBriefReady: true,
   },
   {
@@ -320,6 +379,11 @@ export const meetings: Meeting[] = [
     agenda: ['Freeze accounts', 'Document intake', 'Spouse outreach plan'],
     summary: 'Death certificate + letters testamentary ingested. Account freeze confirmed at custodian.',
     decisions: ['Open estate Action Plan', 'Schedule spouse intro for 9/30'],
+    nextSteps: [
+      'File the letters testamentary.',
+      'Hold Tuesday for Amara. Counsel attends.',
+      'Do not send anything in her name until the retitle signature is on the packet.',
+    ],
     actions: [
       {
         id: 'ma-o3',

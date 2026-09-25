@@ -5,19 +5,98 @@ import { goalProgress } from '../data/advice'
 import type { ClientOnboardingRecord, ComplianceDocument } from '../data/onboardingFramework'
 import { DOC_TYPE_LABEL, docStatusLabel } from '../data/onboardingFramework'
 import {
+  accountBalance,
+  accountTotals,
   accountsFromPlaid,
   accountFromManual,
   plaidInstitutions,
   usd,
   type AccountType,
   type FinancialAccount,
+  type LedgerTxn,
   type PlaidOffer,
 } from '../data/accounts'
 import type { CoworkerContext } from '../coworker'
 import { AccountBook } from './AccountBook'
 import { CoworkerPanel } from './CoworkerPanel'
 
-type PortalView = 'accounts' | 'ask' | 'vault' | 'facts'
+type PortalView = 'home' | 'activity' | 'move' | 'vault' | 'facts' | 'ask'
+type RangeId = '1D' | '1W' | '1M' | '1Y' | 'All'
+type ActivityFilter = 'all' | 'transfer' | 'trade' | 'income'
+
+const RANGES: RangeId[] = ['1D', '1W', '1M', '1Y', 'All']
+
+function greetName(name: string) {
+  if (name.startsWith('Estate of ')) return name.slice('Estate of '.length).split(' ')[0]
+  if (name.endsWith(' Household')) return name.replace(' Household', '')
+  return name.split(/[\s&]/).find(Boolean) ?? name
+}
+
+function dayPart() {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
+function performanceSeries(total: number, range: RangeId) {
+  const points = range === '1D' ? 16 : range === '1W' ? 7 : range === '1M' ? 18 : range === '1Y' ? 12 : 20
+  const drift = range === '1D' ? 0.006 : range === '1W' ? 0.014 : range === '1M' ? 0.028 : range === '1Y' ? 0.08 : 0.18
+  const values: number[] = []
+  for (let i = 0; i < points; i += 1) {
+    const t = points <= 1 ? 1 : i / (points - 1)
+    const wave = Math.sin(i * 1.3 + total / 100000) * total * 0.006
+    values.push(Math.max(0, total * (1 - drift + drift * t) + wave))
+  }
+  if (values.length > 0) values[values.length - 1] = total
+  return values
+}
+
+function chartPath(values: number[]) {
+  if (values.length === 0) return ''
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = max - min || 1
+  return values
+    .map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * 100
+      const y = 32 - ((value - min) / span) * 26
+      return `${index === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`
+    })
+    .join(' ')
+}
+
+function activityBucket(type: LedgerTxn['type']): ActivityFilter {
+  if (type === 'Transfer' || type === 'Contribution') return 'transfer'
+  if (type === 'Buy' || type === 'Sell' || type === 'Fee') return 'trade'
+  return 'income'
+}
+
+function ActivityList({
+  rows,
+}: {
+  rows: { id: string; date: string; type: string; description: string; amount: number; account: FinancialAccount }[]
+}) {
+  if (rows.length === 0) return null
+  return (
+    <ul className="portal-activity">
+      {rows.map((row) => (
+        <li key={row.id}>
+          <span>
+            <strong>{row.description}</strong>
+            <em>
+              {row.date} · {row.account.institution} ···{row.account.mask} · {row.type}
+            </em>
+          </span>
+          <strong className={row.amount >= 0 ? 'up' : 'down'}>
+            {row.amount >= 0 ? '+' : '−'}
+            {usd(Math.abs(row.amount))}
+          </strong>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 export function ClientPortal({
   households,
@@ -31,6 +110,7 @@ export function ClientPortal({
   onAddAccounts,
   onUpdateField,
   onSignDocument,
+  onClientRequest,
 }: {
   households: Household[]
   householdId: string
@@ -43,12 +123,17 @@ export function ClientPortal({
   onAddAccounts: (accounts: FinancialAccount[]) => void
   onUpdateField: (householdId: string, sectionId: string, fieldKey: string, label: string, value: string) => void
   onSignDocument: (householdId: string, documentId: string, signedName: string) => void
+  onClientRequest: (householdId: string, title: string, detail: string) => void
 }) {
   const household = households.find((item) => item.id === householdId) ?? households[0]
   const plan = plans[household.id]
   const record = records[household.id]
   const mine = accounts.filter((account) => account.householdId === household.id)
-  const [view, setView] = useState<PortalView>('accounts')
+  const totals = accountTotals(mine)
+  const [view, setView] = useState<PortalView>('home')
+  const [range, setRange] = useState<RangeId>('1M')
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all')
+  const [openAccountId, setOpenAccountId] = useState<string | null>(null)
   const [plaid, setPlaid] = useState<PlaidOffer | 'pick' | null>(null)
   const [manualOpen, setManualOpen] = useState(false)
   const [sent, setSent] = useState<Record<string, string>>({})
@@ -56,12 +141,18 @@ export function ClientPortal({
   const [signName, setSignName] = useState('')
   const [signConsent, setSignConsent] = useState(false)
   const [signError, setSignError] = useState('')
+  const [moveFrom, setMoveFrom] = useState('')
+  const [moveAmount, setMoveAmount] = useState('')
+  const [moveNote, setMoveNote] = useState('')
+  const [moveSent, setMoveSent] = useState('')
 
   useEffect(() => {
     setSigningId(null)
     setSignName('')
     setSignConsent(false)
     setSignError('')
+    setMoveSent('')
+    setOpenAccountId(null)
   }, [household.id])
 
   const gaps =
@@ -103,12 +194,43 @@ export function ClientPortal({
     setSignError('')
   }
 
+  const series = performanceSeries(totals.total, range)
+  const seriesStart = series[0] ?? totals.total
+  const change = totals.total - seriesStart
+  const changePct = seriesStart === 0 ? 0 : (change / seriesStart) * 100
+  const up = change >= 0
+  const cash = mine.reduce(
+    (sum, account) =>
+      sum + account.holdings.filter((holding) => holding.symbol === 'CASH').reduce((inner, holding) => inner + holding.value, 0),
+    0,
+  )
+  const positions = [
+    ...mine
+      .reduce((map, account) => {
+        for (const holding of account.holdings) {
+          if (holding.symbol === 'CASH') continue
+          const row = map.get(holding.symbol) ?? { symbol: holding.symbol, name: holding.name, value: 0, shares: 0 }
+          row.value += holding.value
+          row.shares += holding.shares
+          map.set(holding.symbol, row)
+        }
+        return map
+      }, new Map<string, { symbol: string; name: string; value: number; shares: number }>())
+      .values(),
+  ].sort((a, b) => b.value - a.value)
+  const activity = mine
+    .flatMap((account) => account.transactions.map((txn) => ({ ...txn, account })))
+    .sort((a, b) => b.date.localeCompare(a.date))
+  const visibleActivity = activity.filter((item) => activityFilter === 'all' || activityBucket(item.type) === activityFilter)
+  const openAccount = mine.find((account) => account.id === openAccountId) ?? null
+  const blockedMove = mine.filter((account) => /nigo|reject|still open|acat #/i.test(account.status))
+
   return (
     <div className="portal">
       <header className="portal-top">
         <div>
-          <div className="portal-kicker">Client portal</div>
-          <h2>{household.name}</h2>
+          <div className="portal-kicker">{dayPart()}</div>
+          <h2>{greetName(household.name)}</h2>
         </div>
         <div className="portal-top-actions">
           <label>
@@ -132,50 +254,240 @@ export function ClientPortal({
         </div>
       </header>
       <div className="portal-body">
-        <nav className="portal-nav">
+        <nav className="portal-nav" aria-label="Client portal">
           {(
             [
-              ['accounts', 'Accounts'],
-              ['ask', 'Ask'],
+              ['home', 'Home'],
+              ['activity', 'Activity'],
+              ['move', 'Move'],
               ['vault', 'Documents'],
-              ['facts', 'Update my information'],
+              ['facts', 'Profile'],
+              ['ask', 'Ask'],
             ] as const
           ).map(([id, label]) => (
             <button key={id} type="button" className={view === id ? 'active' : ''} onClick={() => setView(id)}>
               {label}
-              {id === 'facts' && gaps.length > 0 ? ` · ${gaps.length}` : ''}
-              {id === 'vault' && toSign > 0 ? ` · ${toSign}` : ''}
+              {id === 'facts' && gaps.length > 0 ? ` ${gaps.length}` : ''}
+              {id === 'vault' && toSign > 0 ? ` ${toSign}` : ''}
             </button>
           ))}
         </nav>
         <main className={`portal-main ${view === 'ask' ? 'portal-main-ask' : ''}`}>
-          {view === 'accounts' && (
-            <>
-              <div className="portal-account-head">
-                <div>
-                  <p className="muted">Managed accounts sit with your advisor. Held-away accounts stay at the other firm until you decide to move them.</p>
-                </div>
-                <div className="portal-add">
-                  <button type="button" className="btn primary" onClick={() => setPlaid('pick')}>
-                    Connect with Plaid
-                  </button>
-                  <button type="button" className="btn" onClick={() => setManualOpen(true)}>
-                    Enter manually
-                  </button>
-                </div>
-              </div>
-              <AccountBook accounts={mine} />
-              {plan.goals.length > 0 && (
-                <div className="portal-goals">
-                  {plan.goals.map((goal) => (
-                    <div key={goal.id}>
-                      <strong>{goal.name}</strong>
-                      <span>{goalProgress(goal) == null ? 'No target yet' : `${goalProgress(goal)}% funded`}</span>
-                    </div>
+          {view === 'home' && (
+            <div className="portal-home">
+              <section className={`portal-hero ${up ? 'up' : 'down'}`}>
+                <p className="portal-hero-label">Household value</p>
+                <p className="portal-total">{usd(totals.total)}</p>
+                <p className={`portal-change ${up ? 'up' : 'down'}`}>
+                  {up ? '+' : '−'}
+                  {usd(Math.abs(change))} ({up ? '+' : '−'}
+                  {Math.abs(changePct).toFixed(1)}%) · {range}
+                </p>
+                <svg className="portal-chart" viewBox="0 0 100 36" preserveAspectRatio="none" role="img" aria-label={`Portfolio value, ${range}`}>
+                  <path d={chartPath(series)} fill="none" stroke="currentColor" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+                </svg>
+                <div className="portal-ranges" role="tablist" aria-label="Performance range">
+                  {RANGES.map((item) => (
+                    <button key={item} type="button" role="tab" aria-selected={range === item} className={range === item ? 'active' : ''} onClick={() => setRange(item)}>
+                      {item}
+                    </button>
                   ))}
                 </div>
+                <div className="portal-split">
+                  <div>
+                    <span>With your advisor</span>
+                    <strong>{usd(totals.managed)}</strong>
+                  </div>
+                  <div>
+                    <span>Held away</span>
+                    <strong>{usd(totals.heldAway)}</strong>
+                  </div>
+                  <div>
+                    <span>Cash</span>
+                    <strong>{usd(cash)}</strong>
+                  </div>
+                </div>
+              </section>
+
+              {blockedMove.length > 0 && (
+                <button type="button" className="portal-spotlight" onClick={() => setView('move')}>
+                  <strong>A transfer needs you</strong>
+                  <span>{blockedMove[0].institution} ···{blockedMove[0].mask} · {blockedMove[0].status}</span>
+                </button>
               )}
-            </>
+
+              <section className="portal-section">
+                <div className="portal-section-head">
+                  <h3>Accounts</h3>
+                  <div className="portal-add">
+                    <button type="button" className="btn" onClick={() => setPlaid('pick')}>
+                      Connect
+                    </button>
+                    <button type="button" className="btn" onClick={() => setManualOpen(true)}>
+                      Add manually
+                    </button>
+                  </div>
+                </div>
+                {mine.length === 0 && <p className="muted">No accounts yet. Connect one you hold elsewhere, or add it by hand.</p>}
+                <div className="portal-account-grid">
+                  {mine.map((account) => (
+                    <button
+                      key={account.id}
+                      type="button"
+                      className={`portal-account-card ${openAccountId === account.id ? 'open' : ''} ${account.custody}`}
+                      onClick={() => setOpenAccountId((current) => (current === account.id ? null : account.id))}
+                    >
+                      <span>{account.institution} ···{account.mask}</span>
+                      <strong>{usd(accountBalance(account))}</strong>
+                      <em>
+                        {account.custody === 'managed' ? 'Managed' : 'Held away'} · {account.name}
+                        {account.review === 'pending' ? ' · waiting on your advisor' : ''}
+                      </em>
+                    </button>
+                  ))}
+                </div>
+                {openAccount && <AccountBook accounts={[openAccount]} />}
+              </section>
+
+              {positions.length > 0 && (
+                <section className="portal-section">
+                  <h3>Positions</h3>
+                  <ul className="portal-positions">
+                    {positions.map((position) => (
+                      <li key={position.symbol}>
+                        <span className="sym">{position.symbol}</span>
+                        <span>
+                          <strong>{position.name}</strong>
+                          <em>
+                            {position.shares.toLocaleString()} shares
+                            {totals.total > 0 ? ` · ${Math.round((position.value / totals.total) * 100)}%` : ''}
+                          </em>
+                        </span>
+                        <strong>{usd(position.value)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {plan.goals.length > 0 && (
+                <section className="portal-section">
+                  <h3>Goals</h3>
+                  <div className="portal-goals">
+                    {plan.goals.map((goal) => {
+                      const progress = goalProgress(goal)
+                      return (
+                        <div key={goal.id}>
+                          <strong>{goal.name}</strong>
+                          <span>{progress == null ? 'No target yet' : `${progress}% funded`}</span>
+                          {progress != null && (
+                            <div className="portal-pot">
+                              <span style={{ width: `${Math.min(progress, 100)}%` }} />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+
+              <section className="portal-section">
+                <div className="portal-section-head">
+                  <h3>Latest activity</h3>
+                  <button type="button" className="btn" onClick={() => setView('activity')}>
+                    See all
+                  </button>
+                </div>
+                <ActivityList rows={activity.slice(0, 4)} />
+              </section>
+            </div>
+          )}
+          {view === 'activity' && (
+            <div className="portal-home">
+              <div className="portal-section-head">
+                <h3>Activity</h3>
+              </div>
+              <div className="portal-ranges" role="tablist" aria-label="Activity type">
+                {(
+                  [
+                    ['all', 'All'],
+                    ['transfer', 'Transfers'],
+                    ['trade', 'Trades'],
+                    ['income', 'Income'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button key={id} type="button" className={activityFilter === id ? 'active' : ''} onClick={() => setActivityFilter(id)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <ActivityList rows={visibleActivity} />
+              {visibleActivity.length === 0 && <p className="muted">Nothing in this view yet.</p>}
+            </div>
+          )}
+          {view === 'move' && (
+            <div className="portal-home">
+              <section className="portal-section">
+                <h3>Move money</h3>
+                <p>This asks your advisor to move money. It does not send an order to the custodian or to the other firm.</p>
+                {blockedMove.map((account) => (
+                  <p key={account.id} className="portal-spotlight static">
+                    <strong>{account.institution} ···{account.mask}</strong>
+                    <span>{account.status}</span>
+                  </p>
+                ))}
+                {moveSent ? (
+                  <p className="portal-sent">{moveSent}</p>
+                ) : (
+                  <form
+                    className="portal-move"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      const account = mine.find((item) => item.id === moveFrom)
+                      const amount = Number(moveAmount.replace(/[^0-9.]/g, ''))
+                      if (!account || !Number.isFinite(amount) || amount <= 0) return
+                      const detail = `${usd(amount)} from ${account.institution} ${account.name} ···${account.mask}${moveNote.trim() ? `. ${moveNote.trim()}` : ''}. Client request. Nothing was sent to the custodian.`
+                      onClientRequest(household.id, 'Client asked to move money', detail)
+                      setMoveSent(`Sent to your advisor: ${usd(amount)} from ···${account.mask}.`)
+                      setMoveAmount('')
+                      setMoveNote('')
+                    }}
+                  >
+                    <label>
+                      From
+                      <select value={moveFrom} onChange={(event) => setMoveFrom(event.target.value)} required>
+                        <option value="">Choose an account</option>
+                        {mine.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.institution} ···{account.mask} · {usd(accountBalance(account))}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Amount
+                      <input value={moveAmount} onChange={(event) => setMoveAmount(event.target.value)} inputMode="decimal" placeholder="5000" required />
+                    </label>
+                    <label>
+                      Note for your advisor
+                      <input value={moveNote} onChange={(event) => setMoveNote(event.target.value)} placeholder="Fund the Roth, or leave this blank" />
+                    </label>
+                    <button type="submit" className="btn primary">
+                      Ask my advisor
+                    </button>
+                  </form>
+                )}
+                <div className="portal-add">
+                  <button type="button" className="btn" onClick={() => setPlaid('pick')}>
+                    Connect a held-away account
+                  </button>
+                  <button type="button" className="btn" onClick={() => setManualOpen(true)}>
+                    Enter one manually
+                  </button>
+                </div>
+              </section>
+            </div>
           )}
           {view === 'ask' && (
             <CoworkerPanel
@@ -183,18 +495,44 @@ export function ClientPortal({
               open
               embedded
               context={{ ...coworker, audience: 'client', scopeHouseholdId: household.id, accounts: mine, record }}
-              onClose={() => setView('accounts')}
+              onClose={() => setView('home')}
               onAction={(action) => {
                 if (action.type === 'open-client' && action.tab === 'record') setView('facts')
-                if (action.type === 'open-client' && action.tab !== 'record') setView('accounts')
+                if (action.type === 'open-client' && action.tab !== 'record') setView('home')
               }}
             />
           )}
           {view === 'vault' && (
             <div className="portal-vault">
-              <p>
-                Schwab, Fidelity, and Pershing accept an account, a transfer, and a money movement only when the registration, the delivering account, and the signature all match.
-              </p>
+              <h3>Documents</h3>
+              <p>Statements from each custodian, plus anything still waiting on a signature.</p>
+              {toSign > 0 && (
+                <div className="portal-sign-row">
+                  {(record?.documents ?? [])
+                    .filter((doc) => doc.status === 'needs_signature')
+                    .map((doc) => (
+                      <button key={doc.id} type="button" className="portal-spotlight" onClick={() => setSigningId(doc.id)}>
+                        <strong>Sign {doc.name}</strong>
+                        <span>{doc.signerName ? `Sign as ${doc.signerName}` : 'Signature required'}</span>
+                      </button>
+                    ))}
+                </div>
+              )}
+              {mine.length > 0 && (
+                <ul className="portal-statements">
+                  {mine.map((account) => (
+                    <li key={account.id}>
+                      <span>
+                        <strong>{account.institution} statement</strong>
+                        <em>
+                          ···{account.mask} · posted {account.asOf}
+                        </em>
+                      </span>
+                      <span className="doc-status status-filed">Posted</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <table className="portal-doc-table">
                 <thead>
                   <tr>

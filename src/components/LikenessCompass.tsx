@@ -1,4 +1,18 @@
+import { useEffect, useState } from 'react'
 import { FACET_META, MATURITY_LABELS, type BehavioralFacet, type PersonLikeness } from '../data/portraits'
+
+function facetSummary(facet: BehavioralFacet) {
+  const band =
+    facet.score >= 80
+      ? 'This is a strong read'
+      : facet.score >= 55
+        ? 'This is a workable read'
+        : facet.score >= 35
+          ? 'This is still thin'
+          : 'This is barely on the file'
+  const proof = facet.evidence[0] ? ` Seen on the file: ${facet.evidence[0].replace(/\.$/, '')}.` : ''
+  return `${band}. ${facet.blurb}${proof}`
+}
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180
@@ -14,11 +28,17 @@ export function LikenessCompass({
   selectedFacetId: string | null
   onSelectFacet: (facet: BehavioralFacet) => void
 }) {
-  const size = 300
+  const size = 360
   const cx = size / 2
   const cy = size / 2
   const maxR = 96
   const tier = MATURITY_LABELS[person.maturity.tier]
+  const [summaryId, setSummaryId] = useState<string | null>(null)
+  const summary = person.facets.find((facet) => facet.id === summaryId) ?? null
+
+  useEffect(() => {
+    setSummaryId(null)
+  }, [person.id])
 
   const points = FACET_META.map((meta) => {
     const facet = person.facets.find((f) => f.id === meta.id)!
@@ -48,7 +68,7 @@ export function LikenessCompass({
         />
         <polygon points={polygon} fill={person.accent} fillOpacity="0.18" stroke={person.accent} strokeWidth="2" />
         {points.map(({ meta, facet, x, y }) => {
-          const labelPos = polar(cx, cy, maxR + 22, meta.angle)
+          const labelPos = polar(cx, cy, maxR + 34, meta.angle)
           const selected = selectedFacetId === facet.id
           return (
             <g key={facet.id} style={{ cursor: 'pointer' }} onClick={() => onSelectFacet(facet)}>
@@ -68,17 +88,28 @@ export function LikenessCompass({
                 stroke={person.accent}
                 strokeWidth="2"
               />
-              <text
-                x={labelPos.x}
-                y={labelPos.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize="9"
-                fontWeight={selected ? 700 : 600}
-                fill={selected ? person.accent : 'var(--sf-gray-2)'}
+              <g
+                role="button"
+                aria-label={`${meta.short} ${facet.score}. ${facet.label}`}
+                style={{ cursor: 'pointer' }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setSummaryId((current) => (current === facet.id ? null : facet.id))
+                }}
               >
-                {meta.short}
-              </text>
+                <rect x={labelPos.x - 42} y={labelPos.y - 12} width="84" height="22" fill="transparent" />
+                <text
+                  x={labelPos.x}
+                  y={labelPos.y}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize="10"
+                  fontWeight={summaryId === facet.id ? 700 : 600}
+                  fill={summaryId === facet.id ? person.accent : 'var(--sf-gray-2)'}
+                >
+                  {meta.short} {facet.score}
+                </text>
+              </g>
             </g>
           )
         })}
@@ -90,6 +121,18 @@ export function LikenessCompass({
           {person.maturity.score}%
         </text>
       </svg>
+      {summary && (
+        <div className="facet-pop" role="dialog" aria-label={`${summary.label} summary`}>
+          <div className="facet-pop-head">
+            <strong>{summary.label}</strong>
+            <span>{summary.score}</span>
+            <button type="button" onClick={() => setSummaryId(null)}>
+              Close
+            </button>
+          </div>
+          <p>{facetSummary(summary)}</p>
+        </div>
+      )}
       <div className="likeness-maturity-pill" style={{ borderColor: person.accent }}>
         <span className="muted">Maturity</span>
         <strong style={{ color: person.accent }}>

@@ -15,17 +15,19 @@ import {
   type FormSection,
 } from './data/onboardingFramework'
 import { buildDrillItems, type DrillItem } from './data/drilldown'
-import { meetingsForHousehold, openMeetingActions } from './data/meetings'
+import { meetingsForHousehold, openMeetingActions, type Meeting } from './data/meetings'
 import { MATURITY_LABELS, personsForHousehold } from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
 import { BookPulse } from './components/BookPulse'
 import { ClientDossier } from './components/ClientDossier'
 import { AdviceDesk } from './components/AdviceDesk'
-import { initialPlans, initialPortfolios, PLAN_STAGES, PORTFOLIO_STAGES, type PlanState, type PortfolioState } from './data/advice'
+import { initialPlans, initialPortfolios, PLAN_STAGES, type PlanState, type PortfolioState } from './data/advice'
 import { GenerationalHandoff } from './components/GenerationalHandoff'
 import { handoffFor } from './data/generational'
 import { factsForStage } from './data/stageFacts'
 import { ClientPortal } from './components/ClientPortal'
+import { ServiceDesk } from './components/ServiceDesk'
+import { casesFor, tasksFor } from './data/serviceDesk'
 import { AccountBook } from './components/AccountBook'
 import { CoworkerPanel } from './components/CoworkerPanel'
 import type { CoworkerAction } from './coworker'
@@ -39,6 +41,13 @@ import {
 } from './data/progress'
 import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, Role } from './data/types'
 import './App.css'
+
+function chipStage(household: Household) {
+  const blocked = household.stages.find((stage) => stage.status === 'blocked')
+  if (blocked) return `${blocked.label.split('/')[0].trim()} blocked`
+  const current = [...household.stages].reverse().find((stage) => stage.status !== 'upcoming')
+  return current?.label ?? household.stageLabel
+}
 
 function statusLabel(s: string) {
   return s.replace('-', ' ')
@@ -246,6 +255,22 @@ function priorityClass(p: string) {
   return 'medium'
 }
 
+function splitActions(actions: AdvisorAction[]) {
+  const rank: AdvisorAction['type'][] = [
+    'schedule',
+    'approve_send',
+    'escalate',
+    'review_docs',
+    'review_inputs',
+    'update_account',
+    'call_client',
+    'delegate',
+  ]
+  if (actions.length === 0) return { primary: undefined as AdvisorAction | undefined, rest: [] as AdvisorAction[] }
+  const primary = [...actions].sort((a, b) => rank.indexOf(a.type) - rank.indexOf(b.type))[0]
+  return { primary, rest: actions.filter((action) => action !== primary) }
+}
+
 function NeedsYouCard({
   selected,
   priority,
@@ -265,6 +290,8 @@ function NeedsYouCard({
   onOpen: () => void
   onAct: (action: AdvisorAction) => void
 }) {
+  const [more, setMore] = useState(false)
+  const { primary, rest } = splitActions(actions)
   return (
     <li>
       <button
@@ -273,6 +300,7 @@ function NeedsYouCard({
         onClick={onOpen}
       >
         <div className="title">
+          <span className="queue-type">Signal</span>
           <span className={`badge ${priority}`}>{priority}</span>
           {title}
         </div>
@@ -281,17 +309,24 @@ function NeedsYouCard({
           <span className="signal-recommend-label">Recommended</span>
           <span className="signal-recommend-text">{recommended}</span>
         </div>
-        {actions.length > 0 && (
+        {primary && (
           <div className="advisor-action-chips" onClick={(e) => e.stopPropagation()}>
-            {actions.map((a) => (
-              <button
-                key={a.label}
-                type="button"
-                className={`action-chip type-${a.type}`}
-                title={a.detail}
-                onClick={() => onAct(a)}
-              >
-                {a.label}
+            <button type="button" className={`action-chip type-${primary.type} primary-action`} onClick={() => onAct(primary)}>
+              {primary.label}
+            </button>
+            {rest.length > 0 && (
+              <button type="button" className="action-chip more-action" onClick={() => setMore((open) => !open)}>
+                {more ? 'Fewer' : 'More'}
+              </button>
+            )}
+          </div>
+        )}
+        {more && rest.length > 0 && (
+          <div className="more-actions" onClick={(e) => e.stopPropagation()}>
+            {rest.map((action) => (
+              <button key={action.label} type="button" className="more-action-row" onClick={() => onAct(action)}>
+                <strong>{action.label}</strong>
+                <span>{action.detail}</span>
               </button>
             ))}
           </div>
@@ -402,6 +437,7 @@ export default function App() {
   const [handoffOpen, setHandoffOpen] = useState(false)
   const [coworkerOpen, setCoworkerOpen] = useState(false)
   const [portalOpen, setPortalOpen] = useState(false)
+  const [playbookMeeting, setPlaybookMeeting] = useState<Meeting | null>(null)
   const [portalHouseholdId, setPortalHouseholdId] = useState(households[0].id)
   const [plans, setPlans] = useState<Record<string, PlanState>>(() => initialPlans)
   const [portfolios, setPortfolios] = useState<Record<string, PortfolioState>>(() => initialPortfolios)
@@ -420,12 +456,20 @@ export default function App() {
     [onboarding],
   )
 
-  const bookProgress = useMemo(() => overallProgress(households), [])
   const clientProgress = useMemo(() => householdProgress(household), [household])
+  const bookProgress = useMemo(() => overallProgress(households), [])
   const drillItems = useMemo(() => buildDrillItems(household), [household])
   const drillItem = drillItems.find((d) => d.id === drillId) ?? drillItems[0] ?? null
   const hhMeetings = useMemo(() => meetingsForHousehold(household.id), [household])
   const hhMeetingActions = useMemo(() => openMeetingActions(household.id), [household])
+  const hhOpenCases = useMemo(
+    () => casesFor(household.id).filter((item) => item.status !== 'Closed'),
+    [household.id],
+  )
+  const hhOpenTasks = useMemo(
+    () => tasksFor(household.id).filter((item) => item.status !== 'Completed'),
+    [household.id],
+  )
   const persons = useMemo(() => personsForHousehold(household.id), [household])
   const selectedPerson =
     persons.find((p) => p.id === selectedPersonId) ?? persons[0] ?? null
@@ -746,6 +790,23 @@ export default function App() {
     ])
   }
 
+  function acceptClientRequest(householdId: string, title: string, detail: string) {
+    const name = households.find((item) => item.id === householdId)?.name ?? 'Client'
+    setClientNotices((prev) => [
+      {
+        id: `n-${Date.now()}`,
+        householdId,
+        householdName: name,
+        title,
+        detail,
+        touched: [],
+        reviewed: false,
+      },
+      ...prev,
+    ])
+    flash(`${name}: ${title}`)
+  }
+
   function acceptEsign(householdId: string, documentId: string, signedName: string) {
     const householdName = households.find((item) => item.id === householdId)?.name ?? 'Client'
     const next = structuredClone(records)
@@ -814,50 +875,49 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="global-header">
+        <div className="version-stamp">V Initial Concept</div>
+        <div className="header-main">
         <div className="brand">
           <div className="brand-mark">SF</div>
           <span>FSC · Client Lifecycle Mission Control</span>
         </div>
-        <nav className="header-tabs" aria-label="Role views">
-          <button type="button" className={role === 'advisor' ? 'active' : ''} onClick={() => setRole('advisor')}>
-            Advisor Cockpit
+        <div className="header-cluster">
+          <nav className="header-pills" aria-label="Role views">
+            <button type="button" className={`header-pill ${role === 'advisor' ? 'active' : ''}`} onClick={() => setRole('advisor')}>
+              Advisor Cockpit
+            </button>
+            <button type="button" className={`header-pill ${role === 'paraplanner' ? 'active' : ''}`} onClick={() => setRole('paraplanner')}>
+              Paraplanner Workbench
+            </button>
+            <button type="button" className={`header-pill ${role === 'value' ? 'active' : ''}`} onClick={() => setRole('value')}>
+              Persona Value &amp; Comps
+            </button>
+          </nav>
+          <button
+            type="button"
+            className="header-pill"
+            onClick={() => {
+              setPortalHouseholdId(selectedHhId)
+              setPortalOpen(true)
+            }}
+          >
+            Client portal
           </button>
           <button
             type="button"
-            className={role === 'paraplanner' ? 'active' : ''}
-            onClick={() => setRole('paraplanner')}
+            className={`header-pill ${coworkerOpen ? 'active' : ''}`}
+            aria-label="Ask"
+            aria-pressed={coworkerOpen}
+            onClick={() => setCoworkerOpen((open) => !open)}
           >
-            Paraplanner Workbench
-          </button>
-          <button type="button" className={role === 'value' ? 'active' : ''} onClick={() => setRole('value')}>
-            Persona Value &amp; Comps
-          </button>
-        </nav>
-        <div className="header-spacer" />
-        <button
-          type="button"
-          className="portal-launch"
-          onClick={() => {
-            setPortalHouseholdId(selectedHhId)
-            setPortalOpen(true)
-          }}
-        >
-          Client portal
-        </button>
-        <button
-          type="button"
-          className={`coworker-launch ${coworkerOpen ? 'active' : ''}`}
-          aria-label="Ask"
-          aria-pressed={coworkerOpen}
-          onClick={() => setCoworkerOpen((open) => !open)}
-        >
           <svg className="ask-spark" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M7 3.2l.7 2.1L9.8 6l-2.1.7L7 8.8l-.7-2.1L4.2 6l2.1-.7z" fill="currentColor" />
             <path d="M16 8l1.1 3.2L20.4 12.3l-3.3 1.1L16 16.6l-1.1-3.2-3.3-1.1 3.3-1.1z" fill="currentColor" />
           </svg>
           Ask
         </button>
-        <div className="header-meta">V Initial Concept</div>
+        </div>
+        </div>
       </header>
 
       <div className={`workspace ${coworkerOpen ? 'open' : ''}`}>
@@ -900,7 +960,9 @@ export default function App() {
                 </span>
               </button>
               {households.map((h) => {
-                const p = householdProgress(h)
+                const progress = householdProgress(h)
+                const hasUpdate = pendingNotices.some((notice) => notice.householdId === h.id)
+                const barTone = h.stages.some((stage) => stage.status === 'blocked') ? 'blocked' : progressTone(progress.pct)
                 return (
                   <button
                     key={h.id}
@@ -911,18 +973,14 @@ export default function App() {
                     }}
                   >
                     <span className="hh-chip-name">
-                      {h.name}
-                      {pendingNotices.some((notice) => notice.householdId === h.id) ? ' · update' : ''}
-                      {h.exceptions > 0 ? ` · ${h.exceptions}` : ''}
+                      {h.name} · {chipStage(h)}
+                      {hasUpdate ? ' · update' : ''}
                     </span>
                     <span className="hh-chip-progress">
                       <span className="hh-chip-track" aria-hidden="true">
-                        <span
-                          className={`hh-chip-fill tone-${h.stages.some((s) => s.status === 'blocked') ? 'blocked' : progressTone(p.pct)}`}
-                          style={{ width: `${p.pct}%` }}
-                        />
+                        <span className={`hh-chip-fill tone-${barTone}`} style={{ width: `${progress.pct}%` }} />
                       </span>
-                      <span className="hh-chip-pct">{p.pct}%</span>
+                      <span className="hh-chip-pct">{progress.pct}%</span>
                     </span>
                   </button>
                 )
@@ -996,7 +1054,7 @@ export default function App() {
                   <span>Needs You — Signal Only</span>
                   <span className="muted">{openExceptions.length + pendingNotices.length} open</span>
                 </div>
-                <ul className="exception-list">
+                <ul className="exception-list needs-you-board">
                   {pendingNotices.map((notice) => (
                     <NeedsYouCard
                       key={notice.id}
@@ -1066,7 +1124,6 @@ export default function App() {
                       openDrill(`likeness-${selectedPerson.id}-${facet.id}`)
                     }}
                     plan={plans[household.id]}
-                    portfolio={portfolios[household.id]}
                   />
                 )}
 
@@ -1154,14 +1211,13 @@ export default function App() {
                   )
                 })()}
 
-                {(PLAN_STAGES.includes(selectedStage?.id ?? '') ||
-                  PORTFOLIO_STAGES.includes(selectedStage?.id ?? '')) && (
+                {PLAN_STAGES.includes(selectedStage?.id ?? '') && (
                   <AdviceDesk
                     key={household.id}
                     plan={plans[household.id]}
                     portfolio={portfolios[household.id]}
-                    showPlan={PLAN_STAGES.includes(selectedStage?.id ?? '')}
-                    showPortfolio={PORTFOLIO_STAGES.includes(selectedStage?.id ?? '')}
+                    showPlan
+                    showPortfolio={false}
                     onPlan={(patch) =>
                       setPlans((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
                     }
@@ -1176,6 +1232,15 @@ export default function App() {
 
             {!showingBook && cockpitView === 'record' && onboarding && completeness && (
               <>
+              <div className="panel">
+                <div className="panel-header">
+                  <span>Checklist and goals</span>
+                  <span className="muted">Still to collect, separate from the filed vault</span>
+                </div>
+                <div className="panel-body">
+                  <ServiceDesk householdId={household.id} mode="file" />
+                </div>
+              </div>
               <div className="panel">
                 <div className="panel-header">
                   <span>Financial Accounts</span>
@@ -1397,16 +1462,22 @@ export default function App() {
                         key={m.id}
                         type="button"
                         className={`meeting-card ${drillId === `meeting-${m.id}` ? 'active' : ''}`}
-                        onClick={() => openDrill(`meeting-${m.id}`)}
+                        onClick={() => setPlaybookMeeting(m)}
                       >
                         <div className="meeting-title">{m.title}</div>
                         <div className="muted">
                           {m.when.replace('T', ' · ')} · {m.channel.replace('_', ' ')}
                         </div>
-                        <div className="muted">
-                          {m.prepBriefReady ? 'Prep brief ready' : 'Prep blocked'}
-                          {m.playbookId ? ` · ${m.playbookId}` : ''}
-                        </div>
+                        <div className="muted">{m.playbookName ?? 'Meeting playbook'}</div>
+                        {m.preBrief && (
+                          <ul className="brief-lines">
+                            {m.preBrief.slice(0, 4).map((line) => (
+                              <li key={line}>{line}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {hhOpenCases[0] && <div className="muted">Case · {hhOpenCases[0].subject}</div>}
+                        {hhOpenTasks[0] && <div className="muted">Task · {hhOpenTasks[0].subject}</div>}
                       </button>
                     ))}
                   </div>
@@ -1418,14 +1489,20 @@ export default function App() {
                         key={m.id}
                         type="button"
                         className={`meeting-card ${drillId === `meeting-${m.id}` ? 'active' : ''}`}
-                        onClick={() => openDrill(`meeting-${m.id}`)}
+                        onClick={() => setPlaybookMeeting(m)}
                       >
                         <div className="meeting-title">{m.title}</div>
                         <div className="muted">{m.when.replace('T', ' · ')}</div>
-                        {m.summary && <div className="meeting-summary">{m.summary}</div>}
-                        {m.decisions && m.decisions.length > 0 && (
-                          <div className="muted">Decisions: {m.decisions.join('; ')}</div>
+                        <div className="muted">{m.playbookName ?? 'Meeting playbook'}</div>
+                        {m.nextSteps && (
+                          <ul className="brief-lines">
+                            {m.nextSteps.slice(0, 4).map((line) => (
+                              <li key={line}>{line}</li>
+                            ))}
+                          </ul>
                         )}
+                        {hhOpenCases[0] && <div className="muted">Case · {hhOpenCases[0].subject}</div>}
+                        {hhOpenTasks[0] && <div className="muted">Task · {hhOpenTasks[0].subject}</div>}
                       </button>
                     ))}
                   </div>
@@ -1458,10 +1535,11 @@ export default function App() {
             )}
 
             {!showingBook && cockpitView === 'work' && (
+              <>
               <div className="work-split">
                 <div className="panel">
                   <div className="panel-header">
-                    <span>Agents Have Done</span>
+                    <span>What the agents did</span>
                     <span className="muted">
                       {household.events.filter((ev) => ev.outcome !== 'needs_you').length} complete or running
                     </span>
@@ -1502,9 +1580,16 @@ export default function App() {
                 </div>
                 <div className="panel">
                   <div className="panel-header">
-                    <span>Needs You</span>
+                    <span>Work queue</span>
                     <span className="muted">
-                      {hhExceptions.length + hhNotices.length + household.events.filter((ev) => ev.outcome === 'needs_you').length} open
+                      {hhExceptions.length +
+                        hhNotices.length +
+                        household.events.filter(
+                          (ev) => ev.outcome === 'needs_you' && !hhExceptions.some((ex) => ex.stage === ev.stage),
+                        ).length +
+                        hhOpenCases.length +
+                        hhOpenTasks.length}{' '}
+                      open
                     </span>
                   </div>
                   <div className="panel-body">
@@ -1545,7 +1630,7 @@ export default function App() {
                         />
                       ))}
                       {household.events
-                        .filter((ev) => ev.outcome === 'needs_you')
+                        .filter((ev) => ev.outcome === 'needs_you' && !hhExceptions.some((ex) => ex.stage === ev.stage))
                         .map((ev) => {
                           const stage = household.stages.find((s) => s.id === ev.stage)
                           const match = hhExceptions.find((ex) => ex.stage === ev.stage)
@@ -1595,9 +1680,29 @@ export default function App() {
                         })}
                       {hhExceptions.length === 0 &&
                         hhNotices.length === 0 &&
-                        household.events.every((ev) => ev.outcome !== 'needs_you') && (
-                          <li className="panel-body muted">No open signals for this household.</li>
+                        household.events.every((ev) => ev.outcome !== 'needs_you') &&
+                        hhOpenCases.length === 0 &&
+                        hhOpenTasks.length === 0 && (
+                          <li className="panel-body muted">No open work for this household.</li>
                         )}
+                      {hhOpenCases.map((item) => (
+                        <li key={item.id} className="queue-row">
+                          <span className="queue-type">Case</span>
+                          <span className="queue-title">{item.subject}</span>
+                          <span className="muted">
+                            {item.status} · {item.priority}
+                          </span>
+                        </li>
+                      ))}
+                      {hhOpenTasks.map((item) => (
+                        <li key={item.id} className="queue-row">
+                          <span className="queue-type">Task</span>
+                          <span className="queue-title">{item.subject}</span>
+                          <span className="muted">
+                            {item.status} · due {item.due}
+                          </span>
+                        </li>
+                      ))}
                     </ul>
                     <div className="needs-you-review">
                       <div className="needs-you-review-title">Recommended Review</div>
@@ -1623,6 +1728,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              </>
             )}
               </div>
             </div>
@@ -1888,6 +1994,62 @@ export default function App() {
         />
       )}
 
+      {playbookMeeting && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setPlaybookMeeting(null)}>
+          <div
+            className="plaid-modal playbook-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="playbook-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="portal-kicker">{playbookMeeting.playbookName ?? 'Meeting playbook'}</div>
+            <h3 id="playbook-title">{playbookMeeting.title}</h3>
+            <p>
+              {playbookMeeting.when.replace('T', ' · ')} · {playbookMeeting.channel.replace('_', ' ')} ·{' '}
+              {playbookMeeting.attendees.join(', ')}
+            </p>
+            <h4>Agenda</h4>
+            <ul className="brief-lines">
+              {playbookMeeting.agenda.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            {playbookMeeting.preBrief && (
+              <>
+                <h4>Pre-meeting brief</h4>
+                <ul className="brief-lines">
+                  {playbookMeeting.preBrief.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {playbookMeeting.nextSteps && (
+              <>
+                <h4>Next steps</h4>
+                <ul className="brief-lines">
+                  {playbookMeeting.nextSteps.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {playbookMeeting.summary && <p>{playbookMeeting.summary}</p>}
+            <h4>Actions</h4>
+            <ul className="brief-lines">
+              {playbookMeeting.actions.map((action) => (
+                <li key={action.id}>
+                  {action.title} · {action.owner} · {action.status}
+                </li>
+              ))}
+            </ul>
+            <button type="button" className="btn" onClick={() => setPlaybookMeeting(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
       {toast && (
         <div className="toast" role="status">
           {toast}
@@ -1914,6 +2076,7 @@ export default function App() {
           onAddAccounts={acceptClientAccounts}
           onUpdateField={acceptProfileAnswer}
           onSignDocument={acceptEsign}
+          onClientRequest={acceptClientRequest}
         />
       )}
     </div>
