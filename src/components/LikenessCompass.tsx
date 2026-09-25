@@ -14,6 +14,13 @@ function facetSummary(facet: BehavioralFacet) {
   return `${band}. ${facet.blurb}${proof}`
 }
 
+function likenessSummary(person: PersonLikeness) {
+  const weakest = [...person.facets].sort((a, b) => a.score - b.score)[0]
+  const tier = MATURITY_LABELS[person.maturity.tier]
+  const first = person.name.split(' ')[0]
+  return `${first}'s likeness is ${tier.title.toLowerCase()} at ${person.maturity.score}. The thinnest spoke is ${weakest.label.toLowerCase()} at ${weakest.score}. ${weakest.blurb}`
+}
+
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
@@ -114,15 +121,15 @@ export function LikenessCompass({
           )
         })}
         <circle cx={cx} cy={cy} r="32" fill="#fff" stroke={person.accent} strokeWidth="2" />
-        <text x={cx} y={cy - 4} textAnchor="middle" fontSize="13" fontWeight="800" fill={person.accent}>
+        <text x={cx} y={cy - 4} textAnchor="middle" fontSize="13" fontWeight="700" fill={person.accent}>
           {person.initials}
         </text>
-        <text x={cx} y={cy + 12} textAnchor="middle" fontSize="9" fill="var(--sf-gray-3)">
+        <text x={cx} y={cy + 12} textAnchor="middle" fontSize="11" fill="var(--sf-gray-3)">
           {person.maturity.score}%
         </text>
       </svg>
-      {summary && (
-        <div className="facet-pop" role="dialog" aria-label={`${summary.label} summary`}>
+      <div className="facet-pop" role="note" aria-label={summary ? `${summary.label} summary` : 'Likeness summary'}>
+        {summary ? (
           <div className="facet-pop-head">
             <strong>{summary.label}</strong>
             <span>{summary.score}</span>
@@ -130,9 +137,14 @@ export function LikenessCompass({
               Close
             </button>
           </div>
-          <p>{facetSummary(summary)}</p>
-        </div>
-      )}
+        ) : (
+          <div className="facet-pop-head">
+            <strong>Likeness</strong>
+            <span>{person.maturity.score}</span>
+          </div>
+        )}
+        <p>{summary ? facetSummary(summary) : likenessSummary(person)}</p>
+      </div>
       <div className="likeness-maturity-pill" style={{ borderColor: person.accent }}>
         <span className="muted">Maturity</span>
         <strong style={{ color: person.accent }}>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { PersonLikeness } from '../data/portraits'
+import type { ContactChannel, PersonLikeness } from '../data/portraits'
 import { HouseholdFigures } from './HouseholdFigures'
 
 const CHANNELS = [
@@ -25,19 +25,27 @@ export function ClientDossier({
   persons,
   initialPersonId,
   contact,
+  edits,
+  onContact,
+  onProfile,
   onClose,
 }: {
   householdName: string
   persons: PersonLikeness[]
   initialPersonId: string
   contact?: { email?: string; phone?: string; address?: string }
+  edits?: Record<string, { sentiment?: string; preferredContact?: ContactChannel[] }>
+  onContact?: (key: 'email' | 'phone' | 'address', value: string) => void
+  onProfile?: (personId: string, patch: { sentiment?: string; preferredContact?: ContactChannel[] }) => void
   onClose: () => void
 }) {
   const [personId, setPersonId] = useState(initialPersonId)
   const person = persons.find((p) => p.id === personId) ?? persons[0]
   if (!person) return null
   const profile = person.profile
-  const preferred = profile.preferredContact ?? []
+  const edit = edits?.[person.id]
+  const preferred = edit?.preferredContact ?? profile.preferredContact ?? []
+  const sentiment = edit?.sentiment ?? profile.sentiment ?? person.tagline
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
@@ -92,7 +100,17 @@ export function ClientDossier({
                 {profile.occasion === 'birthday' ? ' · Birthday this month' : ''}
                 {profile.occasion === 'wedding' ? ' · Wedding' : ''}
               </p>
-              <blockquote className="dossier-sentiment">{profile.sentiment ?? person.tagline}</blockquote>
+              <blockquote className="dossier-sentiment">
+                <label>
+                  Sentiment
+                  <input
+                    className="field-edit"
+                    aria-label="Sentiment"
+                    value={sentiment}
+                    onChange={(event) => onProfile?.(person.id, { sentiment: event.target.value })}
+                  />
+                </label>
+              </blockquote>
             </div>
           </div>
 
@@ -102,26 +120,45 @@ export function ClientDossier({
               {CHANNELS.map((ch) => {
                 const chosen = preferred.includes(ch.id)
                 return (
-                  <div key={ch.id} className={`dossier-channel ${chosen ? 'chosen' : ''}`}>
+                  <button
+                    key={ch.id}
+                    type="button"
+                    className={`dossier-channel ${chosen ? 'chosen' : ''}`}
+                    aria-pressed={chosen}
+                    onClick={() => {
+                      const next = chosen
+                        ? preferred.filter((item) => item !== ch.id)
+                        : [...preferred, ch.id]
+                      onProfile?.(person.id, { preferredContact: next })
+                    }}
+                  >
                     <span>{ch.label}</span>
                     {chosen && <strong>Preferred</strong>}
-                  </div>
+                  </button>
                 )
               })}
             </div>
             <dl className="dossier-facts">
-              <div>
-                <dt>Email</dt>
-                <dd>{contact?.email || profile.email || 'Not on file'}</dd>
-              </div>
-              <div>
-                <dt>Phone</dt>
-                <dd>{contact?.phone || profile.phone || 'Not on file'}</dd>
-              </div>
-              <div>
-                <dt>Address</dt>
-                <dd>{contact?.address || profile.address || 'Not on file'}</dd>
-              </div>
+              {(
+                [
+                  ['email', 'Email', contact?.email || profile.email || ''],
+                  ['phone', 'Phone', contact?.phone || profile.phone || ''],
+                  ['address', 'Address', contact?.address || profile.address || ''],
+                ] as const
+              ).map(([key, label, value]) => (
+                <div key={key}>
+                  <dt>{label}</dt>
+                  <dd>
+                    <input
+                      className="field-edit"
+                      aria-label={label}
+                      value={value}
+                      placeholder="Not on file"
+                      onChange={(event) => onContact?.(key, event.target.value)}
+                    />
+                  </dd>
+                </div>
+              ))}
             </dl>
           </section>
 

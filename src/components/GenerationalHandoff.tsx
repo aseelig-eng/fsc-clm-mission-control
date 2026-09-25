@@ -42,10 +42,10 @@ function Ring({ score }: { score: number }) {
         strokeDasharray={`${filled} ${circumference - filled}`}
         transform="rotate(-90 48 48)"
       />
-      <text x="48" y="46" textAnchor="middle" fontSize="22" fontWeight="800" fill="currentColor">
+      <text x="48" y="46" textAnchor="middle" fontSize="20" fontWeight="700" fill="currentColor">
         {score}
       </text>
-      <text x="48" y="62" textAnchor="middle" fontSize="8" fontWeight="700" fill="var(--sf-gray-3)">
+      <text x="48" y="62" textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--sf-gray-3)">
         READINESS
       </text>
     </svg>

@@ -12,11 +12,12 @@ import {
   onboardingByHousehold,
   recordCompleteness,
   type ClientOnboardingRecord,
+  type FieldStatus,
   type FormSection,
 } from './data/onboardingFramework'
 import { buildDrillItems, type DrillItem } from './data/drilldown'
 import { meetingsForHousehold, openMeetingActions, type Meeting } from './data/meetings'
-import { MATURITY_LABELS, personsForHousehold } from './data/portraits'
+import { MATURITY_LABELS, personsForHousehold, type ContactChannel } from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
 import { BookPulse } from './components/BookPulse'
 import { ClientDossier } from './components/ClientDossier'
@@ -27,7 +28,14 @@ import { handoffFor } from './data/generational'
 import { factsForStage } from './data/stageFacts'
 import { ClientPortal } from './components/ClientPortal'
 import { ServiceDesk } from './components/ServiceDesk'
-import { casesFor, tasksFor } from './data/serviceDesk'
+import {
+  collectItems,
+  goalRecords,
+  serviceCases,
+  workTasks,
+  type CaseStatus,
+  type TaskStatus,
+} from './data/serviceDesk'
 import { AccountBook } from './components/AccountBook'
 import { CoworkerPanel } from './components/CoworkerPanel'
 import type { CoworkerAction } from './coworker'
@@ -86,14 +94,6 @@ function ProgressBar({
       {detail && <div className="progress-detail">{detail}</div>}
     </div>
   )
-}
-
-function fieldStatusClass(status: string) {
-  if (status === 'complete') return 'done'
-  if (status === 'blocked') return 'critical'
-  if (status === 'missing') return 'needs'
-  if (status === 'partial') return 'high'
-  return 'medium'
 }
 
 function docStatusClass(status: string) {
@@ -355,7 +355,7 @@ function ReviewPanel({
         <span className={`badge ${priorityClass(item.priority)}`}>{item.priority}</span>
         <span className="muted">{item.kind.replace('_', ' ')} · One Click Down</span>
       </div>
-      <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 15 }}>{r.headline}</div>
+      <div className="review-headline">{r.headline}</div>
       <p className="muted" style={{ marginTop: 0 }}>
         {item.subtitle}
       </p>
@@ -443,6 +443,13 @@ export default function App() {
   const [portfolios, setPortfolios] = useState<Record<string, PortfolioState>>(() => initialPortfolios)
   const [accounts, setAccounts] = useState<FinancialAccount[]>(() => initialAccounts)
   const [records, setRecords] = useState<Record<string, ClientOnboardingRecord>>(() => structuredClone(onboardingByHousehold))
+  const [deskCases, setDeskCases] = useState(() => structuredClone(serviceCases))
+  const [deskTasks, setDeskTasks] = useState(() => structuredClone(workTasks))
+  const [deskChecklist, setDeskChecklist] = useState(() => structuredClone(collectItems))
+  const [deskGoals, setDeskGoals] = useState(() => structuredClone(goalRecords))
+  const [profileEdits, setProfileEdits] = useState<
+    Record<string, { sentiment?: string; preferredContact?: ContactChannel[] }>
+  >({})
   const [clientNotices, setClientNotices] = useState<ClientNotice[]>([])
 
   const household = useMemo(
@@ -463,12 +470,12 @@ export default function App() {
   const hhMeetings = useMemo(() => meetingsForHousehold(household.id), [household])
   const hhMeetingActions = useMemo(() => openMeetingActions(household.id), [household])
   const hhOpenCases = useMemo(
-    () => casesFor(household.id).filter((item) => item.status !== 'Closed'),
-    [household.id],
+    () => deskCases.filter((item) => item.householdId === household.id && item.status !== 'Closed'),
+    [deskCases, household.id],
   )
   const hhOpenTasks = useMemo(
-    () => tasksFor(household.id).filter((item) => item.status !== 'Completed'),
-    [household.id],
+    () => deskTasks.filter((item) => item.householdId === household.id && item.status !== 'Completed'),
+    [deskTasks, household.id],
   )
   const persons = useMemo(() => personsForHousehold(household.id), [household])
   const selectedPerson =
@@ -493,6 +500,30 @@ export default function App() {
 
   const scheduledMeetings = hhMeetings.filter((m) => m.status === 'scheduled')
   const completedMeetings = hhMeetings.filter((m) => m.status === 'completed')
+
+  function updateRecordField(
+    householdId: string,
+    sectionId: string,
+    fieldKey: string,
+    value: string,
+    status?: FieldStatus,
+  ) {
+    setRecords((prev) => {
+      const next = structuredClone(prev)
+      const record = next[householdId]
+      const field = record?.sections.find((section) => section.id === sectionId)?.fields.find((item) => item.key === fieldKey)
+      if (!record || !field || field.status === 'n/a') return prev
+      field.value = value
+      if (status) field.status = status
+      else if (field.status === 'missing' && value.trim()) field.status = 'partial'
+      if (fieldKey === 'goal') record.primaryGoal = value
+      if (fieldKey === 'horizon') {
+        const years = Number(value.replace(/[^0-9.]/g, ''))
+        record.timeHorizonYears = Number.isFinite(years) && years > 0 ? years : null
+      }
+      return next
+    })
+  }
 
   function flash(msg: string) {
     setToast(msg)
@@ -1238,7 +1269,16 @@ export default function App() {
                   <span className="muted">Still to collect, separate from the filed vault</span>
                 </div>
                 <div className="panel-body">
-                  <ServiceDesk householdId={household.id} mode="file" />
+                  <ServiceDesk
+                    checklist={deskChecklist.filter((item) => item.householdId === household.id)}
+                    goals={deskGoals.filter((item) => item.householdId === household.id)}
+                    onChecklist={(id, status) =>
+                      setDeskChecklist((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)))
+                    }
+                    onGoal={(id, status) =>
+                      setDeskGoals((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)))
+                    }
+                  />
                 </div>
               </div>
               <div className="panel">
@@ -1314,23 +1354,46 @@ export default function App() {
                           </thead>
                           <tbody>
                             {openSection.fields.map((f) => (
-                              <tr
-                                key={f.key}
-                                className={
-                                  f.status === 'blocked' || f.status === 'missing' || f.status === 'partial'
-                                    ? 'clickable-row'
-                                    : undefined
-                                }
-                                onClick={() => {
-                                  if (f.status === 'blocked' || f.status === 'missing' || f.status === 'partial') {
-                                    openDrill(`field-${openSection.id}-${f.key}`)
-                                  }
-                                }}
-                              >
+                              <tr key={f.key}>
                                 <td>{f.label}</td>
-                                <td>{f.value || '—'}</td>
                                 <td>
-                                  <span className={`badge ${fieldStatusClass(f.status)}`}>{f.status}</span>
+                                  {f.status === 'n/a' ? (
+                                    f.value || '—'
+                                  ) : (
+                                    <input
+                                      className="field-edit"
+                                      aria-label={f.label}
+                                      value={f.value}
+                                      onChange={(event) =>
+                                        updateRecordField(household.id, openSection.id, f.key, event.target.value)
+                                      }
+                                    />
+                                  )}
+                                </td>
+                                <td>
+                                  {f.status === 'n/a' ? (
+                                    <span className="badge medium">n/a</span>
+                                  ) : (
+                                    <select
+                                      className="field-edit"
+                                      aria-label={`${f.label} status`}
+                                      value={f.status}
+                                      onChange={(event) =>
+                                        updateRecordField(
+                                          household.id,
+                                          openSection.id,
+                                          f.key,
+                                          f.value,
+                                          event.target.value as FieldStatus,
+                                        )
+                                      }
+                                    >
+                                      <option value="complete">complete</option>
+                                      <option value="partial">partial</option>
+                                      <option value="missing">missing</option>
+                                      <option value="blocked">blocked</option>
+                                    </select>
+                                  )}
                                 </td>
                               </tr>
                             ))}
@@ -1689,18 +1752,48 @@ export default function App() {
                         <li key={item.id} className="queue-row">
                           <span className="queue-type">Case</span>
                           <span className="queue-title">{item.subject}</span>
-                          <span className="muted">
-                            {item.status} · {item.priority}
-                          </span>
+                          <select
+                            className="field-edit queue-edit"
+                            aria-label={`${item.subject} status`}
+                            value={item.status}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) =>
+                              setDeskCases((prev) =>
+                                prev.map((row) =>
+                                  row.id === item.id ? { ...row, status: event.target.value as CaseStatus } : row,
+                                ),
+                              )
+                            }
+                          >
+                            <option>New</option>
+                            <option>Working</option>
+                            <option>Waiting on client</option>
+                            <option>Escalated</option>
+                            <option>Closed</option>
+                          </select>
                         </li>
                       ))}
                       {hhOpenTasks.map((item) => (
                         <li key={item.id} className="queue-row">
                           <span className="queue-type">Task</span>
                           <span className="queue-title">{item.subject}</span>
-                          <span className="muted">
-                            {item.status} · due {item.due}
-                          </span>
+                          <select
+                            className="field-edit queue-edit"
+                            aria-label={`${item.subject} status`}
+                            value={item.status}
+                            onChange={(event) =>
+                              setDeskTasks((prev) =>
+                                prev.map((row) =>
+                                  row.id === item.id ? { ...row, status: event.target.value as TaskStatus } : row,
+                                ),
+                              )
+                            }
+                          >
+                            <option>Not Started</option>
+                            <option>In Progress</option>
+                            <option>On Hold</option>
+                            <option>Completed</option>
+                          </select>
                         </li>
                       ))}
                     </ul>
@@ -1864,7 +1957,7 @@ export default function App() {
             <p style={{ margin: 0, color: 'var(--sf-gray-2)' }}>{persona.tagline}</p>
             <div className="columns-2">
               <div>
-                <strong style={{ fontSize: 12, color: 'var(--sf-gray-3)', textTransform: 'uppercase' }}>Today’s Pain</strong>
+                <strong className="eyebrow">Today’s Pain</strong>
                 <ul>
                   {persona.pains.map((x) => (
                     <li key={x}>{x}</li>
@@ -1872,7 +1965,7 @@ export default function App() {
                 </ul>
               </div>
               <div>
-                <strong style={{ fontSize: 12, color: 'var(--sf-gray-3)', textTransform: 'uppercase' }}>CLM Value</strong>
+                <strong className="eyebrow">CLM Value</strong>
                 <ul>
                   {persona.valueProps.map((x) => (
                     <li key={x}>{x}</li>
@@ -1890,7 +1983,7 @@ export default function App() {
                 <div className="metric-row" key={m.label}>
                   <div>{m.label}</div>
                   <div>{m.before}</div>
-                  <div style={{ color: 'var(--sf-green)', fontWeight: 650 }}>{m.after}</div>
+                  <div style={{ color: 'var(--sf-green)', fontWeight: 600 }}>{m.after}</div>
                 </div>
               ))}
             </div>
@@ -1968,6 +2061,11 @@ export default function App() {
             phone: onboarding?.sections.find((section) => section.id === 'client_details')?.fields.find((field) => field.key === 'phone')?.value,
             address: onboarding?.sections.find((section) => section.id === 'client_details')?.fields.find((field) => field.key === 'address')?.value,
           }}
+          edits={profileEdits}
+          onContact={(key, value) => {
+            if (onboarding) updateRecordField(household.id, 'client_details', key, value)
+          }}
+          onProfile={(personId, patch) => setProfileEdits((prev) => ({ ...prev, [personId]: { ...prev[personId], ...patch } }))}
           onClose={() => setProfileOpen(false)}
         />
       )}

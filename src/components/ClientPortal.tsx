@@ -155,10 +155,10 @@ export function ClientPortal({
     setOpenAccountId(null)
   }, [household.id])
 
-  const gaps =
+  const fileFields =
     record?.sections.flatMap((section) =>
       section.fields
-        .filter((field) => field.status === 'missing' || field.status === 'partial' || field.status === 'blocked')
+        .filter((field) => field.status !== 'n/a')
         .map((field) => ({
           id: `${section.id}-${field.key}`,
           sectionId: section.id,
@@ -166,8 +166,11 @@ export function ClientPortal({
           label: field.label,
           status: field.status,
           section: section.label,
+          value: field.value,
         })),
     ) ?? []
+
+  const gaps = fileFields.filter((field) => field.status === 'missing' || field.status === 'partial' || field.status === 'blocked')
 
   const toSign = (record?.documents ?? []).filter((doc) => doc.status === 'needs_signature').length
   const signing = record?.documents.find((doc) => doc.id === signingId) ?? null
@@ -267,8 +270,8 @@ export function ClientPortal({
           ).map(([id, label]) => (
             <button key={id} type="button" className={view === id ? 'active' : ''} onClick={() => setView(id)}>
               {label}
-              {id === 'facts' && gaps.length > 0 ? ` ${gaps.length}` : ''}
-              {id === 'vault' && toSign > 0 ? ` ${toSign}` : ''}
+              {id === 'facts' && gaps.length > 0 ? ` (${gaps.length})` : ''}
+              {id === 'vault' && toSign > 0 ? ` (${toSign})` : ''}
             </button>
           ))}
         </nav>
@@ -572,35 +575,33 @@ export function ClientPortal({
           )}
           {view === 'facts' && (
             <div>
-              <p>Your advisor only asks for what is missing, incomplete, or out of date. What you send is flagged for review and written onto your profile. It does not clear a compliance hold by itself.</p>
-              {gaps.length === 0 && <p className="muted">Nothing to update. Your file is current.</p>}
+              <p>Update any field on your file. What you send is flagged for your advisor and written onto your profile. It does not clear a compliance hold by itself.</p>
               <ul className="portal-facts">
-                {gaps.map((gap) => (
-                  <li key={gap.id}>
+                {fileFields.map((field) => (
+                  <li key={field.id}>
                     <div>
-                      <strong>{gap.label}</strong>
+                      <strong>{field.label}</strong>
                       <span className="muted">
-                        {gap.section} · {gap.status}
+                        {field.section} · {field.status}
                       </span>
                     </div>
-                    {sent[`${household.id}-${gap.id}`] ? (
-                      <em>Sent to your advisor: {sent[`${household.id}-${gap.id}`]}</em>
-                    ) : (
-                      <form
-                        onSubmit={(event) => {
-                          event.preventDefault()
-                          const data = new FormData(event.currentTarget)
-                          const value = String(data.get('answer') ?? '').trim()
-                          if (!value) return
-                          onUpdateField(household.id, gap.sectionId, gap.fieldKey, gap.label, value)
-                          setSent((current) => ({ ...current, [`${household.id}-${gap.id}`]: value }))
-                        }}
-                      >
-                        <input name="answer" placeholder="Your answer" aria-label={gap.label} />
-                        <button type="submit" className="btn primary">
-                          Send
-                        </button>
-                      </form>
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        const data = new FormData(event.currentTarget)
+                        const value = String(data.get('answer') ?? '').trim()
+                        if (!value) return
+                        onUpdateField(household.id, field.sectionId, field.fieldKey, field.label, value)
+                        setSent((current) => ({ ...current, [`${household.id}-${field.id}`]: value }))
+                      }}
+                    >
+                      <input name="answer" defaultValue={field.value} placeholder="Your update" aria-label={field.label} />
+                      <button type="submit" className="btn primary">
+                        Update
+                      </button>
+                    </form>
+                    {sent[`${household.id}-${field.id}`] && (
+                      <em>Sent to your advisor: {sent[`${household.id}-${field.id}`]}</em>
                     )}
                   </li>
                 ))}
