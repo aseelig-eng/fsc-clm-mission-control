@@ -151,13 +151,8 @@ export function adviceFlags(plan: PlanState, portfolio: PortfolioState): AdviceF
     })
   }
 
-  if (
-    plan.annualNeedUsd &&
-    plan.fundedUsd &&
-    plan.fundedUsd > 0 &&
-    plan.annualNeedUsd / plan.fundedUsd > 0.04 &&
-    portfolio.cash < 10
-  ) {
+  const funded = plan.goals.reduce((sum, goal) => sum + (goal.fundedUsd ?? 0), 0)
+  if (plan.annualNeedUsd && funded > 0 && plan.annualNeedUsd / funded > 0.04 && portfolio.cash < 10) {
     flags.push({
       severity: 'warn',
       scope: 'both',
