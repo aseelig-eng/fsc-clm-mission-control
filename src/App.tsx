@@ -667,25 +667,7 @@ export default function App() {
       </header>
 
       {role === 'paraplanner' && (
-        <>
-          <div className="progress-strip" aria-label="Lifecycle progress">
-            <div className="panel progress-overall-panel">
-              <div className="panel-body">
-                <ProgressBar
-                  size="lg"
-                  pct={bookProgress.pct}
-                  label="Overall Book — Lifecycle Progress"
-                  detail={`${bookProgress.stagesComplete}/${bookProgress.stagesTotal} stages complete · ${bookProgress.completeClients}/${bookProgress.totalClients} clients at 100%`}
-                  tone={
-                    households.some((h) => h.stages.some((s) => s.status === 'blocked'))
-                      ? 'warn'
-                      : progressTone(bookProgress.pct)
-                  }
-                />
-              </div>
-            </div>
-          </div>
-          <div className="metrics-strip" aria-label="Firm CLM metrics">
+        <div className="metrics-strip" aria-label="Firm CLM metrics">
             {metrics.map((m) => (
               <div className="metric-card" key={m.label}>
                 <div className="label">{m.label}</div>
@@ -694,7 +676,6 @@ export default function App() {
               </div>
             ))}
           </div>
-        </>
       )}
 
       {role === 'advisor' && (
@@ -835,23 +816,6 @@ export default function App() {
                   }
                 }}
               />
-              <div className="progress-strip" aria-label="Lifecycle progress" style={{ padding: 0 }}>
-                <div className="panel progress-overall-panel">
-                  <div className="panel-body">
-                    <ProgressBar
-                      size="lg"
-                      pct={bookProgress.pct}
-                      label="Overall Book — Lifecycle Progress"
-                      detail={`${bookProgress.stagesComplete}/${bookProgress.stagesTotal} stages complete · ${bookProgress.completeClients}/${bookProgress.totalClients} clients at 100%`}
-                      tone={
-                        households.some((h) => h.stages.some((s) => s.status === 'blocked'))
-                          ? 'warn'
-                          : progressTone(bookProgress.pct)
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
               <div className="metrics-strip" aria-label="Firm CLM metrics" style={{ padding: 0 }}>
                 {metrics.map((m) => (
                   <div className="metric-card" key={m.label}>
@@ -1443,7 +1407,11 @@ export default function App() {
               <div className="para-detail" style={{ marginTop: 16 }}>
                 <div className="callout">
                   <strong>Why This Needs You</strong>
-                  Deliverable requires human fiduciary polish before client/advisor delivery.
+                  {selectedPara.status === 'awaiting_data'
+                    ? 'This draft is gated. It should not be written until the missing facts exist.'
+                    : selectedPara.status === 'approved'
+                      ? 'Already polished and filed. Open it only to pull exam evidence.'
+                      : 'This draft needs fiduciary polish before it goes to the advisor or the client.'}
                 </div>
                 <div className="callout">
                   <strong>Agent Already Did</strong>
@@ -1453,25 +1421,40 @@ export default function App() {
                   <strong>Recommended for You to Review</strong>
                   <ul className="review-checklist">
                     <li>{selectedPara.yourJob}</li>
-                    <li>Check citations / source lineage before approving</li>
-                    <li>Do not regenerate from scratch — edit the agent draft</li>
+                    {selectedPara.status !== 'awaiting_data' && <li>Check citations and source lineage before you approve.</li>}
+                    {selectedPara.status === 'needs_review' || selectedPara.status === 'draft_ready' ? (
+                      <li>Edit the agent draft. Do not start over.</li>
+                    ) : null}
                   </ul>
                 </div>
               </div>
               <div className="actions">
-                <button
-                  type="button"
-                  className="btn primary"
-                  onClick={() => flash(`Opened ${selectedPara.type} editor with citations for ${selectedPara.household}`)}
-                >
-                  Open draft in firm template
-                </button>
-                <button type="button" className="btn success" onClick={() => flash('Sent to advisor for voice + client delivery')}>
-                  Mark ready for advisor
-                </button>
-                <button type="button" className="btn" onClick={() => flash('Requested missing data from Discovery Agent')}>
-                  Request data
-                </button>
+                {selectedPara.status === 'awaiting_data' ? (
+                  <button type="button" className="btn primary" onClick={() => flash('Requested missing data from Discovery Agent')}>
+                    Request data
+                  </button>
+                ) : selectedPara.status === 'approved' ? (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => flash(`Opened filed ${selectedPara.type} for ${selectedPara.household}`)}
+                  >
+                    Open filed copy
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn primary"
+                      onClick={() => flash(`Opened ${selectedPara.type} editor with citations for ${selectedPara.household}`)}
+                    >
+                      Open draft in firm template
+                    </button>
+                    <button type="button" className="btn success" onClick={() => flash('Sent to advisor for voice + client delivery')}>
+                      Mark ready for advisor
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
