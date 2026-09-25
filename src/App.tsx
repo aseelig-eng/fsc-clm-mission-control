@@ -15,7 +15,7 @@ import {
 } from './data/onboardingFramework'
 import { buildDrillItems, type DrillItem } from './data/drilldown'
 import { meetingsForHousehold, openMeetingActions } from './data/meetings'
-import { personsForHousehold } from './data/portraits'
+import { MATURITY_LABELS, personsForHousehold } from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
 import {
   householdProgress,
@@ -155,6 +155,71 @@ function StageUnblockModal({
             </li>
           ))}
         </ul>
+      </div>
+    </div>
+  )
+}
+
+function PulseNodeModal({
+  dialog,
+  onClose,
+  onAct,
+}: {
+  dialog: {
+    kicker: string
+    title: string
+    why: string
+    agentDid?: string
+    actionsTitle: string
+    actions: AdvisorAction[]
+  }
+  onClose: () => void
+  onAct: (label: string) => void
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pulse-node-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div>
+            <div className="muted">{dialog.kicker}</div>
+            <h2 id="pulse-node-title">{dialog.title}</h2>
+          </div>
+          <button type="button" className="btn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <div className="callout" style={{ marginBottom: 12 }}>
+          <strong>What This Means</strong>
+          {dialog.why}
+        </div>
+        {dialog.agentDid && (
+          <div className="callout" style={{ marginBottom: 12 }}>
+            <strong>Agent Already Did</strong>
+            {dialog.agentDid}
+          </div>
+        )}
+        {dialog.actions.length > 0 && (
+          <>
+            <div className="modal-actions-title">{dialog.actionsTitle}</div>
+            <ul className="advisor-action-list modal">
+              {dialog.actions.map((a) => (
+                <li key={a.label}>
+                  <button type="button" className="advisor-action-btn" onClick={() => onAct(a.label)}>
+                    <span className="action-type">{actionTypeLabel(a.type)}</span>
+                    <span className="action-label">{a.label}</span>
+                    <span className="action-detail">{a.detail}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
     </div>
   )
@@ -311,6 +376,14 @@ export default function App() {
   const [selectedFacetId, setSelectedFacetId] = useState<string | null>(null)
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null)
   const [stageModal, setStageModal] = useState<LifecycleStage | null>(null)
+  const [pulseDialog, setPulseDialog] = useState<{
+    kicker: string
+    title: string
+    why: string
+    agentDid?: string
+    actionsTitle: string
+    actions: AdvisorAction[]
+  } | null>(null)
 
   const household = useMemo(
     () => households.find((h) => h.id === selectedHhId) as Household,
@@ -407,29 +480,95 @@ export default function App() {
   function selectPulseNode(nodeId: PulseNodeId) {
     setPulseNodeId(nodeId)
     if (!selectedPerson) return
-    if (nodeId === 'engage') {
-      openDrill(`likeness-${selectedPerson.id}-engagement`)
+    const engageFacet = selectedPerson.facets.find((f) => f.id === 'engagement')
+    const heirFacet = selectedPerson.facets.find((f) => f.id === 'heir_readiness')
+    const weakest = [...selectedPerson.facets].sort((a, b) => a.score - b.score)[0]
+    const stage =
+      household.stages.find((s) => s.status === 'blocked') ||
+      household.stages.find((s) => s.status === 'active' || s.status === 'agent-running') ||
+      household.stages.find((s) => s.id === household.stage)
+
+    if (nodeId === 'engage' && engageFacet) {
+      setPulseDialog({
+        kicker: 'Engage',
+        title: `${engageFacet.label} · ${engageFacet.score}`,
+        why: engageFacet.blurb,
+        agentDid: engageFacet.evidence.join(' · '),
+        actionsTitle: 'Actions to Take',
+        actions: [
+          {
+            type: 'review_inputs',
+            label: engageFacet.recommendedReview,
+            detail: 'Use this before the next client touch.',
+          },
+        ],
+      })
       return
     }
-    if (nodeId === 'heirs') {
-      openDrill(`likeness-${selectedPerson.id}-heir_readiness`)
+    if (nodeId === 'heirs' && heirFacet) {
+      setPulseDialog({
+        kicker: 'Heirs',
+        title: `Heir Readiness · ${heirFacet.score}%`,
+        why: heirFacet.blurb,
+        agentDid: heirFacet.evidence.join(' · '),
+        actionsTitle: 'Actions to Take',
+        actions: [
+          {
+            type: heirFacet.score < 45 ? 'schedule' : 'review_inputs',
+            label: heirFacet.recommendedReview,
+            detail: 'Wealth transfer keeps the household only if next-gen is known.',
+          },
+        ],
+      })
       return
     }
     if (nodeId === 'likeness') {
-      openDrill(`likeness-mat-${selectedPerson.id}`)
+      const m = selectedPerson.maturity
+      setPulseDialog({
+        kicker: 'Likeness',
+        title: `${MATURITY_LABELS[m.tier].title} · ${m.score}`,
+        why: MATURITY_LABELS[m.tier].hint,
+        agentDid: `Completeness ${m.dataCompleteness} · Recency ${m.recency} · Sources ${m.sourceDiversity} · Advisor-confirmed ${m.advisorConfirmed}. Last touched ${m.lastTouched}.`,
+        actionsTitle: 'Actions to Take',
+        actions: [
+          {
+            type: 'review_inputs',
+            label: weakest ? `Review ${weakest.label.toLowerCase()}` : 'Review likeness',
+            detail: weakest?.recommendedReview ?? 'Confirm the thinnest part of the picture.',
+          },
+          {
+            type: 'schedule',
+            label: 'Schedule a confirmation touch',
+            detail: 'Do not treat a thin likeness as exam-ready.',
+          },
+        ],
+      })
       return
     }
-    if (nodeId === 'lifecycle') {
-      const stage =
-        household.stages.find((s) => s.status === 'blocked') ||
-        household.stages.find((s) => s.status === 'active' || s.status === 'agent-running') ||
-        household.stages.find((s) => s.id === household.stage)
-      if (stage) {
-        openDrill(`stage-${stage.id}`)
-        const needsResolution =
-          stage.status === 'blocked' ||
-          ((stage.status === 'active' || stage.status === 'agent-running') && !!stage.unblock)
-        if (needsResolution && stage.unblock) setStageModal(stage)
+    if (nodeId === 'lifecycle' && stage) {
+      setSelectedStageId(stage.id)
+      if (stage.unblock) {
+        setPulseDialog({
+          kicker: 'Stage',
+          title: stage.unblock.title,
+          why: stage.unblock.whyBlocked,
+          agentDid: [stage.agentSummary, stage.humanAction ? `Waiting on: ${stage.humanAction}` : '']
+            .filter(Boolean)
+            .join(' · '),
+          actionsTitle: 'Actions to Take',
+          actions: stage.unblock.recommendedActions,
+        })
+      } else {
+        setPulseDialog({
+          kicker: 'Stage',
+          title: stage.label,
+          why: stage.agentSummary ?? 'This stage has no open agent note.',
+          agentDid: stage.humanAction,
+          actionsTitle: 'Actions to Take',
+          actions: stage.humanAction
+            ? [{ type: 'review_inputs', label: stage.humanAction, detail: stage.agentSummary ?? stage.label }]
+            : [],
+        })
       }
       return
     }
@@ -437,9 +576,22 @@ export default function App() {
       const ex = hhExceptions[0]
       if (ex) {
         setSelectedExId(ex.id)
-        openDrill(`ex-${ex.id}`)
+        setPulseDialog({
+          kicker: 'Custodian',
+          title: ex.title,
+          why: ex.reason,
+          agentDid: ex.agentContext,
+          actionsTitle: 'Actions to Take',
+          actions: ex.advisorActions,
+        })
       } else {
-        flash('Custodian STP clear for this household')
+        setPulseDialog({
+          kicker: 'Custodian',
+          title: 'STP Clear',
+          why: 'No custodian rejection or NIGO is open for this household.',
+          actionsTitle: 'Actions to Take',
+          actions: [],
+        })
       }
     }
   }
@@ -1371,6 +1523,17 @@ export default function App() {
             </div>
           </div>
         </>
+      )}
+
+      {pulseDialog && (
+        <PulseNodeModal
+          dialog={pulseDialog}
+          onClose={() => setPulseDialog(null)}
+          onAct={(label) => {
+            flash(label)
+            setPulseDialog(null)
+          }}
+        />
       )}
 
       {stageModal && (

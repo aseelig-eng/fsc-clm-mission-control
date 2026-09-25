@@ -9,7 +9,7 @@ import type {
 export const metrics = [
   { label: 'Median time-to-funded', value: '4.2 days', delta: '−18 days vs manual', tone: 'good' as const },
   { label: 'NIGO rate', value: '1.8%', delta: 'from 25% industry avg', tone: 'good' as const },
-  { label: 'Advisor hrs back / wk', value: '6.5 hrs', delta: 'admin → client time', tone: 'good' as const },
+  { label: 'Hours I saved this week', value: '6.5 hrs', delta: 'admin → client time', tone: 'good' as const },
   { label: '90-day consolidation', value: '2.4×', delta: 'share-of-wallet lift', tone: 'good' as const },
   { label: 'Audit-ready packs', value: '100%', delta: 'agent lineage on every step', tone: 'neutral' as const },
   { label: 'Transition AUM retained', value: '94%', delta: 'vs 78–89% breakaway norm', tone: 'good' as const },
