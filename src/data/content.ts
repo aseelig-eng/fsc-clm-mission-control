@@ -187,9 +187,9 @@ export const households: Household[] = [
     stage: 'prospect',
     stageLabel: 'Prospect',
     risk: 'Not assessed',
-    nextClientTouch: 'Intro not scheduled',
+    nextClientTouch: 'Mon 11:00a — prospect intro',
     agentsActive: 1,
-    activeAgents: [{ name: 'Lead Agent', doing: 'Holding a shell Person Account from the web form' }],
+    activeAgents: [{ name: 'Lead Agent', doing: 'Prep brief is ready for Monday’s prospect intro' }],
     exceptions: 0,
     stages: [
       {
@@ -197,11 +197,11 @@ export const households: Household[] = [
         label: 'Prospect',
         status: 'active',
         agentSummary: 'Web form captured a name and email. No phone, goal, assets, or advisor notes.',
-        humanAction: 'Book a 20-minute intro',
+        humanAction: 'Hold the intro call',
         view: {
           aum: 'Not stated',
           risk: 'Not assessed',
-          nextTouch: 'Intro not scheduled',
+          nextTouch: 'Mon 11:00a — prospect intro',
         },
       },
       { id: 'discovery', label: 'Discovery', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },

@@ -2,6 +2,7 @@ import type { LifecycleStageId } from './types'
 
 export type MeetingStatus = 'scheduled' | 'completed' | 'cancelled'
 export type MeetingType =
+  | 'prospect'
   | 'discovery'
   | 'proposal'
   | 'orientation'
@@ -39,6 +40,33 @@ export interface Meeting {
 }
 
 export const meetings: Meeting[] = [
+  // Elena Vasquez — prospect
+  {
+    id: 'm-elena-1',
+    householdId: 'h0',
+    title: 'Prospect intro — fit and first goals',
+    when: '2026-09-29T11:00:00',
+    status: 'scheduled',
+    type: 'prospect',
+    attendees: ['Elena Vasquez', 'A. Rivera'],
+    channel: 'video',
+    agenda: ['How she found us', 'What she wants help with', 'Whether to book discovery', 'What we still need: phone, assets, goal'],
+    actions: [
+      {
+        id: 'ma-e1',
+        title: 'Use the thin file — do not invent a plan',
+        owner: 'advisor',
+        due: '2026-09-29',
+        status: 'open',
+        recommendedReview:
+          'Person Account has name and email only. Open the call by confirming those, then capture phone, a goal, and whether there is money to move. Do not run a risk quiz yet.',
+        relatedStage: 'prospect',
+      },
+    ],
+    playbookId: 'a0Cfn00001fPROS01',
+    prepBriefReady: true,
+  },
+
   // Maya Chen
   {
     id: 'm-chen-1',
@@ -153,7 +181,7 @@ export const meetings: Meeting[] = [
     when: '2026-09-25T15:00:00',
     status: 'scheduled',
     type: 'compliance',
-    attendees: ['Robert Whitfield', 'A. Rivera', 'Compliance', 'Estate specialist'],
+    attendees: ['Robert Whitfield', 'Eleanor Whitfield', 'A. Rivera', 'Compliance', 'Estate specialist'],
     channel: 'video',
     agenda: ['US beneficiary / FATCA', 'W-9 cascade across related accounts', 'Principal EDD decision'],
     actions: [
