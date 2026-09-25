@@ -96,6 +96,8 @@ export interface Household {
   risk: string
   nextClientTouch: string
   agentsActive: number
+  /** Named agents behind the status-page count */
+  activeAgents: { name: string; doing: string }[]
   exceptions: number
   stages: LifecycleStage[]
   events: AgentEvent[]

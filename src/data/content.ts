@@ -189,6 +189,7 @@ export const households: Household[] = [
     risk: 'Not assessed',
     nextClientTouch: 'Intro not scheduled',
     agentsActive: 1,
+    activeAgents: [{ name: 'Lead Agent', doing: 'Holding a shell Person Account from the web form' }],
     exceptions: 0,
     stages: [
       {
@@ -237,6 +238,11 @@ export const households: Household[] = [
     risk: 'Growth · Score 71',
     nextClientTouch: 'Today 3:30p — funding status call (optional)',
     agentsActive: 3,
+    activeAgents: [
+      { name: 'Funding Agent', doing: 'Watching the ACAT and the corrected TOD envelope' },
+      { name: 'Custodian Agent', doing: 'Accounts are open; waiting on funding to settle' },
+      { name: 'KYC Agent', doing: 'CIP and screens are clear; no further KYC work' },
+    ],
     exceptions: 1,
     stages: [
       { id: 'prospect', label: 'Prospect', status: 'complete', agentSummary: 'Referral scored; Lead created' },
@@ -326,6 +332,12 @@ export const households: Household[] = [
     risk: 'Conservative-Balanced · Score 44',
     nextClientTouch: 'Thu — trust structure walkthrough',
     agentsActive: 4,
+    activeAgents: [
+      { name: 'EDD Agent', doing: 'EDD packet is ready and waiting on principal' },
+      { name: 'Structure Agent', doing: 'Trust, holdcos, and UBOs are mapped' },
+      { name: 'Disclosure Agent', doing: 'IAA, CRS, and ADV are filed' },
+      { name: 'Compliance Agent', doing: 'Holding the principal gate before custodian submit' },
+    ],
     exceptions: 2,
     stages: [
       { id: 'prospect', label: 'Prospect', status: 'complete' },
@@ -447,6 +459,10 @@ export const households: Household[] = [
     risk: 'Balanced · Score 55',
     nextClientTouch: 'Fri 10:00a — Annual Review',
     agentsActive: 2,
+    activeAgents: [
+      { name: 'Review Agent', doing: 'Prep report is with the client; two life-change flags are in' },
+      { name: 'Paraplanner Agent', doing: 'Annual review deck is drafted and waiting on your voice' },
+    ],
     exceptions: 1,
     stages: [
       { id: 'prospect', label: 'Prospect', status: 'complete' },
@@ -531,6 +547,10 @@ export const households: Household[] = [
     risk: 'N/A — successor engagement',
     nextClientTouch: 'Tue — surviving spouse intro',
     agentsActive: 2,
+    activeAgents: [
+      { name: 'Estate Agent', doing: 'Settlement plan is open; CRA and counsel are notified' },
+      { name: 'Relationship Agent', doing: 'Drafting the surviving-spouse welcome and KYC packet' },
+    ],
     exceptions: 0,
     stages: [
       { id: 'prospect', label: 'Prospect', status: 'complete' },

@@ -692,7 +692,7 @@ export default function App() {
             <div className="panel">
               <div className="panel-header">
                 <span>{household.name} — Household Pulse</span>
-                <span className="muted">{household.agentsActive} agents active</span>
+                <span className="muted">{household.activeAgents.length} agents active</span>
               </div>
               <div className="panel-body">
                 {persons.length > 0 && selectedPerson && (
@@ -1054,6 +1054,17 @@ export default function App() {
                     </span>
                   </div>
                   <div className="panel-body">
+                    <div className="active-agents">
+                      <div className="active-agents-label">Active now · {household.activeAgents.length}</div>
+                      <ul>
+                        {household.activeAgents.map((agent) => (
+                          <li key={agent.name}>
+                            <span className="agent">{agent.name}</span>
+                            <span>{agent.doing}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                     <ul className="feed">
                       {household.events
                         .filter((ev) => ev.outcome !== 'needs_you')
