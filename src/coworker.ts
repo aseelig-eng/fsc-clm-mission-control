@@ -1,8 +1,10 @@
 import type { ExceptionItem, Household } from './data/types'
-import type { PlanState, PortfolioState } from './data/advice'
+import { goalProgress, successOdds, type PlanState, type PortfolioState } from './data/advice'
+import { accountTotals, usd, type ClientNotice, type FinancialAccount } from './data/accounts'
 import { meetings } from './data/meetings'
 import { allHandoffs, compositeScore, weakestPillar } from './data/generational'
 import { metrics } from './data/content'
+import type { ClientOnboardingRecord } from './data/onboardingFramework'
 
 export type CoworkerAction =
   | { type: 'show-book' }
@@ -19,6 +21,11 @@ export interface CoworkerContext {
   exceptions: ExceptionItem[]
   plans: Record<string, PlanState>
   portfolios: Record<string, PortfolioState>
+  accounts?: FinancialAccount[]
+  notices?: ClientNotice[]
+  record?: ClientOnboardingRecord
+  audience?: 'advisor' | 'client'
+  scopeHouseholdId?: string
 }
 
 function findHousehold(text: string, households: Household[]) {
@@ -41,10 +48,122 @@ function tabFor(text: string): 'status' | 'work' | 'record' {
   return 'status'
 }
 
+function exceptionsFor(household: Household, items: ExceptionItem[]) {
+  const tokens = household.name
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((part) => part.length > 3)
+  return items.filter((item) => {
+    const label = item.household.toLowerCase()
+    return tokens.some((token) => label.includes(token))
+  })
+}
+
+function accountBrief(accounts: FinancialAccount[]) {
+  if (accounts.length === 0) return 'No financial accounts are on file yet.'
+  const totals = accountTotals(accounts)
+  const lines = accounts.map(
+    (account) =>
+      `${account.custody === 'managed' ? 'Managed' : 'Held-away'} · ${account.institution} ${account.name} ···${account.mask}: ${usd(account.balance)} (${account.status})`,
+  )
+  return `Total ${usd(totals.total)}. Managed ${usd(totals.managed)}. Held-away ${usd(totals.heldAway)}.\n${lines.join('\n')}`
+}
+
+function answerAsClient(question: string, ctx: CoworkerContext): CoworkerReply {
+  const household = ctx.households.find((item) => item.id === ctx.scopeHouseholdId) ?? ctx.households[0]
+  const text = question.toLowerCase()
+  const others = ctx.households.filter((item) => item.id !== household.id)
+  if (findHousehold(text, others)) {
+    return {
+      text: 'This portal only includes your household. I will not open another client.',
+    }
+  }
+  const accounts = (ctx.accounts ?? []).filter((account) => account.householdId === household.id)
+  const plan = ctx.plans[household.id]
+  const stage = [...household.stages].reverse().find((item) => item.status !== 'upcoming') ?? household.stages[0]
+  const gaps =
+    ctx.record?.sections.flatMap((section) =>
+      section.fields.filter((field) => field.status === 'missing' || field.status === 'partial' || field.status === 'blocked').map((field) => field.label),
+    ) ?? []
+
+  if (/\b(account|balance|holding|transaction|held-away|held away|plaid|managed|what do i own)\b/.test(text)) {
+    const recent = accounts
+      .flatMap((account) => account.transactions.map((txn) => `${txn.date} · ${account.institution} · ${txn.description} · ${usd(txn.amount)}`))
+      .slice(0, 4)
+    const positions = accounts
+      .flatMap((account) => account.holdings.map((position) => `${position.symbol} · ${position.name} · ${usd(position.value)} · ${position.assetClass}`))
+      .slice(0, 5)
+    return {
+      text: `${accountBrief(accounts)}${positions.length ? `\nHoldings:\n${positions.join('\n')}` : ''}${recent.length ? `\nRecent transactions:\n${recent.join('\n')}` : ''}`,
+      did: 'From your financial accounts. I do not move money.',
+      action: { type: 'open-client', householdId: household.id, tab: 'status' },
+    }
+  }
+
+  if (/\b(heir|heirs|handoff|transfer|generational)\b/.test(text)) {
+    const handoff = allHandoffs().find((item) => item.householdId === household.id)
+    return {
+      text: handoff
+        ? `Your handoff readiness is ${compositeScore(handoff)}. Weakest area: ${weakestPillar(handoff).label}. ${handoff.risk}`
+        : 'There is no heir record on your household yet.',
+      did: 'From your household record.',
+    }
+  }
+
+  if (/\b(goal|plan|planning|on track|retire)\b/.test(text)) {
+    const odds = plan ? successOdds(plan, ctx.portfolios[household.id]) : null
+    const goals =
+      plan?.goals
+        .map((goal) => {
+          const progress = goalProgress(goal)
+          return progress == null ? goal.name : `${goal.name}: ${progress}% funded`
+        })
+        .join('\n') || 'No goals on file yet.'
+    return {
+      text: `${goals}\n${odds == null ? 'A success score needs a risk score first.' : `Plan confidence is ${odds}%. Your advisor confirms any change.`}`,
+      did: 'From your plan. This is not a trade recommendation.',
+    }
+  }
+
+  if (/\b(document|statement|vault|tax form)\b/.test(text)) {
+    return {
+      text: 'Shared documents are in the vault. Your advisor sees the same files.',
+      did: 'Opened your documents.',
+      action: { type: 'open-client', householdId: household.id, tab: 'record' },
+    }
+  }
+
+  if (/\b(who needs|needs me|catch up|what happened|radar|what needs|waiting)\b/.test(text)) {
+    const waiting = exceptionsFor(household, ctx.exceptions).map((item) => `${item.priority}: ${item.title}`)
+    const gapLine = gaps.length ? `Still open on your profile:\n${gaps.slice(0, 4).join('\n')}` : 'Your profile has no open fact-find gaps.'
+    return {
+      text: `${waiting.length ? `Your advisor is still deciding:\n${waiting.join('\n')}` : 'Your advisor has no open decision on your file.'}\n${gapLine}\n${accountBrief(accounts)}\nI will not clear a compliance hold or place a trade.`,
+      did: 'From your household record only.',
+    }
+  }
+
+  return {
+    text: `${household.name.split(' ')[0]}, you are in ${stage?.label ?? household.stageLabel}. Next touch: ${household.nextClientTouch}.\n${accountBrief(accounts)}`,
+    did: 'Answered from this household only.',
+  }
+}
+
 export function answerCoworker(question: string, ctx: CoworkerContext): CoworkerReply {
+  if (ctx.audience === 'client') return answerAsClient(question, ctx)
   const text = question.toLowerCase()
   const household = findHousehold(text, ctx.households)
   const open = wantsOpen(text)
+
+  if (/\b(client update|client portal|what did the client|plaid)\b/.test(text) && !household) {
+    const openNotices = (ctx.notices ?? []).filter((notice) => !notice.reviewed)
+    return {
+      text: openNotices.length
+        ? `Clients sent this. It is on the profile and still needs you.\n${openNotices.map((notice) => `${notice.householdName}: ${notice.title} — ${notice.detail}`).join('\n')}`
+        : 'No unreviewed client updates. The profiles match the portal.',
+      did: 'Opened the book queue.',
+      action: { type: 'show-book' },
+    }
+  }
 
   if (/\b(catch up|what happened|radar)\b/.test(text)) {
     const lines = ctx.exceptions.slice(0, 3).map((item) => `${item.priority}: ${item.title}`)
@@ -107,6 +226,16 @@ export function answerCoworker(question: string, ctx: CoworkerContext): Coworker
     const goals = plan?.goals.map((goal) => goal.name).join(', ') || 'No goals yet'
     const handoff = allHandoffs().find((item) => item.householdId === household.id)
     const tab = tabFor(text)
+
+    if (/\b(account|balance|holding|transaction|held-away|held away|managed)\b/.test(text)) {
+      const rows = (ctx.accounts ?? []).filter((account) => account.householdId === household.id)
+      const pending = (ctx.notices ?? []).filter((notice) => notice.householdId === household.id && !notice.reviewed)
+      return {
+        text: `${accountBrief(rows)}${pending.length ? `\nWaiting on you:\n${pending.map((notice) => notice.title).join('\n')}` : ''}`,
+        action: { type: 'open-client', householdId: household.id, tab: 'record' },
+        did: `Opened ${household.name} on the financial accounts.`,
+      }
+    }
 
     if (/\b(goal|plan|planning)\b/.test(text)) {
       return {

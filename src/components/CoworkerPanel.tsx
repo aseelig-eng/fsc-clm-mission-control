@@ -13,11 +13,13 @@ export function CoworkerPanel({
   context,
   onClose,
   onAction,
+  embedded = false,
 }: {
   open: boolean
   context: CoworkerContext
   onClose: () => void
   onAction: (action: CoworkerAction) => void
+  embedded?: boolean
 }) {
   const [draft, setDraft] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -42,12 +44,14 @@ export function CoworkerPanel({
     setDraft('')
   }
 
-  return (
-    <aside className={`coworker-drawer ${open ? 'open' : ''}`} aria-hidden={!open}>
-      <div className="coworker-panel">
+  const client = context.audience === 'client'
+  const panel = (
+    <div className="coworker-panel">
+      {!embedded && (
         <button type="button" className="coworker-home-close" onClick={onClose} aria-label="Close Coworker">
           Close
         </button>
+      )}
         {home ? (
           <div className="coworker-home">
             <h2>Hi. What’s on your radar?</h2>
@@ -62,7 +66,11 @@ export function CoworkerPanel({
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder='Try "What do I need to know about Maya Chen before the funding call?"'
+                placeholder={
+                  client
+                    ? 'Try "What is managed, what is held away, and what is my advisor waiting on?"'
+                    : 'Try "What do I need to know about Maya Chen before the funding call?"'
+                }
                 aria-label="Ask Coworker"
                 rows={4}
               />
@@ -121,7 +129,14 @@ export function CoworkerPanel({
             </form>
           </>
         )}
-      </div>
+    </div>
+  )
+
+  if (embedded) return <div className="coworker-embedded">{panel}</div>
+
+  return (
+    <aside className={`coworker-drawer ${open ? 'open' : ''}`} aria-hidden={!open}>
+      {panel}
     </aside>
   )
 }

@@ -11,6 +11,7 @@ import {
   PHASE_LABELS,
   onboardingByHousehold,
   recordCompleteness,
+  type ClientOnboardingRecord,
   type FormSection,
 } from './data/onboardingFramework'
 import { buildDrillItems, type DrillItem } from './data/drilldown'
@@ -25,8 +26,11 @@ import { GenerationalHandoff } from './components/GenerationalHandoff'
 import { handoffFor } from './data/generational'
 import { factsForStage } from './data/stageFacts'
 import { ClientPortal } from './components/ClientPortal'
+import { AccountBook } from './components/AccountBook'
 import { CoworkerPanel } from './components/CoworkerPanel'
 import type { CoworkerAction } from './coworker'
+import { initialAccounts, usd, type ClientNotice, type FinancialAccount } from './data/accounts'
+import { nextConversation } from './data/nextTalk'
 import {
   householdProgress,
   overallProgress,
@@ -401,13 +405,16 @@ export default function App() {
   const [portalHouseholdId, setPortalHouseholdId] = useState(households[0].id)
   const [plans, setPlans] = useState<Record<string, PlanState>>(() => initialPlans)
   const [portfolios, setPortfolios] = useState<Record<string, PortfolioState>>(() => initialPortfolios)
+  const [accounts, setAccounts] = useState<FinancialAccount[]>(() => initialAccounts)
+  const [records, setRecords] = useState<Record<string, ClientOnboardingRecord>>(() => structuredClone(onboardingByHousehold))
+  const [clientNotices, setClientNotices] = useState<ClientNotice[]>([])
 
   const household = useMemo(
     () => households.find((h) => h.id === selectedHhId) as Household,
     [selectedHhId],
   )
 
-  const onboarding = onboardingByHousehold[household.id]
+  const onboarding = records[household.id]
   const completeness = useMemo(
     () => (onboarding ? recordCompleteness(onboarding) : null),
     [onboarding],
@@ -428,6 +435,8 @@ export default function App() {
   )
 
   const openExceptions = exceptions.filter((e) => !resolved.has(e.id))
+  const pendingNotices = clientNotices.filter((notice) => !notice.reviewed)
+  const hhNotices = pendingNotices.filter((notice) => notice.householdId === household.id)
   const selectedStage =
     household.stages.find((s) => s.id === selectedStageId) ??
     [...household.stages].reverse().find((s) => s.status !== 'upcoming') ??
@@ -626,7 +635,7 @@ export default function App() {
     setShowingBook(false)
     setCockpitView('status')
     setSelectedHhId(id)
-    const rec = onboardingByHousehold[id]
+    const rec = records[id]
     const gapSection = rec?.sections.find((s) =>
       s.fields.some((f) => f.status === 'blocked' || f.status === 'missing' || f.status === 'partial'),
     )
@@ -640,6 +649,101 @@ export default function App() {
     setPulseNodeId(hhEx[0] ? 'custodian' : 'lifecycle')
     const latest = [...hh.stages].reverse().find((s) => s.status !== 'upcoming') ?? hh.stages[0]
     setSelectedStageId(latest?.id ?? null)
+  }
+
+  function confirmNotice(notice: ClientNotice) {
+    const next = structuredClone(records)
+    const record = next[notice.householdId]
+    for (const touch of notice.touched) {
+      const field = record?.sections.find((section) => section.id === touch.sectionId)?.fields.find((item) => item.key === touch.fieldKey)
+      if (field?.status === 'partial') field.status = 'complete'
+    }
+    setRecords(next)
+    setClientNotices((prev) => prev.map((item) => (item.id === notice.id ? { ...item, reviewed: true } : item)))
+    flash(`Confirmed on ${notice.householdName}. The profile now treats it as reviewed.`)
+  }
+
+  function openNotice(notice: ClientNotice, confirm: boolean) {
+    setShowingBook(false)
+    setRole('advisor')
+    setSelectedHhId(notice.householdId)
+    setCockpitView('record')
+    if (notice.sectionId) setOpenSectionId(notice.sectionId)
+    if (confirm) confirmNotice(notice)
+  }
+
+  function acceptProfileAnswer(householdId: string, sectionId: string, fieldKey: string, label: string, value: string) {
+    const name = households.find((item) => item.id === householdId)?.name ?? 'Client'
+    const next = structuredClone(records)
+    const record = next[householdId]
+    const field = record?.sections.find((section) => section.id === sectionId)?.fields.find((item) => item.key === fieldKey)
+    const touched: ClientNotice['touched'] = []
+    if (field && field.status !== 'n/a') {
+      if (field.status === 'blocked') {
+        const note = `Client: ${value}`
+        if (!field.value.includes(value)) field.value = field.value ? `${field.value} · ${note}` : note
+      } else {
+        field.value = value
+        field.status = 'partial'
+        touched.push({ sectionId, fieldKey })
+      }
+    }
+    if (record && fieldKey === 'goal') record.primaryGoal = value
+    if (record && fieldKey === 'horizon') {
+      const years = Number(value.replace(/[^0-9.]/g, ''))
+      if (Number.isFinite(years) && years > 0) record.timeHorizonYears = years
+    }
+    setRecords(next)
+    setClientNotices((prev) => [
+      {
+        id: `n-${Date.now()}`,
+        householdId,
+        householdName: name,
+        title: `Client updated ${label}`,
+        detail: value,
+        sectionId,
+        touched,
+        reviewed: false,
+      },
+      ...prev,
+    ])
+  }
+
+  function acceptClientAccounts(added: FinancialAccount[]) {
+    if (added.length === 0) return
+    const householdId = added[0].householdId
+    const name = households.find((item) => item.id === householdId)?.name ?? 'Client'
+    const summary = added.map((account) => `${account.institution} ${account.name} ···${account.mask} ${usd(account.balance)}`).join('; ')
+    const next = structuredClone(records)
+    const record = next[householdId]
+    const touched: ClientNotice['touched'] = []
+    const delivering = record?.sections.find((section) => section.id === 'custody')?.fields.find((item) => item.key === 'delivering')
+    if (delivering && delivering.status !== 'blocked' && delivering.status !== 'n/a') {
+      delivering.value = delivering.value ? `${delivering.value}; ${summary}` : summary
+      delivering.status = 'partial'
+      touched.push({ sectionId: 'custody', fieldKey: 'delivering' })
+    }
+    const investable = record?.sections.find((section) => section.id === 'financial_profile')?.fields.find((item) => item.key === 'investable')
+    if (investable && (investable.status === 'missing' || !investable.value)) {
+      investable.value = usd(added.reduce((sum, account) => sum + account.balance, 0))
+      investable.status = 'partial'
+      touched.push({ sectionId: 'financial_profile', fieldKey: 'investable' })
+    }
+    setAccounts((prev) => [...prev, ...added])
+    setRecords(next)
+    setClientNotices((prev) => [
+      {
+        id: `n-${Date.now()}`,
+        householdId,
+        householdName: name,
+        title: added.length === 1 ? `Client linked ${added[0].institution} ···${added[0].mask}` : `Client linked ${added.length} held-away accounts`,
+        detail: `${summary}. ${added[0].link === 'plaid' ? 'Linked with Plaid' : 'Entered by hand'}. Not a transfer and not advice.`,
+        sectionId: 'custody',
+        touched,
+        reviewed: false,
+      },
+      ...prev,
+    ])
   }
 
   function runCoworker(action: CoworkerAction) {
@@ -753,6 +857,7 @@ export default function App() {
                   >
                     <span className="hh-chip-name">
                       {h.name}
+                      {pendingNotices.some((notice) => notice.householdId === h.id) ? ' · update' : ''}
                       {h.exceptions > 0 ? ` · ${h.exceptions}` : ''}
                     </span>
                     <span className="hh-chip-progress">
@@ -834,9 +939,28 @@ export default function App() {
               <aside className="panel" style={{ overflow: 'auto' }}>
                 <div className="panel-header">
                   <span>Needs You — Signal Only</span>
-                  <span className="muted">{openExceptions.length} open</span>
+                  <span className="muted">{openExceptions.length + pendingNotices.length} open</span>
                 </div>
                 <ul className="exception-list">
+                  {pendingNotices.map((notice) => (
+                    <NeedsYouCard
+                      key={notice.id}
+                      selected={false}
+                      priority="high"
+                      title={notice.title}
+                      meta={`${notice.householdName} · Client portal`}
+                      recommended="Confirm it on the client profile. This is client-reported, not advice."
+                      actions={[
+                        {
+                          type: 'review_inputs',
+                          label: 'Review and confirm',
+                          detail: notice.detail,
+                        },
+                      ]}
+                      onOpen={() => openNotice(notice, false)}
+                      onAct={() => openNotice(notice, true)}
+                    />
+                  ))}
                   {openExceptions.map((ex) => (
                     <NeedsYouCard
                       key={ex.id}
@@ -853,7 +977,7 @@ export default function App() {
                       }}
                     />
                   ))}
-                  {openExceptions.length === 0 && (
+                  {openExceptions.length === 0 && pendingNotices.length === 0 && (
                     <li className="panel-body muted">All clear — agents are running. Time for clients.</li>
                   )}
                 </ul>
@@ -952,9 +1076,33 @@ export default function App() {
                   </div>
                 </div>
 
+                {(() => {
+                  const talk = nextConversation({
+                    household,
+                    plan: plans[household.id],
+                    lifeEvent: selectedPerson?.profile.lifeEvents?.[0]
+                      ? `${selectedPerson.profile.lifeEvents[0].when}: ${selectedPerson.profile.lifeEvents[0].label}`
+                      : undefined,
+                    gaps: (completeness?.gaps ?? []).map((gap) => ({ field: gap.field })),
+                    notices: hhNotices,
+                  })
+                  if (talk.points.length === 0) return null
+                  return (
+                    <section className="next-talk" aria-label="Next conversation">
+                      <h3>{talk.headline}</h3>
+                      <ul>
+                        {talk.points.map((point) => (
+                          <li key={point}>{point}</li>
+                        ))}
+                      </ul>
+                    </section>
+                  )
+                })()}
+
                 {(PLAN_STAGES.includes(selectedStage?.id ?? '') ||
                   PORTFOLIO_STAGES.includes(selectedStage?.id ?? '')) && (
                   <AdviceDesk
+                    key={household.id}
                     plan={plans[household.id]}
                     portfolio={portfolios[household.id]}
                     showPlan={PLAN_STAGES.includes(selectedStage?.id ?? '')}
@@ -973,7 +1121,21 @@ export default function App() {
 
             {!showingBook && cockpitView === 'record' && onboarding && completeness && (
               <>
+              <div className="panel">
+                <div className="panel-header">
+                  <span>Financial Accounts</span>
+                  <span className="muted">
+                    {accounts.filter((account) => account.householdId === household.id && account.review === 'pending').length > 0
+                      ? 'Client addition waiting on you'
+                      : 'Managed and held-away'}
+                  </span>
+                </div>
+                <div className="panel-body">
+                  <AccountBook accounts={accounts.filter((account) => account.householdId === household.id)} />
+                </div>
+              </div>
               <AdviceDesk
+                key={`${household.id}-record`}
                 plan={plans[household.id]}
                 portfolio={portfolios[household.id]}
                 showPlan
@@ -1287,11 +1449,30 @@ export default function App() {
                   <div className="panel-header">
                     <span>Needs You</span>
                     <span className="muted">
-                      {hhExceptions.length + household.events.filter((ev) => ev.outcome === 'needs_you').length} open
+                      {hhExceptions.length + hhNotices.length + household.events.filter((ev) => ev.outcome === 'needs_you').length} open
                     </span>
                   </div>
                   <div className="panel-body">
                     <ul className="exception-list">
+                      {hhNotices.map((notice) => (
+                        <NeedsYouCard
+                          key={notice.id}
+                          selected={false}
+                          priority="high"
+                          title={notice.title}
+                          meta="Client portal"
+                          recommended="Confirm it on the client profile. This is client-reported, not advice."
+                          actions={[
+                            {
+                              type: 'review_inputs',
+                              label: 'Review and confirm',
+                              detail: notice.detail,
+                            },
+                          ]}
+                          onOpen={() => openNotice(notice, false)}
+                          onAct={() => openNotice(notice, true)}
+                        />
+                      ))}
                       {hhExceptions.map((ex) => (
                         <NeedsYouCard
                           key={ex.id}
@@ -1358,6 +1539,7 @@ export default function App() {
                           )
                         })}
                       {hhExceptions.length === 0 &&
+                        hhNotices.length === 0 &&
                         household.events.every((ev) => ev.outcome !== 'needs_you') && (
                           <li className="panel-body muted">No open signals for this household.</li>
                         )}
@@ -1595,6 +1777,9 @@ export default function App() {
           exceptions: exceptions.filter((item) => !resolved.has(item.id)),
           plans,
           portfolios,
+          accounts,
+          notices: clientNotices,
+          audience: 'advisor',
         }}
         onClose={() => setCoworkerOpen(false)}
         onAction={runCoworker}
@@ -1617,6 +1802,11 @@ export default function App() {
           householdName={household.name}
           persons={persons}
           initialPersonId={selectedPerson.id}
+          contact={{
+            email: onboarding?.sections.find((section) => section.id === 'client_details')?.fields.find((field) => field.key === 'email')?.value,
+            phone: onboarding?.sections.find((section) => section.id === 'client_details')?.fields.find((field) => field.key === 'phone')?.value,
+            address: onboarding?.sections.find((section) => section.id === 'client_details')?.fields.find((field) => field.key === 'address')?.value,
+          }}
           onClose={() => setProfileOpen(false)}
         />
       )}
@@ -1653,10 +1843,21 @@ export default function App() {
           households={households}
           householdId={portalHouseholdId}
           plans={plans}
-          portfolios={portfolios}
-          records={onboardingByHousehold}
+          records={records}
+          accounts={accounts}
+          coworker={{
+            households,
+            exceptions: openExceptions,
+            plans,
+            portfolios,
+            accounts,
+            notices: clientNotices,
+            audience: 'advisor',
+          }}
           onSwitch={setPortalHouseholdId}
           onClose={() => setPortalOpen(false)}
+          onAddAccounts={acceptClientAccounts}
+          onUpdateField={acceptProfileAnswer}
         />
       )}
     </div>

@@ -55,6 +55,7 @@ export function AdviceDesk({
   const sum = portfolio.equity + portfolio.fixed + portfolio.cash + portfolio.alts
   const [openGoalId, setOpenGoalId] = useState<string | null>(plan.goals[0]?.id ?? null)
   const [extraAnnual, setExtraAnnual] = useState(0)
+  const [proposed, setProposed] = useState(false)
   const openGoal = plan.goals.find((goal) => goal.id === openGoalId) ?? null
   const odds = successOdds(plan, portfolio, extraAnnual)
 
@@ -259,6 +260,7 @@ export function AdviceDesk({
                   max={100}
                   value={portfolio[key]}
                   onChange={(event) => {
+                    setProposed(false)
                     const next = Number(event.target.value)
                     if (key === 'cash') {
                       onPortfolio({ cash: next })
@@ -283,10 +285,16 @@ export function AdviceDesk({
                 const equity = portfolio.targetEquity ?? portfolio.equity
                 const rest = equity + portfolio.fixed + portfolio.alts
                 onPortfolio({ equity, cash: Math.max(0, 100 - rest) })
+                setProposed(true)
               }}
             >
-              Rebalance to the {portfolio.targetEquity}% model
+              Propose rebalance to the {portfolio.targetEquity}% IPS model
             </button>
+          )}
+          {proposed && (
+            <p className="advice-propose">
+              Proposed for you to confirm. Nothing was sent to the client or the custodian.
+            </p>
           )}
           <ul className="holding-list">
             {buildHoldings(portfolio, fundedTotal(plan)).map((line) => (

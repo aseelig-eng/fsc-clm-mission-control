@@ -24,11 +24,13 @@ export function ClientDossier({
   householdName,
   persons,
   initialPersonId,
+  contact,
   onClose,
 }: {
   householdName: string
   persons: PersonLikeness[]
   initialPersonId: string
+  contact?: { email?: string; phone?: string; address?: string }
   onClose: () => void
 }) {
   const [personId, setPersonId] = useState(initialPersonId)
@@ -110,15 +112,15 @@ export function ClientDossier({
             <dl className="dossier-facts">
               <div>
                 <dt>Email</dt>
-                <dd>{profile.email ?? 'Not on file'}</dd>
+                <dd>{contact?.email || profile.email || 'Not on file'}</dd>
               </div>
               <div>
                 <dt>Phone</dt>
-                <dd>{profile.phone ?? 'Not on file'}</dd>
+                <dd>{contact?.phone || profile.phone || 'Not on file'}</dd>
               </div>
               <div>
                 <dt>Address</dt>
-                <dd>{profile.address ?? 'Not on file'}</dd>
+                <dd>{contact?.address || profile.address || 'Not on file'}</dd>
               </div>
             </dl>
           </section>
