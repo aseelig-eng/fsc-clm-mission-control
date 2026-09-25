@@ -4,7 +4,7 @@ import { adviceFlags, goalProgress, type PlanGoal, type PlanState, type Portfoli
 import type { ExceptionItem, Household, LifecycleStage } from '../data/types'
 import { LikenessCompass } from './LikenessCompass'
 import { HouseholdFigures } from './HouseholdFigures'
-import { GoalMark } from './GoalMark'
+import { GoalMark, goalKind } from './GoalMark'
 import { useState } from 'react'
 
 export type PulseNodeId = 'engage' | 'lifecycle' | 'likeness' | 'heirs' | 'custodian'
@@ -21,6 +21,19 @@ type Props = {
   onSelectFacet: (facet: BehavioralFacet) => void
   plan: PlanState
   portfolio: PortfolioState
+}
+
+function goalShort(name: string) {
+  const kind = goalKind(name)
+  if (kind === 'tax' && name.toLowerCase().includes('roth')) return 'Roth'
+  if (kind === 'tax') return 'Tax'
+  if (kind === 'growth') return 'Growth'
+  if (kind === 'home') return 'Home'
+  if (kind === 'income') return 'Income'
+  if (kind === 'transfer') return 'Transfer'
+  if (kind === 'estate') return 'Estate'
+  if (kind === 'shield') return 'Preserve'
+  return name.split(' ')[0]
 }
 
 function engageStatus(score: number) {
@@ -178,21 +191,28 @@ export function HouseholdPulse({
             <line x1="188" y1="292" x2="168" y2="348" stroke={topEx ? 'var(--sf-red)' : 'var(--sf-green)'} strokeWidth="2.5" />
             <HouseholdFigures persons={persons} />
           </svg>
-          {plan.goals.map((goal, index) => (
-            <button
-              key={goal.id}
-              type="button"
-              className="pulse-goal"
-              style={{
-                left: `${42 + index * 12}%`,
-                top: '38%',
-              }}
-              onClick={() => setOpenGoal(goal)}
-            >
-              <GoalMark name={goal.name} />
-              <span>{goal.name.split(' ')[0]}</span>
-            </button>
-          ))}
+          {plan.goals.length > 0 && (
+            <div className="pulse-goals">
+              <span className="pulse-goals-label">Goals</span>
+              {plan.goals.map((goal) => {
+                const progress = goalProgress(goal)
+                return (
+                  <button
+                    key={goal.id}
+                    type="button"
+                    className="pulse-goal"
+                    onClick={() => setOpenGoal(goal)}
+                  >
+                    <GoalMark name={goal.name} />
+                    <span>
+                      {goalShort(goal.name)}
+                      {progress != null ? ` · ${progress}%` : ''}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
           <button type="button" className="pulse-book" onClick={() => setPortfolioOpen(true)}>
             <span>Portfolio</span>
             <strong>

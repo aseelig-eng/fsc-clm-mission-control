@@ -23,6 +23,10 @@ import { AdviceDesk } from './components/AdviceDesk'
 import { initialPlans, initialPortfolios, PLAN_STAGES, PORTFOLIO_STAGES, type PlanState, type PortfolioState } from './data/advice'
 import { GenerationalHandoff } from './components/GenerationalHandoff'
 import { handoffFor } from './data/generational'
+import { factsForStage } from './data/stageFacts'
+import { ClientPortal } from './components/ClientPortal'
+import { CoworkerPanel } from './components/CoworkerPanel'
+import type { CoworkerAction } from './coworker'
 import {
   householdProgress,
   overallProgress,
@@ -392,6 +396,9 @@ export default function App() {
   } | null>(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [handoffOpen, setHandoffOpen] = useState(false)
+  const [coworkerOpen, setCoworkerOpen] = useState(false)
+  const [portalOpen, setPortalOpen] = useState(false)
+  const [portalHouseholdId, setPortalHouseholdId] = useState(households[0].id)
   const [plans, setPlans] = useState<Record<string, PlanState>>(() => initialPlans)
   const [portfolios, setPortfolios] = useState<Record<string, PortfolioState>>(() => initialPortfolios)
 
@@ -635,6 +642,16 @@ export default function App() {
     setSelectedStageId(latest?.id ?? null)
   }
 
+  function runCoworker(action: CoworkerAction) {
+    setRole('advisor')
+    if (action.type === 'show-book') {
+      setShowingBook(true)
+      return
+    }
+    selectHousehold(action.householdId)
+    setCockpitView(action.tab)
+  }
+
   return (
     <div className="app-shell">
       <header className="global-header">
@@ -658,9 +675,34 @@ export default function App() {
           </button>
         </nav>
         <div className="header-spacer" />
+        <button
+          type="button"
+          className="portal-launch"
+          onClick={() => {
+            setPortalHouseholdId(selectedHhId)
+            setPortalOpen(true)
+          }}
+        >
+          Client portal
+        </button>
+        <button
+          type="button"
+          className={`coworker-launch ${coworkerOpen ? 'active' : ''}`}
+          aria-label="Ask"
+          aria-pressed={coworkerOpen}
+          onClick={() => setCoworkerOpen((open) => !open)}
+        >
+          <svg className="ask-spark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 3.2l.7 2.1L9.8 6l-2.1.7L7 8.8l-.7-2.1L4.2 6l2.1-.7z" fill="currentColor" />
+            <path d="M16 8l1.1 3.2L20.4 12.3l-3.3 1.1L16 16.6l-1.1-3.2-3.3-1.1 3.3-1.1z" fill="currentColor" />
+          </svg>
+          Ask
+        </button>
         <div className="header-meta">V Initial Concept</div>
       </header>
 
+      <div className={`workspace ${coworkerOpen ? 'open' : ''}`}>
+      <div className="workspace-main">
       {role === 'paraplanner' && (
         <div className="metrics-strip" aria-label="Firm CLM metrics">
             {metrics.map((m) => (
@@ -679,10 +721,15 @@ export default function App() {
             <div className="household-bar">
               <button
                 type="button"
-                className={`hh-chip ${showingBook ? 'active' : ''}`}
+                className={`hh-chip book-chip ${showingBook ? 'active' : ''}`}
                 onClick={() => setShowingBook(true)}
               >
-                <span className="hh-chip-name">Book</span>
+                <span className="hh-chip-name">
+                  <svg className="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 6h7v12H4zM13 6h7v5h-7zM13 13h7v5h-7z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                  Book
+                </span>
                 <span className="hh-chip-progress">
                   <span className="hh-chip-track" aria-hidden="true">
                     <span
@@ -732,7 +779,13 @@ export default function App() {
                 className={cockpitView === 'status' ? 'active' : ''}
                 onClick={() => setCockpitView('status')}
               >
-                <strong>Status</strong>
+                <strong>
+                  <svg className="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="8" r="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                    <path d="M6 19c1.2-3 3.2-4.5 6-4.5s4.8 1.5 6 4.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                  Status
+                </strong>
                 <span>Who They Are</span>
               </button>
               <button
@@ -742,7 +795,13 @@ export default function App() {
                 className={cockpitView === 'work' ? 'active' : ''}
                 onClick={() => setCockpitView('work')}
               >
-                <strong>Work</strong>
+                <strong>
+                  <svg className="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 6h12M8 12h12M8 18h12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    <path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  </svg>
+                  Work
+                </strong>
                 <span>What Has Been Done and What Needs You</span>
               </button>
               <button
@@ -752,7 +811,12 @@ export default function App() {
                 className={cockpitView === 'record' ? 'active' : ''}
                 onClick={() => setCockpitView('record')}
               >
-                <strong>Record</strong>
+                <strong>
+                  <svg className="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 7h6l2 2h8v10H4z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                  </svg>
+                  Record
+                </strong>
                 <span>What’s On File</span>
               </button>
             </div>
@@ -872,7 +936,7 @@ export default function App() {
                 <div className="hh-summary" style={{ marginTop: 12 }}>
                   <div>
                     <div className="k">AUM / stage</div>
-                    <div className="v">{selectedStage?.view?.aum ?? (selectedStage?.status === 'upcoming' ? 'Not captured' : household.aum)}</div>
+                    <div className="v">{selectedStage ? factsForStage(household, selectedStage).aum : '—'}</div>
                   </div>
                   <div>
                     <div className="k">Current stage</div>
@@ -880,18 +944,11 @@ export default function App() {
                   </div>
                   <div>
                     <div className="k">Risk / IPS</div>
-                    <div className="v">{selectedStage?.view?.risk ?? (selectedStage?.status === 'upcoming' ? 'Not assessed' : household.risk)}</div>
+                    <div className="v">{selectedStage ? factsForStage(household, selectedStage).risk : '—'}</div>
                   </div>
                   <div>
                     <div className="k">Next client touch</div>
-                    <div className="v">
-                      {selectedStage?.view?.nextTouch ??
-                        (selectedStage?.humanAction
-                          ? `You: ${selectedStage.humanAction}`
-                          : selectedStage?.status === 'upcoming'
-                            ? 'Not scheduled'
-                            : household.nextClientTouch)}
-                    </div>
+                    <div className="v">{selectedStage ? factsForStage(household, selectedStage).nextTouch : '—'}</div>
                   </div>
                 </div>
 
@@ -1530,6 +1587,19 @@ export default function App() {
           </div>
         </>
       )}
+      </div>
+      <CoworkerPanel
+        open={coworkerOpen}
+        context={{
+          households,
+          exceptions: exceptions.filter((item) => !resolved.has(item.id)),
+          plans,
+          portfolios,
+        }}
+        onClose={() => setCoworkerOpen(false)}
+        onAction={runCoworker}
+      />
+      </div>
 
       {handoffOpen && (
         <GenerationalHandoff
@@ -1577,6 +1647,17 @@ export default function App() {
         <div className="toast" role="status">
           {toast}
         </div>
+      )}
+      {portalOpen && (
+        <ClientPortal
+          households={households}
+          householdId={portalHouseholdId}
+          plans={plans}
+          portfolios={portfolios}
+          records={onboardingByHousehold}
+          onSwitch={setPortalHouseholdId}
+          onClose={() => setPortalOpen(false)}
+        />
       )}
     </div>
   )

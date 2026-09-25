@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import {
   adviceFlags,
+  buildHoldings,
+  fundedTotal,
   GOAL_OPTIONS,
   goalProgress,
+  rankedStrategy,
   RISK_LEVELS,
+  successOdds,
   type PlanGoal,
   type PlanState,
   type PortfolioState,
@@ -50,7 +54,9 @@ export function AdviceDesk({
   })
   const sum = portfolio.equity + portfolio.fixed + portfolio.cash + portfolio.alts
   const [openGoalId, setOpenGoalId] = useState<string | null>(plan.goals[0]?.id ?? null)
+  const [extraAnnual, setExtraAnnual] = useState(0)
   const openGoal = plan.goals.find((goal) => goal.id === openGoalId) ?? null
+  const odds = successOdds(plan, portfolio, extraAnnual)
 
   function updateGoal(id: string, patch: Partial<PlanGoal>) {
     onPlan({
@@ -201,6 +207,29 @@ export function AdviceDesk({
               </select>
             </label>
           </div>
+          {odds != null && (
+            <div className="advice-progress">
+              <span>Probability of success {odds}%</span>
+              <div className="book-meter-track">
+                <div className="book-meter-fill tone-neutral" style={{ width: `${odds}%` }} />
+              </div>
+              <p className="muted">Straight-line funding with a light stress. Move savings to see the plan change.</p>
+            </div>
+          )}
+          <label>
+            What-if savings per year · ${extraAnnual.toLocaleString()}
+            <input
+              type="range"
+              min={0}
+              max={50000}
+              step={1000}
+              value={extraAnnual}
+              onChange={(event) => setExtraAnnual(Number(event.target.value))}
+            />
+          </label>
+          <p className="strategy-line">
+            <strong>Next strategy.</strong> {rankedStrategy(plan, portfolio)}
+          </p>
         </section>
       )}
 
@@ -246,6 +275,31 @@ export function AdviceDesk({
             ))}
           </div>
           <p className={sum === 100 ? 'muted' : 'advice-sum'}>Sleeves sum to {sum}%.</p>
+          {portfolio.targetEquity != null && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                const equity = portfolio.targetEquity ?? portfolio.equity
+                const rest = equity + portfolio.fixed + portfolio.alts
+                onPortfolio({ equity, cash: Math.max(0, 100 - rest) })
+              }}
+            >
+              Rebalance to the {portfolio.targetEquity}% model
+            </button>
+          )}
+          <ul className="holding-list">
+            {buildHoldings(portfolio, fundedTotal(plan)).map((line) => (
+              <li key={line.name}>
+                <span>{line.name}</span>
+                <span className="muted">{line.assetClass}</span>
+                <strong>${line.value.toLocaleString()}</strong>
+              </li>
+            ))}
+          </ul>
+          {buildHoldings(portfolio, fundedTotal(plan)).length === 0 && (
+            <p className="muted">No funded holdings yet. The model is a proposal until money arrives.</p>
+          )}
         </section>
       )}
 

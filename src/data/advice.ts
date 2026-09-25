@@ -72,6 +72,64 @@ export function goalProgress(goal: { targetUsd: number | null; fundedUsd: number
   return Math.round((goal.fundedUsd / goal.targetUsd) * 100)
 }
 
+export function fundedTotal(plan: PlanState) {
+  return plan.goals.reduce((sum, goal) => sum + (goal.fundedUsd ?? 0), 0)
+}
+
+/** Straight-line funding plus a light stress. A MoneyGuide-style meter, not a full Monte Carlo. */
+export function successOdds(plan: PlanState, portfolio: PortfolioState, extraAnnual = 0) {
+  const scored = plan.goals.filter((goal) => goal.targetUsd && goal.targetUsd > 0)
+  if (!scored.length || !plan.riskTolerance) return null
+  const scores = scored.map((goal) => {
+    const years = Math.max(goal.horizonYears ?? 1, 1)
+    const added = extraAnnual * years
+    const funded = Math.min(goal.targetUsd!, (goal.fundedUsd ?? 0) + added)
+    const progress = funded / goal.targetUsd!
+    return Math.min(100, progress * 55 + Math.min(years, 30) * 1.4)
+  })
+  let odds = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+  const short = scored.some((goal) => (goal.horizonYears ?? 99) <= 7)
+  if (short && portfolio.equity > 65) odds -= 10
+  return Math.max(8, Math.min(94, odds))
+}
+
+export interface HoldingLine {
+  name: string
+  assetClass: string
+  value: number
+  sleeve: number
+}
+
+export function buildHoldings(portfolio: PortfolioState, total: number): HoldingLine[] {
+  if (total <= 0) return []
+  const lines = [
+    { name: 'US equity', assetClass: 'Equity', sleeve: portfolio.equity * 0.72 },
+    { name: 'International equity', assetClass: 'Equity', sleeve: portfolio.equity * 0.28 },
+    { name: 'Core bonds', assetClass: 'Fixed income', sleeve: portfolio.fixed },
+    { name: 'Cash reserve', assetClass: 'Cash', sleeve: portfolio.cash },
+    { name: 'Private & alternatives', assetClass: 'Alternative', sleeve: portfolio.alts },
+  ]
+  return lines
+    .filter((line) => line.sleeve >= 1)
+    .map((line) => ({ ...line, value: Math.round((total * line.sleeve) / 100) }))
+}
+
+export function rankedStrategy(plan: PlanState, portfolio: PortfolioState) {
+  const flags = adviceFlags(plan, portfolio)
+  const block = flags.find((flag) => flag.severity === 'block')
+  if (block) return block.title
+  if (portfolio.targetEquity != null && Math.abs(portfolio.equity - portfolio.targetEquity) >= 5) {
+    return `Rebalance equity from ${portfolio.equity}% to the ${portfolio.targetEquity}% model`
+  }
+  const thin = plan.goals.find((goal) => {
+    const progress = goalProgress(goal)
+    return progress != null && progress < 40 && (goal.horizonYears ?? 0) > 5
+  })
+  if (thin) return `Raise savings toward ${thin.name}`
+  if (!plan.riskTolerance) return 'Score risk before choosing a model'
+  return 'Plan and portfolio are aligned. Review at the next meeting.'
+}
+
 export function adviceFlags(plan: PlanState, portfolio: PortfolioState): AdviceFlag[] {
   const flags: AdviceFlag[] = []
   const sleeves = portfolio.equity + portfolio.fixed + portfolio.cash + portfolio.alts
