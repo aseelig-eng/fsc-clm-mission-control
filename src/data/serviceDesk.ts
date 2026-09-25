@@ -11,6 +11,7 @@ export interface ServiceCase {
   priority: 'Low' | 'Medium' | 'High' | 'Critical'
   origin: 'Phone' | 'Email' | 'Portal' | 'Website'
   type: string
+  step?: AgenticStep
 }
 
 export interface WorkTask {
@@ -35,6 +36,157 @@ export interface GoalRecord {
   name: string
   type: string
   status: GoalRecordStatus
+}
+
+export interface AgenticStep {
+  label: string
+  result: string
+  effects?: {
+    checklist?: { id: string; status: ChecklistStatus }[]
+    records?: { sectionId: string; fieldKey: string; value: string; status?: 'complete' | 'partial' | 'missing' | 'blocked' }[]
+    completeTasks?: string[]
+  }
+}
+
+export const caseSteps: Record<string, AgenticStep> = {
+  'c-elena': {
+    label: 'Send the intake questions',
+    result: 'The agent sent Elena the three questions. The case is closed.',
+  },
+  'c-maya-tod': {
+    label: 'Send the TOD addendum',
+    result: 'The TOD envelope went to Maya. The case is closed. The signature is still on the checklist.',
+    effects: {
+      records: [
+        {
+          sectionId: 'beneficiary',
+          fieldKey: 'tod',
+          value: 'Envelope sent to Maya Chen · awaiting signature',
+          status: 'partial',
+        },
+      ],
+      completeTasks: ['t-m1'],
+    },
+  },
+  'c-maya-ben': {
+    label: 'Leave the contingent blank for the call',
+    result: 'The contingent stays blank on purpose. The case is closed.',
+    effects: {
+      records: [
+        {
+          sectionId: 'beneficiary',
+          fieldKey: 'contingent',
+          value: 'Blank on purpose until the funding call',
+          status: 'partial',
+        },
+      ],
+    },
+  },
+  'c-whit': {
+    label: 'Escalate the FATCA list to the principal',
+    result: 'The principal has the FATCA list. The case is closed. Thursday stays blocked until they approve.',
+  },
+  'c-adams-realloc': {
+    label: 'Put the reallocation on the review agenda',
+    result: 'The reallocation is on the annual review agenda. The case is closed.',
+  },
+  'c-adams-ben': {
+    label: 'Add the IRA contingent to the review',
+    result: 'The IRA contingent is on the review list. The case is closed.',
+    effects: {
+      checklist: [{ id: 'k-a3', status: 'Collected' }],
+    },
+  },
+  'c-oko-retitle': {
+    label: 'Queue the retitle packet for Tuesday',
+    result: 'The retitle packet is queued for Amara. The case is closed.',
+    effects: {
+      checklist: [{ id: 'k-o2', status: 'Collected' }],
+    },
+  },
+  'c-oko-ein': {
+    label: 'Ask Amara for the EIN and W-9',
+    result: 'The EIN and successor W-9 request went to Amara. The case is closed.',
+  },
+}
+
+export const taskSteps: Record<string, AgenticStep> = {
+  't-e1': {
+    label: 'Confirm Monday’s intro',
+    result: 'Monday at 11:00 is confirmed with Elena. The task is complete.',
+  },
+  't-e2': {
+    label: 'Queue the three questions',
+    result: 'Phone, one goal, and whether assets move are queued for Monday. The task is complete.',
+  },
+  't-m1': {
+    label: 'Clear the TOD case for the call',
+    result: 'The TOD case is cleared for the funding call. The task is complete.',
+    effects: { completeTasks: [] },
+  },
+  't-m2': {
+    label: 'Confirm the 3:30 funding call',
+    result: 'The 3:30 funding call is confirmed. The task is complete.',
+  },
+  't-m3': {
+    label: 'Mark the TOD addendum received',
+    result: 'The signed TOD addendum is on the file. The task is complete.',
+    effects: {
+      checklist: [{ id: 'k-m1', status: 'Collected' }],
+      records: [
+        {
+          sectionId: 'beneficiary',
+          fieldKey: 'tod',
+          value: 'Signed addendum on file',
+          status: 'complete',
+        },
+      ],
+    },
+  },
+  't-w1': {
+    label: 'Record the principal’s EDD approval',
+    result: 'The principal approved EDD. The task is complete.',
+  },
+  't-w2': {
+    label: 'Confirm the W-9 and FATCA list',
+    result: 'The W-9 and FATCA list are confirmed with the client. The task is complete.',
+    effects: {
+      checklist: [{ id: 'k-w3', status: 'Collected' }],
+    },
+  },
+  't-w3': {
+    label: 'Hold extra trust pages',
+    result: 'Extra trust pages stay on hold unless the principal asks. The task is complete.',
+  },
+  't-a1': {
+    label: 'File the retirement income projection',
+    result: 'The retirement income projection is ready for the review. The task is complete.',
+  },
+  't-a2': {
+    label: 'Mark the open cases reviewed',
+    result: 'Open cases were reviewed for the annual review. The task is complete.',
+  },
+  't-a3': {
+    label: 'Send the annual review reminder',
+    result: 'The annual review reminder went to Jordan and Sam. The task is complete.',
+  },
+  't-o1': {
+    label: 'Confirm Tuesday with Amara',
+    result: 'Tuesday’s intro is confirmed with Amara. The task is complete.',
+  },
+  't-o2': {
+    label: 'Accept the retitle packet',
+    result: 'The retitle packet is reviewed and ready. The task is complete.',
+  },
+  't-o3': {
+    label: 'Record the estate EIN and W-9',
+    result: 'The estate EIN and successor W-9 are on the file. The task is complete.',
+    effects: {
+      checklist: [
+        { id: 'k-o3', status: 'Collected' },
+      ],
+    },
+  },
 }
 
 export const serviceCases: ServiceCase[] = [

@@ -2,21 +2,20 @@ import { useState } from 'react'
 import { metrics } from '../data/content'
 import { meetings } from '../data/meetings'
 import { allHandoffs, compositeScore, weakestPillar } from '../data/generational'
-import type { ExceptionItem, Household } from '../data/types'
+import type { ExceptionItem, Household, LifecycleStageId } from '../data/types'
 
-const FUNDED = new Set(['welcome', 'ongoing', 'annual_review', 'life_event', 'estate'])
 const WEEK_START = new Date('2026-09-24T00:00:00')
 const WEEK_END = new Date('2026-09-30T23:59:59')
 
-const STAGE_ALONG: Record<string, number> = {
-  prospect: 12,
-  discovery: 24,
-  proposal: 36,
-  disclosures: 46,
-  kyc: 58,
-  account_open: 70,
-  funding: 82,
-}
+const NEW_CLIENT_PIPE: { id: LifecycleStageId; label: string }[] = [
+  { id: 'prospect', label: 'Prospect' },
+  { id: 'discovery', label: 'Discovery' },
+  { id: 'proposal', label: 'Proposal' },
+  { id: 'disclosures', label: 'Disclosures' },
+  { id: 'kyc', label: 'KYC' },
+  { id: 'account_open', label: 'Account open' },
+  { id: 'funding', label: 'Funding' },
+]
 
 type Glyph =
   | 'funnel'
@@ -33,9 +32,11 @@ type Glyph =
   | 'heirs'
 
 type Bar = { label: string; note?: string; pct: number; tone?: 'ok' | 'warn' | 'danger' | 'neutral' }
+type FunnelPerson = { id: string; name: string; note: string; blocked: boolean }
 type Visual =
   | { kind: 'bars'; caption: string; bars: Bar[] }
   | { kind: 'list'; caption: string; rows: { title: string; detail: string }[] }
+  | { kind: 'funnel'; caption: string; stages: { id: string; label: string; people: FunnelPerson[] }[] }
 
 type BookMetric = {
   id: string
@@ -166,7 +167,19 @@ function whenLabel(iso: string) {
 
 function buildMetrics(households: Household[], exceptions: ExceptionItem[]): BookMetric[] {
   const firm = Object.fromEntries(metrics.map((m) => [m.label, m]))
-  const pipeline = households.filter((h) => !FUNDED.has(h.stage))
+  const pipelineStages = NEW_CLIENT_PIPE.map((stage) => ({
+    id: stage.id,
+    label: stage.label,
+    people: households
+      .filter((household) => household.stage === stage.id)
+      .map((household) => ({
+        id: household.id,
+        name: household.name,
+        note: household.nextClientTouch,
+        blocked: household.stages.some((item) => item.id === household.stage && item.status === 'blocked'),
+      })),
+  }))
+  const pipelineCount = pipelineStages.reduce((sum, stage) => sum + stage.people.length, 0)
   const weekMeetings = meetings
     .filter((m) => m.status === 'scheduled')
     .filter((m) => {
@@ -203,21 +216,16 @@ function buildMetrics(households: Household[], exceptions: ExceptionItem[]): Boo
     {
       id: 'pipeline',
       short: 'Pipeline',
-      label: 'Pipeline',
-      value: String(pipeline.length),
+      label: 'New clients',
+      value: String(pipelineCount),
       glyph: 'funnel',
       x: 7,
-      story: 'Households still before funding. Length shows how far each one has moved.',
+      story: 'New clients still on the way in, from the first conversation through funding. Open a name to see that record.',
       visuals: [
         {
-          kind: 'bars',
-          caption: 'Distance to Funded',
-          bars: pipeline.map((h) => ({
-            label: h.name,
-            note: h.stageLabel,
-            pct: STAGE_ALONG[h.stage] ?? 10,
-            tone: h.stage === 'prospect' ? 'neutral' : 'warn',
-          })),
+          kind: 'funnel',
+          caption: 'New client funnel',
+          stages: pipelineStages,
         },
       ],
     },
@@ -439,7 +447,45 @@ function buildMetrics(households: Household[], exceptions: ExceptionItem[]): Boo
   ]
 }
 
-function MetricVisual({ visual }: { visual: Visual }) {
+function MetricVisual({
+  visual,
+  onOpenHousehold,
+}: {
+  visual: Visual
+  onOpenHousehold?: (id: string) => void
+}) {
+  if (visual.kind === 'funnel') {
+    return (
+      <div className="pipe-funnel-wrap">
+        <div className="modal-actions-title">{visual.caption}</div>
+        <div className="pipe-funnel">
+          {visual.stages.map((stage, index) => (
+            <div
+              key={stage.id}
+              className={`pipe-stage ${stage.people.length ? 'has-people' : ''} ${stage.people.some((person) => person.blocked) ? 'is-blocked' : ''}`}
+              style={{ width: `${100 - index * 8}%` }}
+            >
+              <div className="pipe-stage-head">
+                <strong>{stage.label}</strong>
+                <span>{stage.people.length}</span>
+              </div>
+              {stage.people.map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  className="pipe-person"
+                  onClick={() => onOpenHousehold?.(person.id)}
+                >
+                  <span>{person.name}</span>
+                  <span>{person.blocked ? 'Blocked' : person.note}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
   if (visual.kind === 'list') {
     return (
       <div className="book-meter">
@@ -476,9 +522,11 @@ function MetricVisual({ visual }: { visual: Visual }) {
 export function BookPulse({
   households,
   exceptions,
+  onOpenHousehold,
 }: {
   households: Household[]
   exceptions: ExceptionItem[]
+  onOpenHousehold: (id: string) => void
 }) {
   const items = buildMetrics(households, exceptions)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -564,7 +612,7 @@ export function BookPulse({
             </div>
             <p className="book-metric-story">{open.story}</p>
             {open.visuals.map((visual) => (
-              <MetricVisual key={visual.caption} visual={visual} />
+              <MetricVisual key={visual.caption} visual={visual} onOpenHousehold={onOpenHousehold} />
             ))}
           </div>
         </div>

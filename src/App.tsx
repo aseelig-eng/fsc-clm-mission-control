@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   competitors,
   exceptions,
@@ -29,10 +29,13 @@ import { factsForStage } from './data/stageFacts'
 import { ClientPortal } from './components/ClientPortal'
 import { ServiceDesk } from './components/ServiceDesk'
 import {
+  caseSteps,
   collectItems,
   goalRecords,
   serviceCases,
+  taskSteps,
   workTasks,
+  type AgenticStep,
   type CaseStatus,
   type TaskStatus,
 } from './data/serviceDesk'
@@ -49,6 +52,13 @@ import {
 } from './data/progress'
 import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, Role } from './data/types'
 import './App.css'
+
+function dayPart() {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
+}
 
 function chipStage(household: Household) {
   const blocked = household.stages.find((stage) => stage.status === 'blocked')
@@ -413,6 +423,11 @@ export default function App() {
   const [cockpitView, setCockpitView] = useState<'status' | 'work' | 'record'>('status')
   const [showingBook, setShowingBook] = useState(true)
   const [selectedHhId, setSelectedHhId] = useState(households[0].id)
+  const [openTabs, setOpenTabs] = useState<string[]>([])
+  const [clientQuery, setClientQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchIndex, setSearchIndex] = useState(0)
+  const clientSearchRef = useRef<HTMLDivElement>(null)
   const [selectedExId, setSelectedExId] = useState(exceptions[0].id)
   const [selectedParaId, setSelectedParaId] = useState(paraplannerQueue[0].id)
   const [personaIdx, setPersonaIdx] = useState(0)
@@ -487,6 +502,29 @@ export default function App() {
 
   const openExceptions = exceptions.filter((e) => !resolved.has(e.id))
   const pendingNotices = clientNotices.filter((notice) => !notice.reviewed)
+  const clientMatches = useMemo(() => {
+    const query = clientQuery.trim().toLowerCase()
+    const ranked = households
+      .map((household) => {
+        const people = personsForHousehold(household.id).map((person) => person.name).join(' ')
+        const stage = chipStage(household)
+        const text = `${household.name} ${stage} ${household.stageLabel} ${people}`.toLowerCase()
+        const urgent = pendingNotices.some((notice) => notice.householdId === household.id) || household.stages.some((stageItem) => stageItem.status === 'blocked')
+        return { household, stage, text, urgent }
+      })
+      .filter((item) => (query ? item.text.includes(query) : true))
+      .sort((a, b) => Number(b.urgent) - Number(a.urgent) || a.household.name.localeCompare(b.household.name))
+    return { shown: ranked.slice(0, 8), total: ranked.length }
+  }, [clientQuery, pendingNotices])
+  const activeSearchIndex = Math.min(searchIndex, Math.max(clientMatches.shown.length - 1, 0))
+
+  useEffect(() => {
+    function onPointerDown(event: MouseEvent) {
+      if (!clientSearchRef.current?.contains(event.target as Node)) setSearchOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [])
   const hhNotices = pendingNotices.filter((notice) => notice.householdId === household.id)
   const selectedStage =
     household.stages.find((s) => s.id === selectedStageId) ??
@@ -523,6 +561,21 @@ export default function App() {
       }
       return next
     })
+  }
+
+  function runAgenticStep(step: AgenticStep, householdId: string, close: () => void) {
+    for (const item of step.effects?.checklist ?? []) {
+      setDeskChecklist((prev) => prev.map((row) => (row.id === item.id ? { ...row, status: item.status } : row)))
+    }
+    for (const field of step.effects?.records ?? []) {
+      updateRecordField(householdId, field.sectionId, field.fieldKey, field.value, field.status)
+    }
+    const taskIds = step.effects?.completeTasks ?? []
+    if (taskIds.length > 0) {
+      setDeskTasks((prev) => prev.map((row) => (taskIds.includes(row.id) ? { ...row, status: 'Completed' } : row)))
+    }
+    close()
+    flash(step.result)
   }
 
   function flash(msg: string) {
@@ -696,7 +749,10 @@ export default function App() {
   function focusException(ex: ExceptionItem, stayOnClient = false) {
     setSelectedExId(ex.id)
     const match = households.find((h) => ex.household.includes(h.name.split(' ')[0]) || h.name.includes(ex.household.split(' ')[0]))
-    if (match) setSelectedHhId(match.id)
+    if (match) {
+      setSelectedHhId(match.id)
+      if (stayOnClient) pinHousehold(match.id)
+    }
     if (stayOnClient) {
       setShowingBook(false)
       setCockpitView('work')
@@ -706,7 +762,12 @@ export default function App() {
     openDrill(`ex-${ex.id}`)
   }
 
+  function pinHousehold(id: string) {
+    setOpenTabs((prev) => (prev.includes(id) ? prev : [...prev, id]))
+  }
+
   function selectHousehold(id: string) {
+    pinHousehold(id)
     setShowingBook(false)
     setCockpitView('status')
     setSelectedHhId(id)
@@ -726,6 +787,23 @@ export default function App() {
     setSelectedStageId(latest?.id ?? null)
   }
 
+  function closeHouseholdTab(id: string) {
+    const remaining = openTabs.filter((item) => item !== id)
+    setOpenTabs(remaining)
+    if (showingBook || selectedHhId !== id) return
+    const index = openTabs.indexOf(id)
+    const fallback = remaining[index - 1] ?? remaining[index]
+    if (fallback) selectHousehold(fallback)
+    else setShowingBook(true)
+  }
+
+  function chooseClient(id: string) {
+    selectHousehold(id)
+    setClientQuery('')
+    setSearchOpen(false)
+    setSearchIndex(0)
+  }
+
   function confirmNotice(notice: ClientNotice) {
     const next = structuredClone(records)
     const record = next[notice.householdId]
@@ -739,6 +817,7 @@ export default function App() {
   }
 
   function openNotice(notice: ClientNotice, confirm: boolean) {
+    pinHousehold(notice.householdId)
     setShowingBook(false)
     setRole('advisor')
     setSelectedHhId(notice.householdId)
@@ -819,6 +898,44 @@ export default function App() {
       },
       ...prev,
     ])
+  }
+
+  function acceptServiceRequest(householdId: string, kind: string, detail: string, actionLabel: string) {
+    const name = households.find((item) => item.id === householdId)?.name ?? 'Client'
+    const id = `c-sr-${Date.now()}`
+    setDeskCases((prev) => [
+      {
+        id,
+        householdId,
+        subject: kind,
+        status: 'New',
+        priority: 'High',
+        origin: 'Portal',
+        type: 'Service request',
+        step: {
+          label: actionLabel,
+          result: `${name}: ${kind} is done. The case is closed.`,
+        },
+      },
+      ...prev,
+    ])
+    setClientNotices((prev) => [
+      {
+        id: `n-${Date.now()}`,
+        householdId,
+        householdName: name,
+        title: `Service request · ${kind}`,
+        detail,
+        touched: [],
+        reviewed: false,
+      },
+      ...prev,
+    ])
+    pinHousehold(householdId)
+    setSelectedHhId(householdId)
+    setShowingBook(false)
+    setCockpitView('work')
+    flash(`${name} opened a case: ${kind}`)
   }
 
   function acceptClientRequest(householdId: string, title: string, detail: string) {
@@ -906,11 +1023,15 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="global-header">
-        <div className="version-stamp">V Initial Concept</div>
+        <div className="version-stamp">Version: Project Mars - Initial Concept</div>
         <div className="header-main">
         <div className="brand">
-          <div className="brand-mark">SF</div>
-          <span>FSC · Client Lifecycle Mission Control</span>
+          <img
+            className="brand-logo"
+            src={`${import.meta.env.BASE_URL}benificial-lockup.png`}
+            alt="Benificial Wealth"
+          />
+          {role === 'advisor' && <span className="advisor-greet">{dayPart()}, Drew</span>}
         </div>
         <div className="header-cluster">
           <nav className="header-pills" aria-label="Role views">
@@ -919,9 +1040,6 @@ export default function App() {
             </button>
             <button type="button" className={`header-pill ${role === 'paraplanner' ? 'active' : ''}`} onClick={() => setRole('paraplanner')}>
               Paraplanner Workbench
-            </button>
-            <button type="button" className={`header-pill ${role === 'value' ? 'active' : ''}`} onClick={() => setRole('value')}>
-              Persona Value &amp; Comps
             </button>
           </nav>
           <button
@@ -948,6 +1066,9 @@ export default function App() {
           Ask
         </button>
         </div>
+        <button type="button" className={`header-pill header-corner ${role === 'value' ? 'active' : ''}`} onClick={() => setRole('value')}>
+          Persona Value &amp; Comps
+        </button>
         </div>
       </header>
 
@@ -990,32 +1111,117 @@ export default function App() {
                   <span className="hh-chip-pct">{bookProgress.pct}%</span>
                 </span>
               </button>
-              {households.map((h) => {
+              <div className="client-search" ref={clientSearchRef}>
+                <input
+                  className="client-search-input"
+                  role="combobox"
+                  aria-expanded={searchOpen}
+                  aria-controls="client-search-list"
+                  aria-autocomplete="list"
+                  aria-activedescendant={searchOpen && clientMatches.shown[activeSearchIndex] ? `client-opt-${clientMatches.shown[activeSearchIndex].household.id}` : undefined}
+                  placeholder={`Find a client · ${households.length} in the book`}
+                  value={clientQuery}
+                  onChange={(event) => {
+                    setClientQuery(event.target.value)
+                    setSearchOpen(true)
+                    setSearchIndex(0)
+                  }}
+                  onFocus={() => setSearchOpen(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowDown') {
+                      event.preventDefault()
+                      setSearchOpen(true)
+                      setSearchIndex((index) => Math.min(index + 1, clientMatches.shown.length - 1))
+                    } else if (event.key === 'ArrowUp') {
+                      event.preventDefault()
+                      setSearchIndex((index) => Math.max(index - 1, 0))
+                    } else if (event.key === 'Enter') {
+                      event.preventDefault()
+                      const hit = clientMatches.shown[activeSearchIndex]
+                      if (hit) chooseClient(hit.household.id)
+                    } else if (event.key === 'Escape') {
+                      setSearchOpen(false)
+                    }
+                  }}
+                />
+                {searchOpen && (
+                  <ul className="client-search-list" id="client-search-list" role="listbox" aria-label="Clients">
+                    {clientMatches.shown.length === 0 && <li className="client-search-empty">No clients match.</li>}
+                    {clientMatches.shown.map((item, index) => {
+                      const progress = householdProgress(item.household)
+                      const open = openTabs.includes(item.household.id)
+                      return (
+                        <li key={item.household.id}>
+                          <button
+                            type="button"
+                            role="option"
+                            id={`client-opt-${item.household.id}`}
+                            aria-selected={index === activeSearchIndex}
+                            className={`client-search-option ${index === activeSearchIndex ? 'active' : ''}`}
+                            onMouseDown={(event) => {
+                              event.preventDefault()
+                              chooseClient(item.household.id)
+                            }}
+                            onMouseEnter={() => setSearchIndex(index)}
+                          >
+                            <strong>{item.household.name}</strong>
+                            <span>
+                              {item.stage} · {progress.pct}%{open ? ' · open' : ''}
+                            </span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                    <li className="client-search-foot">
+                      {clientQuery.trim()
+                        ? `${clientMatches.shown.length} of ${clientMatches.total}`
+                        : `${households.length} clients. Type a name or a stage.`}
+                    </li>
+                  </ul>
+                )}
+              </div>
+              <div className="hh-tabs" role="tablist" aria-label="Open clients">
+              {openTabs.map((id) => {
+                const h = households.find((item) => item.id === id)
+                if (!h) return null
                 const progress = householdProgress(h)
                 const hasUpdate = pendingNotices.some((notice) => notice.householdId === h.id)
                 const barTone = h.stages.some((stage) => stage.status === 'blocked') ? 'blocked' : progressTone(progress.pct)
+                const active = !showingBook && selectedHhId === h.id
                 return (
-                  <button
-                    key={h.id}
-                    type="button"
-                    className={`hh-chip ${!showingBook && selectedHhId === h.id ? 'active' : ''}`}
-                    onClick={() => {
-                      selectHousehold(h.id)
-                    }}
-                  >
-                    <span className="hh-chip-name">
-                      {h.name} · {chipStage(h)}
-                      {hasUpdate ? ' · update' : ''}
-                    </span>
-                    <span className="hh-chip-progress">
-                      <span className="hh-chip-track" aria-hidden="true">
-                        <span className={`hh-chip-fill tone-${barTone}`} style={{ width: `${progress.pct}%` }} />
+                  <div key={h.id} className={`hh-chip hh-tab ${active ? 'active' : ''}`}>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      className="hh-tab-open"
+                      onClick={() => selectHousehold(h.id)}
+                    >
+                      <span className="hh-chip-name">
+                        {h.name} · {chipStage(h)}
+                        {hasUpdate ? ' · update' : ''}
                       </span>
-                      <span className="hh-chip-pct">{progress.pct}%</span>
-                    </span>
-                  </button>
+                      <span className="hh-chip-progress">
+                        <span className="hh-chip-track" aria-hidden="true">
+                          <span className={`hh-chip-fill tone-${barTone}`} style={{ width: `${progress.pct}%` }} />
+                        </span>
+                        <span className="hh-chip-pct">{progress.pct}%</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="hh-tab-close"
+                      aria-label={`Close ${h.name}`}
+                      onClick={() => closeHouseholdTab(h.id)}
+                    >
+                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </div>
                 )
               })}
+              </div>
             </div>
 
             {!showingBook && (
@@ -1079,7 +1285,7 @@ export default function App() {
               <div className="main-col">
           {showingBook && (
             <>
-              <BookPulse households={households} exceptions={openExceptions} />
+              <BookPulse households={households} exceptions={openExceptions} onOpenHousehold={selectHousehold} />
               <aside className="panel" style={{ overflow: 'auto' }}>
                 <div className="panel-header">
                   <span>Needs You — Signal Only</span>
@@ -1748,54 +1954,96 @@ export default function App() {
                         hhOpenTasks.length === 0 && (
                           <li className="panel-body muted">No open work for this household.</li>
                         )}
-                      {hhOpenCases.map((item) => (
-                        <li key={item.id} className="queue-row">
-                          <span className="queue-type">Case</span>
-                          <span className="queue-title">{item.subject}</span>
-                          <select
-                            className="field-edit queue-edit"
-                            aria-label={`${item.subject} status`}
-                            value={item.status}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) =>
-                              setDeskCases((prev) =>
-                                prev.map((row) =>
-                                  row.id === item.id ? { ...row, status: event.target.value as CaseStatus } : row,
-                                ),
-                              )
-                            }
-                          >
-                            <option>New</option>
-                            <option>Working</option>
-                            <option>Waiting on client</option>
-                            <option>Escalated</option>
-                            <option>Closed</option>
-                          </select>
-                        </li>
-                      ))}
-                      {hhOpenTasks.map((item) => (
-                        <li key={item.id} className="queue-row">
-                          <span className="queue-type">Task</span>
-                          <span className="queue-title">{item.subject}</span>
-                          <select
-                            className="field-edit queue-edit"
-                            aria-label={`${item.subject} status`}
-                            value={item.status}
-                            onChange={(event) =>
-                              setDeskTasks((prev) =>
-                                prev.map((row) =>
-                                  row.id === item.id ? { ...row, status: event.target.value as TaskStatus } : row,
-                                ),
-                              )
-                            }
-                          >
-                            <option>Not Started</option>
-                            <option>In Progress</option>
-                            <option>On Hold</option>
-                            <option>Completed</option>
-                          </select>
-                        </li>
-                      ))}
+                      {hhOpenCases.map((item) => {
+                        const step = item.step ?? caseSteps[item.id]
+                        return (
+                          <li key={item.id} className="queue-row">
+                            <span className="queue-type">Case</span>
+                            <span className="queue-title">{item.subject}</span>
+                            <select
+                              className="field-edit queue-edit"
+                              aria-label={`${item.subject} status`}
+                              value={item.status}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) =>
+                                setDeskCases((prev) =>
+                                  prev.map((row) =>
+                                    row.id === item.id ? { ...row, status: event.target.value as CaseStatus } : row,
+                                  ),
+                                )
+                              }
+                            >
+                              <option>New</option>
+                              <option>Working</option>
+                              <option>Waiting on client</option>
+                              <option>Escalated</option>
+                              <option>Closed</option>
+                            </select>
+                            {step && (
+                              <div className="queue-recommend">
+                                <span className="signal-recommend-label">Agent recommends</span>
+                                <button
+                                  type="button"
+                                  className="action-chip primary-action"
+                                  onClick={() =>
+                                    runAgenticStep(step, item.householdId, () =>
+                                      setDeskCases((prev) =>
+                                        prev.map((row) => (row.id === item.id ? { ...row, status: 'Closed' } : row)),
+                                      ),
+                                    )
+                                  }
+                                >
+                                  {step.label}
+                                </button>
+                              </div>
+                            )}
+                          </li>
+                        )
+                      })}
+                      {hhOpenTasks.map((item) => {
+                        const step = taskSteps[item.id]
+                        return (
+                          <li key={item.id} className="queue-row">
+                            <span className="queue-type">Task</span>
+                            <span className="queue-title">{item.subject}</span>
+                            <select
+                              className="field-edit queue-edit"
+                              aria-label={`${item.subject} status`}
+                              value={item.status}
+                              onChange={(event) =>
+                                setDeskTasks((prev) =>
+                                  prev.map((row) =>
+                                    row.id === item.id ? { ...row, status: event.target.value as TaskStatus } : row,
+                                  ),
+                                )
+                              }
+                            >
+                              <option>Not Started</option>
+                              <option>In Progress</option>
+                              <option>On Hold</option>
+                              <option>Completed</option>
+                            </select>
+                            {step && (
+                              <div className="queue-recommend">
+                                <span className="signal-recommend-label">Agent recommends</span>
+                                <button
+                                  type="button"
+                                  className="action-chip primary-action"
+                                  onClick={() =>
+                                    runAgenticStep(step, item.householdId, () =>
+                                      setDeskTasks((prev) =>
+                                        prev.map((row) => (row.id === item.id ? { ...row, status: 'Completed' } : row)),
+                                      ),
+                                    )
+                                  }
+                                >
+                                  {step.label}
+                                </button>
+                              </div>
+                            )}
+                          </li>
+                        )
+                      })}
                     </ul>
                     <div className="needs-you-review">
                       <div className="needs-you-review-title">Recommended Review</div>
@@ -2175,6 +2423,8 @@ export default function App() {
           onUpdateField={acceptProfileAnswer}
           onSignDocument={acceptEsign}
           onClientRequest={acceptClientRequest}
+          onServiceRequest={acceptServiceRequest}
+          serviceRequests={deskCases.filter((item) => item.householdId === portalHouseholdId && item.type === 'Service request')}
         />
       )}
     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { personsForHousehold } from '../data/portraits'
 import type { Household } from '../data/types'
 import type { PlanState } from '../data/advice'
 import { goalProgress } from '../data/advice'
@@ -16,20 +17,30 @@ import {
   type LedgerTxn,
   type PlaidOffer,
 } from '../data/accounts'
+import type { ServiceCase } from '../data/serviceDesk'
 import type { CoworkerContext } from '../coworker'
 import { AccountBook } from './AccountBook'
 import { CoworkerPanel } from './CoworkerPanel'
 
-type PortalView = 'home' | 'activity' | 'move' | 'vault' | 'facts' | 'ask'
+type PortalView = 'home' | 'activity' | 'move' | 'request' | 'vault' | 'facts' | 'ask'
 type RangeId = '1D' | '1W' | '1M' | '1Y' | 'All'
 type ActivityFilter = 'all' | 'transfer' | 'trade' | 'income'
 
+const SERVICE_KINDS = [
+  { id: 'address', label: 'Update my address', action: 'Update the address on the file' },
+  { id: 'beneficiary', label: 'Change a beneficiary', action: 'Review the beneficiary change' },
+  { id: 'statement', label: 'Send a statement or tax form', action: 'Send the requested document' },
+  { id: 'transfer', label: 'Question about a transfer', action: 'Answer the transfer question' },
+  { id: 'meeting', label: 'Schedule a meeting', action: 'Book the meeting' },
+  { id: 'other', label: 'Something else', action: 'Respond to the request' },
+] as const
+
 const RANGES: RangeId[] = ['1D', '1W', '1M', '1Y', 'All']
 
-function greetName(name: string) {
-  if (name.startsWith('Estate of ')) return name.slice('Estate of '.length).split(' ')[0]
-  if (name.endsWith(' Household')) return name.replace(' Household', '')
-  return name.split(/[\s&]/).find(Boolean) ?? name
+function clientName(householdId: string, fallback: string) {
+  const people = personsForHousehold(householdId)
+  const client = people.find((person) => !person.profile.deceased) ?? people[0]
+  return client?.name ?? fallback
 }
 
 function dayPart() {
@@ -111,6 +122,8 @@ export function ClientPortal({
   onUpdateField,
   onSignDocument,
   onClientRequest,
+  onServiceRequest,
+  serviceRequests,
 }: {
   households: Household[]
   householdId: string
@@ -124,6 +137,8 @@ export function ClientPortal({
   onUpdateField: (householdId: string, sectionId: string, fieldKey: string, label: string, value: string) => void
   onSignDocument: (householdId: string, documentId: string, signedName: string) => void
   onClientRequest: (householdId: string, title: string, detail: string) => void
+  onServiceRequest: (householdId: string, kind: string, detail: string, actionLabel: string) => void
+  serviceRequests: ServiceCase[]
 }) {
   const household = households.find((item) => item.id === householdId) ?? households[0]
   const plan = plans[household.id]
@@ -145,6 +160,9 @@ export function ClientPortal({
   const [moveAmount, setMoveAmount] = useState('')
   const [moveNote, setMoveNote] = useState('')
   const [moveSent, setMoveSent] = useState('')
+  const [requestKind, setRequestKind] = useState<(typeof SERVICE_KINDS)[number]['id']>('address')
+  const [requestDetail, setRequestDetail] = useState('')
+  const [requestSent, setRequestSent] = useState('')
 
   useEffect(() => {
     setSigningId(null)
@@ -152,6 +170,8 @@ export function ClientPortal({
     setSignConsent(false)
     setSignError('')
     setMoveSent('')
+    setRequestSent('')
+    setRequestDetail('')
     setOpenAccountId(null)
   }, [household.id])
 
@@ -231,9 +251,17 @@ export function ClientPortal({
   return (
     <div className="portal">
       <header className="portal-top">
-        <div>
-          <div className="portal-kicker">{dayPart()}</div>
-          <h2>{greetName(household.name)}</h2>
+        <div className="portal-identity">
+          <img
+            className="portal-logo"
+            src={`${import.meta.env.BASE_URL}benificial-lockup.png`}
+            alt="Benificial Wealth"
+          />
+          <div>
+            <h2>
+              {dayPart()}, {clientName(household.id, household.name)}
+            </h2>
+          </div>
         </div>
         <div className="portal-top-actions">
           <label>
@@ -263,6 +291,7 @@ export function ClientPortal({
               ['home', 'Home'],
               ['activity', 'Activity'],
               ['move', 'Move'],
+              ['request', 'Service'],
               ['vault', 'Documents'],
               ['facts', 'Profile'],
               ['ask', 'Ask'],
@@ -272,6 +301,9 @@ export function ClientPortal({
               {label}
               {id === 'facts' && gaps.length > 0 ? ` (${gaps.length})` : ''}
               {id === 'vault' && toSign > 0 ? ` (${toSign})` : ''}
+              {id === 'request' && serviceRequests.some((item) => item.status !== 'Closed')
+                ? ` (${serviceRequests.filter((item) => item.status !== 'Closed').length})`
+                : ''}
             </button>
           ))}
         </nav>
@@ -489,6 +521,64 @@ export function ClientPortal({
                     Enter one manually
                   </button>
                 </div>
+              </section>
+            </div>
+          )}
+          {view === 'request' && (
+            <div className="portal-home">
+              <section className="portal-section">
+                <h3>Service request</h3>
+                <p>Tell your advisor what you need. This opens a case on their work list. It does not move money or change the custodian by itself.</p>
+                <form
+                  className="portal-move"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    const kind = SERVICE_KINDS.find((item) => item.id === requestKind) ?? SERVICE_KINDS[0]
+                    const detail = requestDetail.trim()
+                    if (!detail) return
+                    onServiceRequest(household.id, kind.label, detail, kind.action)
+                    setRequestSent(`Sent. ${kind.label} is a new case for your advisor.`)
+                    setRequestDetail('')
+                  }}
+                >
+                  <label>
+                    What do you need?
+                    <select value={requestKind} onChange={(event) => setRequestKind(event.target.value as (typeof SERVICE_KINDS)[number]['id'])}>
+                      {SERVICE_KINDS.map((kind) => (
+                        <option key={kind.id} value={kind.id}>
+                          {kind.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Details
+                    <textarea
+                      value={requestDetail}
+                      onChange={(event) => setRequestDetail(event.target.value)}
+                      placeholder="What should your advisor do?"
+                      required
+                      rows={4}
+                    />
+                  </label>
+                  <button type="submit" className="btn primary">
+                    Submit request
+                  </button>
+                </form>
+                {requestSent && <p className="portal-sent">{requestSent}</p>}
+                {serviceRequests.length > 0 && (
+                  <ul className="portal-activity">
+                    {serviceRequests.map((item) => (
+                      <li key={item.id}>
+                        <span>
+                          <strong>{item.subject}</strong>
+                          <em>{item.status}</em>
+                        </span>
+                        <strong>{item.status === 'Closed' ? 'Closed' : 'With your advisor'}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </section>
             </div>
           )}
