@@ -793,7 +793,10 @@ h4 {
 
 .client-search-list {
   position: absolute;
-  z-index: 30;
+  /* Sit above the cockpit chrome (view-tabs, panels) that renders below the
+     household bar once the first client is opened, so the picker stays fully
+     clickable for selecting additional clients. Below modals/portal (80/90). */
+  z-index: 60;
   top: calc(100% + 4px);
   left: 0;
   width: 320px;
@@ -818,8 +821,35 @@ h4 {
   cursor: pointer;
   font: inherit;
   display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.client-search-check {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--sf-gray-4);
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  color: #fff;
+  background: #fff;
+}
+
+.client-search-option.selected .client-search-check {
+  background: var(--sf-blue);
+  border-color: var(--sf-blue);
+}
+
+.client-search-text {
+  display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .client-search-option strong {
@@ -827,7 +857,7 @@ h4 {
   font-weight: 600;
 }
 
-.client-search-option span {
+.client-search-text > span {
   font-size: var(--text-meta);
   color: var(--sf-gray-3);
   font-weight: 400;
