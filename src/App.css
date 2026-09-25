@@ -993,8 +993,8 @@ button {
 }
 
 .pulse-panel {
-  margin: 0 0 16px;
-  padding: 14px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
   border: 2px solid var(--sf-blue);
   border-radius: var(--radius);
   background: linear-gradient(135deg, #f7fbff 0%, #ffffff 45%, #f7faf7 100%);
@@ -1058,8 +1058,9 @@ button {
 .pulse-visual {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  align-items: stretch;
+  gap: 12px;
+  align-items: start;
+  max-width: 560px;
 }
 
 .pulse-stage {
@@ -1092,11 +1093,11 @@ button {
   border: 2px solid var(--sf-blue);
   background: var(--sf-white);
   border-radius: 14px;
-  padding: 7px 8px 6px;
+  padding: 5px 6px 4px;
   box-shadow: var(--shadow);
   cursor: pointer;
   text-align: center;
-  width: 100px;
+  width: 76px;
   transform: translate(-50%, -50%);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   font-family: inherit;
@@ -1136,8 +1137,8 @@ button {
 
 .pulse-node .v {
   display: block;
-  margin-top: 2px;
-  font-size: 13px;
+  margin-top: 1px;
+  font-size: 12px;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
   color: var(--sf-blue-dark);
