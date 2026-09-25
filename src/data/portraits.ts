@@ -100,6 +100,39 @@ function maturity(
 }
 
 export const personsByHousehold: Record<string, PersonLikeness[]> = {
+  h0: [
+    {
+      id: 'p-elena',
+      householdId: 'h0',
+      name: 'Elena Vasquez',
+      role: 'Prospect · thin Person Account',
+      initials: 'EV',
+      accent: '#706e6b',
+      tagline: 'Name and email only. Too early to describe how she decides or who inherits.',
+      facets: (
+        [
+          ['risk', 'Risk posture', 8, 'No score. Nothing to confirm.'],
+          ['engagement', 'Engagement', 22, 'Submitted a web form. Has not replied to a person.'],
+          ['channel', 'Digital ↔ high-touch', 15, 'Arrived digitally. Channel preference unknown.'],
+          ['goals', 'Goals & horizon', 0, 'No goal or time horizon on file.'],
+          ['complexity', 'Life complexity', 5, 'Household structure unknown.'],
+          ['wallet', 'Share-of-wallet signal', 0, 'No assets mentioned.'],
+          ['tax_estate', 'Tax & estate sensitivity', 0, 'No tax or estate facts.'],
+          ['heir_readiness', 'Heir readiness', 0, 'No family or beneficiary information.'],
+          ['trust', 'Relationship trust', 10, 'No relationship yet — only a form.'],
+        ] as const
+      ).map(([id, label, score, blurb]) => ({
+        id,
+        label,
+        score,
+        blurb,
+        evidence: ['Website form'],
+        inferredBy: 'agent' as const,
+        recommendedReview: 'Do not infer. Collect this in the intro call.',
+      })),
+      maturity: maturity(18, 40, 12, 8, 'This morning · Lead Agent', ['Website form']),
+    },
+  ],
   h1: [
     {
       id: 'p-maya',

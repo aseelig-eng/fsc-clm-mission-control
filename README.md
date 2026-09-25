@@ -19,7 +19,11 @@ Open the local URL Vite prints (usually `http://localhost:5173`).
 
 ## Views
 
-1. **Advisor Cockpit** — exception-first mission control; **household pulse**; full lifecycle rail; agent feed; Needs you signals with recommended actions; blocked process cards with unblock popup.
+1. **Advisor Cockpit** — **Book** sits first in the client row (overall progress, firm metrics, Needs you). A client opens three views:
+   - **Status** — household pulse, progress, key facts, meetings
+   - **Work** — what agents have done, and what still needs you
+   - **Record** — forms, document vault, lifecycle monitor
+   Recommended review stays beside every view.
 2. **Paraplanner Workbench** — agent-drafted IPS / proposals / annual reviews / estate memos with human polish.
 3. **Persona Value & Comps** — value by persona (Advisor, Paraplanner, CRA, Specialist, Leadership/CCO, Client) + competitive map — including multi-gen / heir retention and likeness maturity.
 

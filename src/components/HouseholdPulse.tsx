@@ -1,5 +1,6 @@
-import { MATURITY_LABELS, type PersonLikeness } from '../data/portraits'
+import { MATURITY_LABELS, type BehavioralFacet, type PersonLikeness } from '../data/portraits'
 import type { ExceptionItem, Household, LifecycleStage } from '../data/types'
+import { LikenessCompass } from './LikenessCompass'
 
 export type PulseNodeId = 'engage' | 'lifecycle' | 'likeness' | 'heirs' | 'custodian'
 
@@ -9,14 +10,18 @@ type Props = {
   persons: PersonLikeness[]
   exceptions: ExceptionItem[]
   selectedNodeId: PulseNodeId | null
+  selectedFacetId: string | null
   onSelectPerson: (personId: string) => void
   onSelectNode: (nodeId: PulseNodeId) => void
+  onSelectFacet: (facet: BehavioralFacet) => void
 }
 
 function statusLabel(status: LifecycleStage['status']) {
   if (status === 'blocked') return 'Blocked'
-  if (status === 'agent-running') return 'Agent running'
+  if (status === 'agent-running') return 'Running'
   if (status === 'active') return 'Needs you'
+  if (status === 'complete') return 'Done'
+  if (status === 'upcoming') return 'Ahead'
   return status
 }
 
@@ -26,8 +31,10 @@ export function HouseholdPulse({
   persons,
   exceptions,
   selectedNodeId,
+  selectedFacetId,
   onSelectPerson,
   onSelectNode,
+  onSelectFacet,
 }: Props) {
   const engage = person.facets.find((f) => f.id === 'engagement')
   const heirs = person.facets.find((f) => f.id === 'heir_readiness')
@@ -76,35 +83,35 @@ export function HouseholdPulse({
       tone: 'ok',
       k: 'Engage',
       v: String(engage?.score ?? '—'),
-      s: 'Portal · meetings',
+      s: 'Meetings',
     },
     {
       id: 'lifecycle',
       tone: needsResolution ? 'warn' : 'ok',
-      k: 'Lifecycle',
-      v: activeStage?.label ?? household.stageLabel,
-      s: activeStage ? statusLabel(activeStage.status) : household.stageLabel,
+      k: 'Stage',
+      v: activeStage ? statusLabel(activeStage.status) : '—',
+      s: activeStage?.label ?? household.stageLabel,
     },
     {
       id: 'likeness',
       tone: maturity.score < 45 ? 'warn' : 'ok',
       k: 'Likeness',
-      v: `${maturity.score}% ${tier.title}`,
-      s: 'Maturity charge',
+      v: `${maturity.score}%`,
+      s: tier.title,
     },
     {
       id: 'heirs',
       tone: heirScore < 45 ? 'warn' : 'ok',
       k: 'Heirs',
       v: `${heirScore}%`,
-      s: heirs?.blurb.split('—')[0].trim().slice(0, 28) || 'Next-gen readiness',
+      s: heirScore < 45 ? 'At risk' : heirScore < 70 ? 'Forming' : 'Ready',
     },
     {
       id: 'custodian',
       tone: topEx ? 'danger' : 'ok',
       k: 'Custodian',
-      v: topEx ? 'NIGO' : 'STP',
-      s: topEx ? 'STP broken' : 'Clear',
+      v: topEx ? 'NIGO' : 'Clear',
+      s: topEx ? 'STP broken' : 'STP',
     },
   ]
 
@@ -112,7 +119,7 @@ export function HouseholdPulse({
     <div className="pulse-panel">
       <div className="pulse-header">
         <div>
-          <div className="likeness-kicker">Household pulse · status &amp; usage</div>
+          <div className="likeness-kicker">Household Pulse · Status &amp; Usage</div>
           <h3 className="likeness-title">{household.name}</h3>
           <p className="muted" style={{ margin: '4px 0 0' }}>
             {person.name} · {person.role}. Tap a node for recommended review — same one-click path as Needs you.
@@ -146,86 +153,54 @@ export function HouseholdPulse({
         )}
       </div>
 
-      <div className="pulse-stage">
-        <svg className="pulse-flow" viewBox="0 0 400 340" aria-hidden="true">
-          <path
-            d="M200 70 C200 110, 200 130, 200 160"
-            fill="none"
-            stroke="var(--sf-blue)"
-            strokeWidth="2"
-            strokeDasharray="4 4"
-            opacity="0.55"
-          />
-          <path
-            d="M260 180 C300 180, 330 170, 350 150"
-            fill="none"
-            stroke="var(--sf-blue)"
-            strokeWidth="2"
-            strokeDasharray="4 4"
-            opacity="0.55"
-          />
-          <path
-            d="M240 230 C300 250, 320 270, 330 290"
-            fill="none"
-            stroke="var(--sf-orange)"
-            strokeWidth="2"
-            strokeDasharray="4 4"
-            opacity="0.7"
-          />
-          <path
-            d="M150 220 C100 240, 80 250, 70 270"
-            fill="none"
-            stroke="var(--sf-blue)"
-            strokeWidth="2"
-            strokeDasharray="4 4"
-            opacity="0.55"
-          />
-          <path
-            d="M160 250 C140 290, 150 300, 170 310"
-            fill="none"
-            stroke={topEx ? 'var(--sf-red)' : 'var(--sf-green)'}
-            strokeWidth="2.5"
-            opacity="0.75"
-          />
-          <circle cx="178" cy="312" r="5" fill={topEx ? 'var(--sf-red)' : 'var(--sf-green)'} />
-        </svg>
-
-        <div className="pulse-house-wrap">
-          <svg className="pulse-house" viewBox="0 0 240 180" role="img" aria-label={`${household.name} pulse`}>
-            <ellipse cx="120" cy="168" rx="88" ry="8" fill="#c5d8e8" opacity="0.7" />
-            <path d="M40 95 L120 35 L200 95 Z" fill={person.accent} />
-            <rect x="55" y="95" width="130" height="68" fill="#f4f8fb" stroke={person.accent} strokeWidth="2" />
-            <rect x="100" y="118" width="28" height="45" fill={person.accent} opacity="0.85" />
-            <rect x="70" y="110" width="22" height="18" fill="#9fd4ff" stroke={person.accent} />
-            <rect x="148" y="110" width="22" height="18" fill="#ffe8a3" stroke="var(--sf-orange)" />
-            <circle cx="120" cy="78" r="18" fill="#fff" stroke={person.accent} strokeWidth="2" />
-            <text
-              x="120"
-              y="82"
-              textAnchor="middle"
-              fontSize="11"
-              fontWeight="800"
-              fill={person.accent}
-              fontFamily="system-ui, sans-serif"
-            >
-              {person.initials}
-            </text>
+      <div className="pulse-visual">
+        <div className="pulse-stage">
+          <svg className="pulse-scene" viewBox="0 0 400 400" role="img" aria-label={`${household.name} pulse`}>
+            <line x1="200" y1="165" x2="200" y2="48" stroke="var(--sf-blue)" strokeWidth="2" strokeDasharray="5 4" />
+            <line x1="278" y1="222" x2="332" y2="168" stroke={needsResolution ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
+            <line x1="270" y1="286" x2="312" y2="292" stroke={heirScore < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
+            <line x1="135" y1="248" x2="86" y2="252" stroke={maturity.score < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
+            <line x1="190" y1="293" x2="168" y2="348" stroke={topEx ? 'var(--sf-red)' : 'var(--sf-green)'} strokeWidth="2.5" />
+            <g transform="translate(80 130)">
+              <ellipse cx="120" cy="168" rx="88" ry="8" fill="#c5d8e8" opacity="0.7" />
+              <path d="M40 95 L120 35 L200 95 Z" fill={person.accent} />
+              <rect x="55" y="95" width="130" height="68" fill="#f4f8fb" stroke={person.accent} strokeWidth="2" />
+              <rect x="100" y="118" width="28" height="45" fill={person.accent} opacity="0.85" />
+              <rect x="70" y="110" width="22" height="18" fill="#9fd4ff" stroke={person.accent} />
+              <rect x="148" y="110" width="22" height="18" fill="#ffe8a3" stroke="var(--sf-orange)" />
+              <circle cx="120" cy="78" r="18" fill="#fff" stroke={person.accent} strokeWidth="2" />
+              <text x="120" y="82" textAnchor="middle" fontSize="11" fontWeight="800" fill={person.accent} fontFamily="system-ui, sans-serif">
+                {person.initials}
+              </text>
+            </g>
           </svg>
+          {(
+            [
+              { id: 'engage' as const, x: 200, y: 48 },
+              { id: 'lifecycle' as const, x: 332, y: 168 },
+              { id: 'heirs' as const, x: 312, y: 292 },
+              { id: 'likeness' as const, x: 86, y: 252 },
+              { id: 'custodian' as const, x: 168, y: 348 },
+            ] as const
+          ).map((pos) => {
+            const n = nodes.find((node) => node.id === pos.id)!
+            return (
+              <button
+                key={n.id}
+                type="button"
+                className={`pulse-node tone-${n.tone} ${selectedNodeId === n.id ? 'active' : ''}`}
+                style={{ left: `${(pos.x / 400) * 100}%`, top: `${(pos.y / 400) * 100}%` }}
+                aria-pressed={selectedNodeId === n.id}
+                onClick={() => onSelectNode(n.id)}
+              >
+                <span className="k">{n.k}</span>
+                <span className="v">{n.v}</span>
+                <span className="s">{n.s}</span>
+              </button>
+            )
+          })}
         </div>
-
-        {nodes.map((n) => (
-          <button
-            key={n.id}
-            type="button"
-            className={`pulse-node pulse-n-${n.id} tone-${n.tone} ${selectedNodeId === n.id ? 'active' : ''}`}
-            aria-pressed={selectedNodeId === n.id}
-            onClick={() => onSelectNode(n.id)}
-          >
-            <span className="k">{n.k}</span>
-            <span className="v">{n.v}</span>
-            <span className="s">{n.s}</span>
-          </button>
-        ))}
+        <LikenessCompass person={person} selectedFacetId={selectedFacetId} onSelectFacet={onSelectFacet} />
       </div>
 
       <div className={`pulse-status ${topEx || needsResolution ? 'needs' : 'ok'}`}>
@@ -234,7 +209,7 @@ export function HouseholdPulse({
 
       <div className="pulse-attn">
         <div className="pulse-attn-label">
-          <span>Attention in use</span>
+          <span>Attention in Use</span>
           <span>
             {signalCount} signal{signalCount === 1 ? '' : 's'} · capacity ~{capacity}
           </span>
@@ -245,7 +220,7 @@ export function HouseholdPulse({
           aria-valuenow={signalCount}
           aria-valuemin={0}
           aria-valuemax={capacity}
-          aria-label="Attention in use"
+          aria-label="Attention in Use"
         >
           <span style={{ width: `${Math.max(8, attentionPct)}%` }} />
         </div>

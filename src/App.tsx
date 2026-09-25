@@ -124,7 +124,7 @@ function StageUnblockModal({
       >
         <div className="modal-header">
           <div>
-            <div className="muted">Process card · needs resolution</div>
+            <div className="muted">Process Card · Needs Resolution</div>
             <h2 id="unblock-title">{unblock.title}</h2>
           </div>
           <button type="button" className="btn" onClick={onClose}>
@@ -132,17 +132,17 @@ function StageUnblockModal({
           </button>
         </div>
         <div className="callout" style={{ marginBottom: 12 }}>
-          <strong>Why this is blocked</strong>
+          <strong>Why This Is Blocked</strong>
           {unblock.whyBlocked}
         </div>
         {stage.agentSummary && (
           <div className="callout" style={{ marginBottom: 12 }}>
-            <strong>Agent already did</strong>
+            <strong>Agent Already Did</strong>
             {stage.agentSummary}
             {stage.humanAction ? ` · Waiting on: ${stage.humanAction}` : ''}
           </div>
         )}
-        <div className="modal-actions-title">Recommended actions to unblock</div>
+        <div className="modal-actions-title">Recommended Actions to Unblock</div>
         <ul className="advisor-action-list modal">
           {unblock.recommendedActions.map((a) => (
             <li key={a.label}>
@@ -166,6 +166,61 @@ function priorityClass(p: string) {
   return 'medium'
 }
 
+function NeedsYouCard({
+  selected,
+  priority,
+  title,
+  meta,
+  recommended,
+  actions,
+  onOpen,
+  onAct,
+}: {
+  selected: boolean
+  priority: string
+  title: string
+  meta: string
+  recommended: string
+  actions: AdvisorAction[]
+  onOpen: () => void
+  onAct: (action: AdvisorAction) => void
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className={`exception-item ${selected ? 'selected' : ''}`}
+        onClick={onOpen}
+      >
+        <div className="title">
+          <span className={`badge ${priority}`}>{priority}</span>
+          {title}
+        </div>
+        <div className="meta">{meta}</div>
+        <div className="signal-recommend">
+          <span className="signal-recommend-label">Recommended</span>
+          <span className="signal-recommend-text">{recommended}</span>
+        </div>
+        {actions.length > 0 && (
+          <div className="advisor-action-chips" onClick={(e) => e.stopPropagation()}>
+            {actions.map((a) => (
+              <button
+                key={a.label}
+                type="button"
+                className={`action-chip type-${a.type}`}
+                title={a.detail}
+                onClick={() => onAct(a)}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </button>
+    </li>
+  )
+}
+
 function ReviewPanel({
   item,
   advisorActions,
@@ -183,14 +238,14 @@ function ReviewPanel({
     <>
       <div className="review-kicker">
         <span className={`badge ${priorityClass(item.priority)}`}>{item.priority}</span>
-        <span className="muted">{item.kind.replace('_', ' ')} · one click down</span>
+        <span className="muted">{item.kind.replace('_', ' ')} · One Click Down</span>
       </div>
       <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 15 }}>{r.headline}</div>
       <p className="muted" style={{ marginTop: 0 }}>
         {item.subtitle}
       </p>
       <div className="callout" style={{ marginBottom: 10 }}>
-        <strong>Why this needs you</strong>
+        <strong>Why This Needs You</strong>
         {r.why}
       </div>
       <div className="callout" style={{ marginBottom: 10 }}>
@@ -198,7 +253,7 @@ function ReviewPanel({
         {r.agentAlreadyDid}
       </div>
       <div className="callout">
-        <strong>Recommended for you to review</strong>
+        <strong>Recommended for You to Review</strong>
         <ul className="review-checklist">
           {r.reviewChecklist.map((c) => (
             <li key={c}>{c}</li>
@@ -207,7 +262,7 @@ function ReviewPanel({
       </div>
       {advisorActions && advisorActions.length > 0 && (
         <div className="callout" style={{ marginTop: 10 }}>
-          <strong>Advisor actions</strong>
+          <strong>Advisor Actions</strong>
           <ul className="advisor-action-list">
             {advisorActions.map((a) => (
               <li key={a.label}>
@@ -240,6 +295,8 @@ function ReviewPanel({
 
 export default function App() {
   const [role, setRole] = useState<Role>('advisor')
+  const [cockpitView, setCockpitView] = useState<'status' | 'work' | 'record'>('status')
+  const [showingBook, setShowingBook] = useState(true)
   const [selectedHhId, setSelectedHhId] = useState(households[0].id)
   const [selectedExId, setSelectedExId] = useState(exceptions[0].id)
   const [selectedParaId, setSelectedParaId] = useState(paraplannerQueue[0].id)
@@ -250,6 +307,8 @@ export default function App() {
   const [drillId, setDrillId] = useState<string | null>('ex-ex1')
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null)
   const [pulseNodeId, setPulseNodeId] = useState<PulseNodeId | null>('custodian')
+  const [selectedFacetId, setSelectedFacetId] = useState<string | null>(null)
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null)
   const [stageModal, setStageModal] = useState<LifecycleStage | null>(null)
 
   const household = useMemo(
@@ -278,6 +337,10 @@ export default function App() {
   )
 
   const openExceptions = exceptions.filter((e) => !resolved.has(e.id))
+  const selectedStage =
+    household.stages.find((s) => s.id === selectedStageId) ??
+    [...household.stages].reverse().find((s) => s.status !== 'upcoming') ??
+    household.stages[0]
   const selectedEx = openExceptions.find((e) => e.id === selectedExId) ?? openExceptions[0]
   const selectedPara = paraplannerQueue.find((p) => p.id === selectedParaId) ?? paraplannerQueue[0]
   const persona = personaValues[personaIdx]
@@ -293,6 +356,15 @@ export default function App() {
 
   function openDrill(id: string) {
     setDrillId(id)
+    if (id.startsWith('ex-')) setCockpitView('work')
+    else if (
+      id.startsWith('meeting-') ||
+      id.startsWith('ma-') ||
+      id.startsWith('likeness')
+    )
+      setCockpitView('status')
+    else if (id.startsWith('field-') || id.startsWith('section-') || id.startsWith('doc-'))
+      setCockpitView('record')
     if (id.startsWith('likeness-mat-')) {
       setSelectedPersonId(id.replace('likeness-mat-', ''))
       setPulseNodeId('likeness')
@@ -322,6 +394,7 @@ export default function App() {
       const facetId = facetIds.find((f) => rest.endsWith(`-${f}`))
       if (facetId) {
         setSelectedPersonId(rest.slice(0, -(facetId.length + 1)))
+        setSelectedFacetId(facetId)
         if (facetId === 'engagement') setPulseNodeId('engage')
         else if (facetId === 'heir_readiness') setPulseNodeId('heirs')
         else setPulseNodeId('likeness')
@@ -379,14 +452,22 @@ export default function App() {
     }
   }
 
-  function focusException(ex: ExceptionItem) {
+  function focusException(ex: ExceptionItem, stayOnClient = false) {
     setSelectedExId(ex.id)
     const match = households.find((h) => ex.household.includes(h.name.split(' ')[0]) || h.name.includes(ex.household.split(' ')[0]))
     if (match) setSelectedHhId(match.id)
+    if (stayOnClient) {
+      setShowingBook(false)
+      setCockpitView('work')
+    } else {
+      setShowingBook(true)
+    }
     openDrill(`ex-${ex.id}`)
   }
 
   function selectHousehold(id: string) {
+    setShowingBook(false)
+    setCockpitView('status')
     setSelectedHhId(id)
     const rec = onboardingByHousehold[id]
     const gapSection = rec?.sections.find((s) =>
@@ -400,6 +481,8 @@ export default function App() {
     setSelectedPersonId(firstPerson?.id ?? null)
     const hhEx = exceptionsForHousehold(hh, exceptions.filter((e) => !resolved.has(e.id)))
     setPulseNodeId(hhEx[0] ? 'custodian' : 'lifecycle')
+    const latest = [...hh.stages].reverse().find((s) => s.status !== 'upcoming') ?? hh.stages[0]
+    setSelectedStageId(latest?.id ?? null)
   }
 
   return (
@@ -425,10 +508,10 @@ export default function App() {
           </button>
         </nav>
         <div className="header-spacer" />
-        <div className="header-meta">Agentforce · Prospect → Estate · US RIA</div>
+        <div className="header-meta">V Initial Concept</div>
       </header>
 
-      {role !== 'value' && (
+      {role === 'paraplanner' && (
         <>
           <div className="progress-strip" aria-label="Lifecycle progress">
             <div className="panel progress-overall-panel">
@@ -436,7 +519,7 @@ export default function App() {
                 <ProgressBar
                   size="lg"
                   pct={bookProgress.pct}
-                  label="Overall book — lifecycle progress"
+                  label="Overall Book — Lifecycle Progress"
                   detail={`${bookProgress.stagesComplete}/${bookProgress.stagesTotal} stages complete · ${bookProgress.completeClients}/${bookProgress.totalClients} clients at 100%`}
                   tone={
                     households.some((h) => h.stages.some((s) => s.status === 'blocked'))
@@ -460,65 +543,32 @@ export default function App() {
       )}
 
       {role === 'advisor' && (
-        <div className="app-body">
-          <aside className="panel" style={{ overflow: 'auto' }}>
-            <div className="panel-header">
-              <span>Needs you — signal only</span>
-              <span className="muted">{openExceptions.length} open</span>
-            </div>
-            <ul className="exception-list">
-              {openExceptions.map((ex) => (
-                <li key={ex.id}>
-                  <button
-                    type="button"
-                    className={`exception-item ${selectedEx?.id === ex.id ? 'selected' : ''}`}
-                    onClick={() => focusException(ex)}
-                  >
-                    <div className="title">
-                      <span className={`badge ${ex.priority}`}>{ex.priority}</span>
-                      {ex.title}
-                    </div>
-                    <div className="meta">
-                      {ex.household} · Owner: {ex.owner}
-                    </div>
-                    <div className="signal-recommend">
-                      <span className="signal-recommend-label">Recommended</span>
-                      <span className="signal-recommend-text">{ex.recommendedAction}</span>
-                    </div>
-                    <div className="advisor-action-chips" onClick={(e) => e.stopPropagation()}>
-                      {ex.advisorActions.map((a) => (
-                        <button
-                          key={a.label}
-                          type="button"
-                          className={`action-chip type-${a.type}`}
-                          title={a.detail}
-                          onClick={() => {
-                            focusException(ex)
-                            flash(`${actionTypeLabel(a.type)}: ${a.label}`)
-                          }}
-                        >
-                          {actionTypeLabel(a.type)}
-                        </button>
-                      ))}
-                    </div>
-                  </button>
-                </li>
-              ))}
-              {openExceptions.length === 0 && (
-                <li className="panel-body muted">All clear — agents are running. Time for clients.</li>
-              )}
-            </ul>
-          </aside>
-
+        <div className="app-body single">
           <div className="main-col">
             <div className="household-bar">
+              <button
+                type="button"
+                className={`hh-chip ${showingBook ? 'active' : ''}`}
+                onClick={() => setShowingBook(true)}
+              >
+                <span className="hh-chip-name">Book</span>
+                <span className="hh-chip-progress">
+                  <span className="hh-chip-track" aria-hidden="true">
+                    <span
+                      className={`hh-chip-fill tone-${households.some((h) => h.stages.some((s) => s.status === 'blocked')) ? 'blocked' : progressTone(bookProgress.pct)}`}
+                      style={{ width: `${bookProgress.pct}%` }}
+                    />
+                  </span>
+                  <span className="hh-chip-pct">{bookProgress.pct}%</span>
+                </span>
+              </button>
               {households.map((h) => {
                 const p = householdProgress(h)
                 return (
                   <button
                     key={h.id}
                     type="button"
-                    className={`hh-chip ${selectedHhId === h.id ? 'active' : ''}`}
+                    className={`hh-chip ${!showingBook && selectedHhId === h.id ? 'active' : ''}`}
                     onClick={() => {
                       selectHousehold(h.id)
                     }}
@@ -541,9 +591,105 @@ export default function App() {
               })}
             </div>
 
+            {!showingBook && (
+            <div className="view-tabs" role="tablist" aria-label="Cockpit views">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitView === 'status'}
+                className={cockpitView === 'status' ? 'active' : ''}
+                onClick={() => setCockpitView('status')}
+              >
+                <strong>Status</strong>
+                <span>Who They Are</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitView === 'work'}
+                className={cockpitView === 'work' ? 'active' : ''}
+                onClick={() => setCockpitView('work')}
+              >
+                <strong>Work</strong>
+                <span>What Has Been Done and What Needs You</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={cockpitView === 'record'}
+                className={cockpitView === 'record' ? 'active' : ''}
+                onClick={() => setCockpitView('record')}
+              >
+                <strong>Record</strong>
+                <span>What’s On File</span>
+              </button>
+            </div>
+            )}
+
+            <div className="cockpit-split no-review">
+              <div className="main-col">
+          {showingBook && (
+            <>
+              <div className="progress-strip" aria-label="Lifecycle progress" style={{ padding: 0 }}>
+                <div className="panel progress-overall-panel">
+                  <div className="panel-body">
+                    <ProgressBar
+                      size="lg"
+                      pct={bookProgress.pct}
+                      label="Overall Book — Lifecycle Progress"
+                      detail={`${bookProgress.stagesComplete}/${bookProgress.stagesTotal} stages complete · ${bookProgress.completeClients}/${bookProgress.totalClients} clients at 100%`}
+                      tone={
+                        households.some((h) => h.stages.some((s) => s.status === 'blocked'))
+                          ? 'warn'
+                          : progressTone(bookProgress.pct)
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="metrics-strip" aria-label="Firm CLM metrics" style={{ padding: 0 }}>
+                {metrics.map((m) => (
+                  <div className="metric-card" key={m.label}>
+                    <div className="label">{m.label}</div>
+                    <div className="value">{m.value}</div>
+                    <div className={`delta ${m.tone === 'neutral' ? 'neutral' : ''}`}>{m.delta}</div>
+                  </div>
+                ))}
+              </div>
+              <aside className="panel" style={{ overflow: 'auto' }}>
+                <div className="panel-header">
+                  <span>Needs You — Signal Only</span>
+                  <span className="muted">{openExceptions.length} open</span>
+                </div>
+                <ul className="exception-list">
+                  {openExceptions.map((ex) => (
+                    <NeedsYouCard
+                      key={ex.id}
+                      selected={selectedEx?.id === ex.id}
+                      priority={ex.priority}
+                      title={ex.title}
+                      meta={`${ex.household} · Owner: ${ex.owner}`}
+                      recommended={ex.recommendedAction}
+                      actions={ex.advisorActions}
+                      onOpen={() => focusException(ex)}
+                      onAct={(a) => {
+                        focusException(ex)
+                        flash(`${actionTypeLabel(a.type)}: ${a.label}`)
+                      }}
+                    />
+                  ))}
+                  {openExceptions.length === 0 && (
+                    <li className="panel-body muted">All clear — agents are running. Time for clients.</li>
+                  )}
+                </ul>
+              </aside>
+            </>
+          )}
+
+            {!showingBook && cockpitView === 'status' && (
             <div className="panel">
               <div className="panel-header">
-                <span>{household.name} — household pulse</span>
+                <span>{household.name} — Household Pulse</span>
                 <span className="muted">{household.agentsActive} agents active</span>
               </div>
               <div className="panel-body">
@@ -554,18 +700,55 @@ export default function App() {
                     persons={persons}
                     exceptions={hhExceptions}
                     selectedNodeId={pulseNodeId}
+                    selectedFacetId={selectedFacetId}
                     onSelectPerson={(id) => {
                       setSelectedPersonId(id)
+                      setSelectedFacetId(null)
                       openDrill(`likeness-mat-${id}`)
                     }}
                     onSelectNode={selectPulseNode}
+                    onSelectFacet={(facet) => {
+                      setSelectedFacetId(facet.id)
+                      openDrill(`likeness-${selectedPerson.id}-${facet.id}`)
+                    }}
                   />
                 )}
+
+                <div className="lifecycle-block">
+                  <div className="lifecycle-block-title">{household.name} — Lifecycle</div>
+                <div className="lifecycle-rail">
+                  {household.stages.map((s) => {
+                    const needsResolution =
+                      s.status === 'blocked' ||
+                      ((s.status === 'active' || s.status === 'agent-running') && !!s.unblock)
+                    const selected = selectedStage?.id === s.id
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className={`stage-card ${s.status} clickable ${selected ? 'selected' : ''} ${needsResolution ? 'needs-resolution' : ''}`}
+                        aria-pressed={selected}
+                        onClick={() => {
+                          setSelectedStageId(s.id)
+                          openDrill(`stage-${s.id}`)
+                          if (needsResolution && s.unblock) setStageModal(s)
+                        }}
+                      >
+                        <div className="name">{s.label}</div>
+                        <div className="status">{statusLabel(s.status)}</div>
+                        {s.agentSummary && <div>{s.agentSummary}</div>}
+                        {s.humanAction && <div style={{ fontWeight: 700, marginTop: 4 }}>You: {s.humanAction}</div>}
+                        {needsResolution && <div className="stage-cta">Click for Unblock Actions</div>}
+                      </button>
+                    )
+                  })}
+                </div>
+                </div>
 
                 <ProgressBar
                   size="md"
                   pct={clientProgress.pct}
-                  label="Client lifecycle progress"
+                  label="Client Lifecycle Progress"
                   detail={`${clientProgress.complete} complete · ${clientProgress.inFlight} in flight · ${clientProgress.total - clientProgress.complete - clientProgress.inFlight} upcoming · current: ${household.stageLabel}`}
                   tone={
                     household.stages.some((s) => s.status === 'blocked')
@@ -577,101 +760,44 @@ export default function App() {
                 <div className="hh-summary" style={{ marginTop: 12 }}>
                   <div>
                     <div className="k">AUM / stage</div>
-                    <div className="v">{household.aum}</div>
+                    <div className="v">{selectedStage?.view?.aum ?? (selectedStage?.status === 'upcoming' ? 'Not captured' : household.aum)}</div>
                   </div>
                   <div>
                     <div className="k">Current stage</div>
-                    <div className="v">{household.stageLabel}</div>
+                    <div className="v">{selectedStage?.label ?? household.stageLabel}</div>
                   </div>
                   <div>
                     <div className="k">Risk / IPS</div>
-                    <div className="v">{household.risk}</div>
+                    <div className="v">{selectedStage?.view?.risk ?? (selectedStage?.status === 'upcoming' ? 'Not assessed' : household.risk)}</div>
                   </div>
                   <div>
                     <div className="k">Next client touch</div>
-                    <div className="v">{household.nextClientTouch}</div>
+                    <div className="v">
+                      {selectedStage?.view?.nextTouch ??
+                        (selectedStage?.humanAction
+                          ? `You: ${selectedStage.humanAction}`
+                          : selectedStage?.status === 'upcoming'
+                            ? 'Not scheduled'
+                            : household.nextClientTouch)}
+                    </div>
                   </div>
                 </div>
-
-                <div className="lifecycle-rail">
-                  {household.stages.map((s) => {
-                    const needsResolution =
-                      s.status === 'blocked' ||
-                      ((s.status === 'active' || s.status === 'agent-running') && !!s.unblock)
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        className={`stage-card ${s.status} clickable ${drillId === `stage-${s.id}` ? 'selected' : ''} ${needsResolution ? 'needs-resolution' : ''}`}
-                        onClick={() => {
-                          openDrill(`stage-${s.id}`)
-                          if (needsResolution && s.unblock) {
-                            setStageModal(s)
-                          }
-                        }}
-                      >
-                        <div className="name">{s.label}</div>
-                        <div className="status">{statusLabel(s.status)}</div>
-                        {s.agentSummary && <div>{s.agentSummary}</div>}
-                        {s.humanAction && <div style={{ fontWeight: 700, marginTop: 4 }}>You: {s.humanAction}</div>}
-                        {needsResolution && <div className="stage-cta">Click for unblock actions</div>}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {onboarding && completeness && (
-                  <div className="phase-map" aria-label="Four-phase CLM map">
-                    {(['1_intake', '2_kyc', '3_custody', '4_orientation'] as const).map((phase) => {
-                      const secs = completeness.sectionStats.filter((s) => s.phase === phase)
-                      const avg = secs.length
-                        ? Math.round(secs.reduce((a, s) => a + s.pct, 0) / secs.length)
-                        : 0
-                      return (
-                        <div
-                          key={phase}
-                          className="phase-chip clickable-phase"
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            const first = onboarding.sections.find((s) => s.phase === phase)
-                            if (first) {
-                              setOpenSectionId(first.id)
-                              openDrill(`section-${first.id}`)
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              const first = onboarding.sections.find((s) => s.phase === phase)
-                              if (first) {
-                                setOpenSectionId(first.id)
-                                openDrill(`section-${first.id}`)
-                              }
-                            }
-                          }}
-                        >
-                          <div className="phase-chip-title">{PHASE_LABELS[phase]}</div>
-                          <ProgressBar size="sm" pct={avg} label="Phase completeness" tone={progressTone(avg)} />
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
               </div>
             </div>
+            )}
 
-            {onboarding && completeness && (
+            {!showingBook && cockpitView === 'record' && onboarding && completeness && (
               <div className="framework-grid">
                 <div className="panel">
                   <div className="panel-header">
-                    <span>Data &amp; forms — Person Account</span>
+                    <span>Data &amp; Forms — Person Account</span>
                     <span className="muted">{onboarding.personAccountId}</span>
                   </div>
                   <div className="panel-body">
                     <ProgressBar
                       size="md"
                       pct={completeness.pct}
-                      label="Field completeness"
+                      label="Field Completeness"
                       detail={`${completeness.gaps.length} gaps · goal: ${onboarding.primaryGoal} · horizon: ${onboarding.timeHorizonYears ?? '—'} yrs`}
                       tone={completeness.gaps.some((g) => g.status === 'blocked') ? 'blocked' : progressTone(completeness.pct)}
                     />
@@ -734,34 +860,12 @@ export default function App() {
                         </table>
                       </div>
                     )}
-                    {completeness.gaps.length > 0 && (
-                      <div className="gap-list">
-                        <strong>Signal — data gaps</strong>
-                        <ul>
-                          {completeness.gaps.slice(0, 6).map((g) => {
-                            const section = onboarding.sections.find((s) => s.label === g.section)
-                            const field = section?.fields.find((f) => f.label === g.field)
-                            const id =
-                              section && field ? `field-${section.id}-${field.key}` : `section-${section?.id}`
-                            return (
-                              <li key={`${g.section}-${g.field}`}>
-                                <button type="button" className="gap-link" onClick={() => openDrill(id)}>
-                                  <span className={`badge ${fieldStatusClass(g.status)}`}>{g.status}</span>
-                                  {g.section}: {g.field}
-                                  {g.value ? ` — ${g.value}` : ''}
-                                </button>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </div>
-                    )}
                   </div>
                 </div>
 
                 <div className="panel">
                   <div className="panel-header">
-                    <span>Compliance document vault</span>
+                    <span>Compliance Document Vault</span>
                     <span className="muted">
                       {completeness.docsFiled}/{completeness.docsTotal} filed
                     </span>
@@ -770,7 +874,7 @@ export default function App() {
                     <ProgressBar
                       size="md"
                       pct={completeness.docsPct}
-                      label="Document pack"
+                      label="Document Pack"
                       detail="IAA · CRS · ADV 2A/2B · IPS · Fee Schedule A · Custodial · Tax · E-sign trail"
                       tone={
                         onboarding.documents.some((d) => d.status === 'nigo')
@@ -861,9 +965,10 @@ export default function App() {
               </div>
             )}
 
+            {!showingBook && cockpitView === 'status' && (
             <div className="panel">
               <div className="panel-header">
-                <span>Meeting management</span>
+                <span>Meeting Management</span>
                 <span className="muted">
                   {scheduledMeetings.length} upcoming · {hhMeetingActions.length} open actions
                 </span>
@@ -892,7 +997,7 @@ export default function App() {
                     ))}
                   </div>
                   <div>
-                    <div className="meeting-col-title">Meetings held</div>
+                    <div className="meeting-col-title">Meetings Held</div>
                     {completedMeetings.length === 0 && <p className="muted">None</p>}
                     {completedMeetings.map((m) => (
                       <button
@@ -911,7 +1016,7 @@ export default function App() {
                     ))}
                   </div>
                   <div>
-                    <div className="meeting-col-title">Actions from meetings</div>
+                    <div className="meeting-col-title">Actions From Meetings</div>
                     {hhMeetingActions.length === 0 && <p className="muted">No open actions</p>}
                     {hhMeetingActions.map(({ meeting, action }) => (
                       <button
@@ -936,56 +1041,144 @@ export default function App() {
                 </div>
               </div>
             </div>
+            )}
 
-            <div className="detail-grid">
-              <div className="panel">
-                <div className="panel-header">
-                  <span>What agents did</span>
-                  <span className="muted">Audit-ready lineage</span>
+            {!showingBook && cockpitView === 'work' && (
+              <div className="work-split">
+                <div className="panel">
+                  <div className="panel-header">
+                    <span>Agents Have Done</span>
+                    <span className="muted">
+                      {household.events.filter((ev) => ev.outcome !== 'needs_you').length} complete or running
+                    </span>
+                  </div>
+                  <div className="panel-body">
+                    <ul className="feed">
+                      {household.events
+                        .filter((ev) => ev.outcome !== 'needs_you')
+                        .map((ev) => (
+                          <li key={ev.id}>
+                            <div className="time">{ev.time}</div>
+                            <div>
+                              <span className="agent">{ev.agent}</span>{' '}
+                              <span className={`badge ${ev.outcome === 'done' ? 'done' : 'running'}`}>
+                                {ev.outcome}
+                              </span>
+                            </div>
+                            <div className="feed-action">{ev.action}</div>
+                            <p className="feed-detail">{ev.detail}</p>
+                          </li>
+                        ))}
+                      {household.events.every((ev) => ev.outcome === 'needs_you') && (
+                        <li className="muted">Nothing completed yet.</li>
+                      )}
+                    </ul>
+                  </div>
                 </div>
-                <div className="panel-body">
-                  <ul className="feed">
-                    {household.events.map((ev) => (
-                      <li key={ev.id}>
-                        <div className="time">{ev.time}</div>
-                        <div>
-                          <span className="agent">{ev.agent}</span>{' '}
-                          <span className={`badge ${ev.outcome === 'done' ? 'done' : ev.outcome === 'running' ? 'running' : 'needs'}`}>
-                            {ev.outcome === 'needs_you' ? 'needs you' : ev.outcome}
-                          </span>
-                        </div>
-                        <div>{ev.action}</div>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="panel">
+                  <div className="panel-header">
+                    <span>Needs You</span>
+                    <span className="muted">
+                      {hhExceptions.length + household.events.filter((ev) => ev.outcome === 'needs_you').length} open
+                    </span>
+                  </div>
+                  <div className="panel-body">
+                    <ul className="exception-list">
+                      {hhExceptions.map((ex) => (
+                        <NeedsYouCard
+                          key={ex.id}
+                          selected={selectedEx?.id === ex.id}
+                          priority={ex.priority}
+                          title={ex.title}
+                          meta={`Owner: ${ex.owner}`}
+                          recommended={ex.recommendedAction}
+                          actions={ex.advisorActions}
+                          onOpen={() => focusException(ex, true)}
+                          onAct={(a) => {
+                            focusException(ex, true)
+                            flash(`${actionTypeLabel(a.type)}: ${a.label}`)
+                          }}
+                        />
+                      ))}
+                      {household.events
+                        .filter((ev) => ev.outcome === 'needs_you')
+                        .map((ev) => {
+                          const stage = household.stages.find((s) => s.id === ev.stage)
+                          const match = hhExceptions.find((ex) => ex.stage === ev.stage)
+                          const actions = match?.advisorActions ?? stage?.unblock?.recommendedActions ?? [
+                            {
+                              type: 'review_docs' as const,
+                              label: 'Review what the agent did',
+                              detail: ev.action,
+                            },
+                            {
+                              type: 'escalate' as const,
+                              label: 'Escalate if you cannot clear it',
+                              detail: 'Hand off with the agent lineage.',
+                            },
+                          ]
+                          return (
+                            <NeedsYouCard
+                              key={ev.id}
+                              selected={match ? selectedEx?.id === match.id : drillId === `stage-${ev.stage}`}
+                              priority={match?.priority ?? 'high'}
+                              title={ev.action}
+                              meta={`${ev.agent} · ${ev.time}`}
+                              recommended={
+                                match?.recommendedAction ??
+                                stage?.humanAction ??
+                                stage?.unblock?.title ??
+                                'Decide so the agent can continue'
+                              }
+                              actions={actions}
+                              onOpen={() => {
+                                if (match) focusException(match, true)
+                                else {
+                                  openDrill(`stage-${ev.stage}`)
+                                  if (stage?.unblock) setStageModal(stage)
+                                }
+                              }}
+                              onAct={(a) => {
+                                if (match) focusException(match, true)
+                                else {
+                                  openDrill(`stage-${ev.stage}`)
+                                  if (stage?.unblock) setStageModal(stage)
+                                }
+                                flash(`${actionTypeLabel(a.type)}: ${a.label}`)
+                              }}
+                            />
+                          )
+                        })}
+                      {hhExceptions.length === 0 &&
+                        household.events.every((ev) => ev.outcome !== 'needs_you') && (
+                          <li className="panel-body muted">No open signals for this household.</li>
+                        )}
+                    </ul>
+                    <div className="needs-you-review">
+                      <div className="needs-you-review-title">Recommended Review</div>
+                      <ReviewPanel
+                        item={drillItem}
+                        advisorActions={
+                          drillItem?.kind === 'exception' && selectedEx ? selectedEx.advisorActions : undefined
+                        }
+                        onAct={(label) => {
+                          if (label === 'Open weakest facet' && selectedPerson) {
+                            const weakest = [...selectedPerson.facets].sort((a, b) => a.score - b.score)[0]
+                            openDrill(`likeness-${selectedPerson.id}-${weakest.id}`)
+                            return
+                          }
+                          if (selectedEx && drillItem?.kind === 'exception' && label.includes('Approve')) {
+                            approveException(selectedEx)
+                          } else {
+                            flash(label)
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div className="panel review-panel sticky-review">
-                <div className="panel-header">
-                  <span>Recommended review</span>
-                  <span className="muted">One click down</span>
-                </div>
-                <div className="panel-body">
-                  <ReviewPanel
-                    item={drillItem}
-                    advisorActions={
-                      drillItem?.kind === 'exception' && selectedEx ? selectedEx.advisorActions : undefined
-                    }
-                    onAct={(label) => {
-                      if (label === 'Open weakest facet' && selectedPerson) {
-                        const weakest = [...selectedPerson.facets].sort((a, b) => a.score - b.score)[0]
-                        openDrill(`likeness-${selectedPerson.id}-${weakest.id}`)
-                        return
-                      }
-                      if (selectedEx && drillItem?.kind === 'exception' && label.includes('Approve')) {
-                        approveException(selectedEx)
-                      } else {
-                        flash(label)
-                      }
-                    }}
-                  />
-                </div>
+            )}
               </div>
             </div>
           </div>
@@ -996,8 +1189,8 @@ export default function App() {
         <div className="app-body single">
           <div className="panel">
             <div className="panel-header">
-              <span>Deliverable queue — agent drafts, you polish</span>
-              <span className="muted">Template-faithful · cited · gated</span>
+              <span>Deliverable Queue — Agent Drafts, You Polish</span>
+              <span className="muted">Template-Faithful · Cited · Gated</span>
             </div>
             <div className="panel-body">
               <table className="para-table">
@@ -1006,7 +1199,7 @@ export default function App() {
                     <th>Type</th>
                     <th>Household</th>
                     <th>Status</th>
-                    <th>Est. time saved</th>
+                    <th>Est. Time Saved</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1034,15 +1227,15 @@ export default function App() {
 
               <div className="para-detail" style={{ marginTop: 16 }}>
                 <div className="callout">
-                  <strong>Why this needs you</strong>
+                  <strong>Why This Needs You</strong>
                   Deliverable requires human fiduciary polish before client/advisor delivery.
                 </div>
                 <div className="callout">
-                  <strong>Agent already did</strong>
+                  <strong>Agent Already Did</strong>
                   {selectedPara.agentDid}
                 </div>
                 <div className="callout">
-                  <strong>Recommended for you to review</strong>
+                  <strong>Recommended for You to Review</strong>
                   <ul className="review-checklist">
                     <li>{selectedPara.yourJob}</li>
                     <li>Check citations / source lineage before approving</li>
@@ -1073,7 +1266,7 @@ export default function App() {
       {role === 'value' && (
         <>
           <div className="hero-banner">
-            <h1>FSC Client Lifecycle Management — value by persona</h1>
+            <h1>FSC Client Lifecycle Management — Value by Persona</h1>
             <p>
               Agents orchestrate prospect → funded → annual review → life events → estate. Humans stay in a
               mission-control seat for judgment, relationships, and fiduciary polish — with household pulse
@@ -1101,7 +1294,7 @@ export default function App() {
             <p style={{ margin: 0, color: 'var(--sf-gray-2)' }}>{persona.tagline}</p>
             <div className="columns-2">
               <div>
-                <strong style={{ fontSize: 12, color: 'var(--sf-gray-3)', textTransform: 'uppercase' }}>Today’s pain</strong>
+                <strong style={{ fontSize: 12, color: 'var(--sf-gray-3)', textTransform: 'uppercase' }}>Today’s Pain</strong>
                 <ul>
                   {persona.pains.map((x) => (
                     <li key={x}>{x}</li>
@@ -1109,7 +1302,7 @@ export default function App() {
                 </ul>
               </div>
               <div>
-                <strong style={{ fontSize: 12, color: 'var(--sf-gray-3)', textTransform: 'uppercase' }}>CLM value</strong>
+                <strong style={{ fontSize: 12, color: 'var(--sf-gray-3)', textTransform: 'uppercase' }}>CLM Value</strong>
                 <ul>
                   {persona.valueProps.map((x) => (
                     <li key={x}>{x}</li>
@@ -1121,7 +1314,7 @@ export default function App() {
               <div className="metric-row head">
                 <div>Metric</div>
                 <div>Before</div>
-                <div>With agentic CLM</div>
+                <div>With Agentic CLM</div>
               </div>
               {persona.metrics.map((m) => (
                 <div className="metric-row" key={m.label}>
@@ -1135,8 +1328,8 @@ export default function App() {
 
           <div className="panel" style={{ margin: '0 12px 12px' }}>
             <div className="panel-header">
-              <span>Competitive landscape — where FSC CLM wins</span>
-              <span className="muted">US RIA / hybrid focus</span>
+              <span>Competitive Landscape — Where FSC CLM Wins</span>
+              <span className="muted">US RIA / Hybrid Focus</span>
             </div>
             <div className="panel-body" style={{ overflowX: 'auto' }}>
               <table className="comp-table">
@@ -1146,7 +1339,7 @@ export default function App() {
                     <th>Lane</th>
                     <th>Strength</th>
                     <th>Gap</th>
-                    <th>FSC angle</th>
+                    <th>FSC Angle</th>
                   </tr>
                 </thead>
                 <tbody>

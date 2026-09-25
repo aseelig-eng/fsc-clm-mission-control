@@ -181,6 +181,54 @@ export const exceptions: ExceptionItem[] = [
 
 export const households: Household[] = [
   {
+    id: 'h0',
+    name: 'Elena Vasquez',
+    aum: 'Not stated',
+    stage: 'prospect',
+    stageLabel: 'Prospect',
+    risk: 'Not assessed',
+    nextClientTouch: 'Intro not scheduled',
+    agentsActive: 1,
+    exceptions: 0,
+    stages: [
+      {
+        id: 'prospect',
+        label: 'Prospect',
+        status: 'active',
+        agentSummary: 'Web form captured a name and email. No phone, goal, assets, or advisor notes.',
+        humanAction: 'Book a 20-minute intro',
+        view: {
+          aum: 'Not stated',
+          risk: 'Not assessed',
+          nextTouch: 'Intro not scheduled',
+        },
+      },
+      { id: 'discovery', label: 'Discovery', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+      { id: 'proposal', label: 'Proposal / IPS', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+      { id: 'disclosures', label: 'Disclosures', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+      { id: 'kyc', label: 'KYC / AML', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+      { id: 'account_open', label: 'Account Open', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+      { id: 'funding', label: 'Funding', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+      { id: 'welcome', label: 'Welcome 90d', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+      { id: 'ongoing', label: 'Ongoing', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+      { id: 'annual_review', label: 'Annual Review', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+      { id: 'life_event', label: 'Life Events', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+      { id: 'estate', label: 'Estate / Exit', status: 'upcoming', view: { aum: 'Not captured', risk: 'Not assessed', nextTouch: 'Not scheduled' } },
+    ],
+    events: [
+      {
+        id: 'e0',
+        time: 'This morning',
+        agent: 'Lead Agent',
+        action: 'Created a lead from the public site form',
+        detail:
+          'Stored first name, last name, and email on a new Person Account. Phone, goal, investable assets, risk, and advisor assignment were left blank. No meeting was booked.',
+        outcome: 'running',
+        stage: 'prospect',
+      },
+    ],
+  },
+  {
     id: 'h1',
     name: 'Maya Chen',
     aum: '$248K → funding',
@@ -242,6 +290,8 @@ export const households: Household[] = [
         time: '2m ago',
         agent: 'Funding Agent',
         action: 'Detected Schwab NIGO on TOD; drafted corrected DocuSign',
+        detail:
+          'Matched Schwab reject code on ACAT #48291 to a missing wet signature on the sibling TOD. Built a corrected DocuSign envelope from the discovery designation and drafted the client note. Funding is held until you approve the resend.',
         outcome: 'needs_you',
         stage: 'funding',
       },
@@ -250,6 +300,8 @@ export const households: Household[] = [
         time: '1h ago',
         agent: 'Custodian Agent',
         action: 'Opened Roth IRA + Individual brokerage via DAIM mock',
+        detail:
+          'Submitted the Schwab new-account pack through the custodian connector and opened a Roth IRA and an individual brokerage. Account numbers and registration were written back to the Person Account. The TOD addendum was not in the signed set, so the accounts opened clean and funding did not.',
         outcome: 'done',
         stage: 'account_open',
       },
@@ -258,6 +310,8 @@ export const households: Household[] = [
         time: 'Yesterday',
         agent: 'KYC Agent',
         action: 'CIP verified; OFAC/PEP/Adverse Media clear',
+        detail:
+          'Matched the government ID on file to the application name, date of birth, and address. Ran OFAC, PEP, and adverse-media screens; all returned clear. Filed the results and screen timestamps on the KYC section with agent lineage. No manual review was required.',
         outcome: 'done',
         stage: 'kyc',
       },
@@ -357,6 +411,8 @@ export const households: Household[] = [
         time: '12m ago',
         agent: 'EDD Agent',
         action: 'SOW extracted from trust deed + CPA letter; risk score 3/5',
+        detail:
+          'Read the trust deed and CPA letter, extracted source-of-wealth narrative, and scored residual risk 3/5. Assembled the EDD packet and stopped at the principal gate because investable assets are at or above $1M. Custodian submit is blocked until Principal_Approved is set.',
         outcome: 'needs_you',
         stage: 'kyc',
       },
@@ -365,6 +421,8 @@ export const households: Household[] = [
         time: '3h ago',
         agent: 'Structure Agent',
         action: 'Mapped trust → 2 holdcos → UBOs in Flexible Hierarchy',
+        detail:
+          'Parsed the trust documents and built the household graph: primary trust, two holding companies, and the ultimate beneficial owners. Linked Robert and Eleanor as co-primaries and attached counsel as a related party. The graph is saved on the household and is the map for Thursday’s structure walkthrough.',
         outcome: 'done',
         stage: 'discovery',
       },
@@ -373,6 +431,8 @@ export const households: Household[] = [
         time: 'Yesterday',
         agent: 'Disclosure Agent',
         action: 'Filed IAA, Form CRS, ADV 2A/2B; Fee Schedule A + IPS pending principal lock',
+        detail:
+          'Filed the Investment Advisory Agreement, Form CRS, and ADV Parts 2A and 2B to the document vault with e-sign timestamps. Fee Schedule A and the IPS are in the vault but are not client-final until principal locks them. Acknowledgement status was written back to the disclosures section.',
         outcome: 'done',
         stage: 'disclosures',
       },
@@ -435,6 +495,8 @@ export const households: Household[] = [
         time: 'This morning',
         agent: 'Review Agent',
         action: 'Sent client prep report; captured 2 life-change flags from portal',
+        detail:
+          'Generated the annual-review prep report from custodian balances, the current IPS, and last year’s notes, then delivered it in the client portal. Jordan opened it and submitted two life-change flags. Those flags are on the Person Account and are queued for the Friday agenda. No portfolio change was made.',
         outcome: 'done',
         stage: 'annual_review',
       },
@@ -443,6 +505,8 @@ export const households: Household[] = [
         time: 'This morning',
         agent: 'Paraplanner Agent',
         action: 'Drafted annual review deck + RMD / Roth conversion options',
+        detail:
+          'Drafted the annual review deck in the firm template, with drift versus the 60/40 policy and two tax pages: RMD window and a Roth conversion range. Figures are cited to the custodian feed and the tax notes. The deck is held for your voice and the tax specialist before Friday.',
         outcome: 'needs_you',
         stage: 'annual_review',
       },
@@ -451,6 +515,8 @@ export const households: Household[] = [
         time: 'Last week',
         agent: 'Lifecycle Monitor Agent',
         action: 'Confirmed activation: annual KYC refresh + life-event listener armed; 9 compliance docs filed on Person Account',
+        detail:
+          'Marked the household activated for ongoing monitoring. Scheduled the annual KYC refresh, armed the life-event listener, and confirmed nine compliance documents filed on the Person Account. Portal provisioning, the 30/60/90 welcome cadence, and billing initialization were recorded as on.',
         outcome: 'done',
         stage: 'ongoing',
       },
@@ -518,6 +584,8 @@ export const households: Household[] = [
         time: 'Yesterday',
         agent: 'Estate Agent',
         action: 'Opened settlement Action Plan; notified CRA + estate attorney',
+        detail:
+          'Opened the estate settlement Action Plan from the death notice and froze the decedent accounts pending retitle. Notified the CRA and estate counsel, attached the letters-testamentary checklist, and logged the sequence the spouse meeting must follow. No trades or risk changes were made.',
         outcome: 'done',
         stage: 'estate',
       },
@@ -526,6 +594,8 @@ export const households: Household[] = [
         time: 'Yesterday',
         agent: 'Relationship Agent',
         action: 'Drafted surviving-spouse welcome + next-of-kin KYC packet',
+        detail:
+          'Still drafting. The welcome note and next-of-kin KYC packet are built from the estate memo and counsel notes, not from the decedent IPS. Nothing has been sent. The Tuesday intro agenda is held until you review the talk track.',
         outcome: 'running',
         stage: 'estate',
       },

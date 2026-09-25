@@ -28,6 +28,12 @@ export interface LifecycleStage {
     whyBlocked: string
     recommendedActions: AdvisorAction[]
   }
+  /** Facts shown under the lifecycle rail when this stage is selected */
+  view?: {
+    aum: string
+    risk: string
+    nextTouch: string
+  }
 }
 
 export type AdvisorActionType =
@@ -51,6 +57,8 @@ export interface AgentEvent {
   time: string
   agent: string
   action: string
+  /** What the agent actually did, shown on Agents have done */
+  detail: string
   outcome: 'done' | 'needs_you' | 'running'
   stage: LifecycleStageId
 }
