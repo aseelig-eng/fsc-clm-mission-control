@@ -579,6 +579,15 @@ h4 {
   font-weight: 700;
 }
 
+/* Section headings: match the Book Pulse kicker treatment. */
+.panel-header > span:first-child {
+  font-size: var(--text-title);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sf-blue);
+}
+
 .panel-body {
   padding: 12px 14px;
 }
@@ -1598,7 +1607,7 @@ h4 {
 
 
 .likeness-kicker {
-  font-size: 11px;
+  font-size: var(--text-title);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
