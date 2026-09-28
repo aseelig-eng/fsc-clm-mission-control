@@ -558,7 +558,22 @@ export default function App() {
   // Book-wide prioritized to-do list: open exceptions (signals) + open meeting
   // actions, each carrying a recommended action, ranked by urgency then due date.
   const prioritizedTasks = useMemo(() => {
-    const rank: Record<string, number> = { critical: 0, high: 1, blocked: 1, medium: 2, open: 2 }
+    const rank: Record<string, number> = { critical: 0, high: 1, blocked: 1, medium: 2, open: 2, low: 3 }
+    const fromCases = deskCases
+      .filter((item) => item.status !== 'Closed')
+      .map((item) => ({
+        id: `pt-case-${item.id}`,
+        kind: 'case' as const,
+        priority: item.priority.toLowerCase(),
+        title: item.subject,
+        who: `${householdName(item.householdId)}${item.origin === 'Portal' ? ' · from client portal' : ` · ${item.origin}`}`,
+        recommended: item.step?.label ?? `Work the ${item.type.toLowerCase()}`,
+        due: '',
+        onOpen: () => {
+          selectHousehold(item.householdId)
+          setCockpitView('work')
+        },
+      }))
     const fromExceptions = openExceptions.map((ex) => ({
       id: `pt-ex-${ex.id}`,
       kind: 'signal' as const,
@@ -586,10 +601,10 @@ export default function App() {
         due: action.due,
         onOpen: () => setPlaybookMeeting(meeting),
       }))
-    return [...fromExceptions, ...fromMeetings]
+    return [...fromCases, ...fromExceptions, ...fromMeetings]
       .sort((a, b) => (rank[a.priority] ?? 3) - (rank[b.priority] ?? 3) || a.due.localeCompare(b.due))
-      .slice(0, 8)
-  }, [openExceptions, meetingList])
+      .slice(0, 10)
+  }, [openExceptions, meetingList, deskCases])
   const clientMatches = useMemo(() => {
     const query = clientQuery.trim().toLowerCase()
     const ranked = households
@@ -627,6 +642,29 @@ export default function App() {
   const selectedPara =
     filteredParaQueue.find((p) => p.id === selectedParaId) ?? filteredParaQueue[0] ?? paraplannerQueue[0]
   const advisorName = (id: string) => advisors.find((a) => a.id === id)?.name ?? id
+  const advisorForHousehold = (householdId: string): string =>
+    householdId === 'h2' ? 'adv-okafor' : householdId === 'h4' ? 'adv-lindqvist' : 'adv-rivera'
+  // Portal-originated cases + onboarding data-gaps the paraplanner can action.
+  const paraCases = useMemo(
+    () =>
+      deskCases
+        .filter((item) => item.status !== 'Closed')
+        .map((item) => ({
+          id: `para-case-${item.id}`,
+          caseId: item.id,
+          householdId: item.householdId,
+          household: householdName(item.householdId),
+          advisorId: advisorForHousehold(item.householdId),
+          subject: item.subject,
+          origin: item.origin,
+          status: item.status,
+          priority: item.priority,
+          action: item.step?.label ?? `Prep the ${item.type.toLowerCase()}`,
+        })),
+    [deskCases],
+  )
+  const filteredParaCases =
+    advisorFilter.size === 0 ? paraCases : paraCases.filter((c) => advisorFilter.has(c.advisorId))
   function toggleAdvisorFilter(id: string) {
     setAdvisorFilter((prev) => {
       const next = new Set(prev)
@@ -1546,7 +1584,7 @@ export default function App() {
                         <button type="button" className="book-task-card" onClick={task.onOpen}>
                           <div className="book-task-head">
                             <span className={`badge ${task.priority}`}>{task.priority}</span>
-                            <span className="queue-type">{task.kind === 'signal' ? 'Signal' : 'Meeting'}</span>
+                            <span className="queue-type">{task.kind === 'signal' ? 'Signal' : task.kind === 'case' ? 'Case' : 'Meeting'}</span>
                             <strong>{task.title}</strong>
                           </div>
                           <div className="meta">
@@ -2363,6 +2401,55 @@ export default function App() {
                   ))}
                 </div>
               </div>
+
+              {filteredParaCases.length > 0 && (
+                <div className="para-cases">
+                  <div className="para-cases-head">
+                    <strong>Client requests from the portal</strong>
+                    <span className="muted">{filteredParaCases.length} open · shared with the advisor’s work list</span>
+                  </div>
+                  <ul className="para-cases-list">
+                    {filteredParaCases.map((c) => (
+                      <li key={c.id} className="para-case-row">
+                        <span className={`badge ${c.priority.toLowerCase()}`}>{c.priority}</span>
+                        <span className="para-case-body">
+                          <strong>{c.subject}</strong>
+                          <em>
+                            {c.household} · {advisorName(c.advisorId)} · {c.origin === 'Portal' ? 'from client portal' : c.origin} · {c.status}
+                          </em>
+                        </span>
+                        <span className="para-case-actions">
+                          <button
+                            type="button"
+                            className="btn ghost sm"
+                            onClick={() => {
+                              setDeskCases((prev) =>
+                                prev.map((row) => (row.id === c.caseId ? { ...row, status: 'Working' } : row)),
+                              )
+                              flash(`${c.action} — ${c.household}. Marked Working for ${advisorName(c.advisorId)}.`)
+                            }}
+                          >
+                            {c.action}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn success sm"
+                            onClick={() => {
+                              setDeskCases((prev) =>
+                                prev.map((row) => (row.id === c.caseId ? { ...row, status: 'Waiting on client' } : row)),
+                              )
+                              flash(`Prepped ${c.subject} for ${c.household} — handed back to ${advisorName(c.advisorId)}.`)
+                            }}
+                          >
+                            Ready for advisor
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <table className="para-table">
                 <thead>
                   <tr>

@@ -3,8 +3,8 @@ import { personsForHousehold } from '../data/portraits'
 import type { Household } from '../data/types'
 import type { PlanState } from '../data/advice'
 import { goalProgress } from '../data/advice'
-import type { ClientOnboardingRecord, ComplianceDocument } from '../data/onboardingFramework'
-import { DOC_TYPE_LABEL, docStatusLabel } from '../data/onboardingFramework'
+import type { ClientOnboardingRecord, ComplianceDocument, FormSection } from '../data/onboardingFramework'
+import { DOC_TYPE_LABEL, docStatusLabel, recordCompleteness, PHASE_LABELS } from '../data/onboardingFramework'
 import {
   accountBalance,
   accountTotals,
@@ -192,6 +192,31 @@ export function ClientPortal({
 
   const toSign = (record?.documents ?? []).filter((doc) => doc.status === 'needs_signature').length
   const signing = record?.documents.find((doc) => doc.id === signingId) ?? null
+
+  // ── Onboarding progress (client-facing view of where they are) ──────────
+  const completeness = record ? recordCompleteness(record) : null
+  const onboardingActive = !!(record && completeness && completeness.pct < 100)
+  const phaseOrder: FormSection['phase'][] = ['1_intake', '2_kyc', '3_custody', '4_orientation', 'ongoing']
+  const onboardingPhases = record
+    ? phaseOrder
+        .map((phase) => {
+          const sections = record.sections.filter((section) => section.phase === phase)
+          if (sections.length === 0) return null
+          const stats = (completeness?.sectionStats ?? []).filter((s) => s.phase === phase)
+          const avg = stats.length ? Math.round(stats.reduce((sum, s) => sum + s.pct, 0) / stats.length) : 100
+          return { phase, label: PHASE_LABELS[phase], sections, pct: avg }
+        })
+        .filter((entry): entry is { phase: FormSection['phase']; label: string; sections: FormSection[]; pct: number } => entry != null)
+    : []
+  const activePhase = onboardingPhases.find((entry) => entry.pct < 100) ?? onboardingPhases[onboardingPhases.length - 1] ?? null
+  const outstandingDocs = (record?.documents ?? []).filter((doc) => doc.status !== 'filed')
+  const nextSteps: { id: string; label: string; go: () => void }[] = []
+  if (record) {
+    if (toSign > 0) nextSteps.push({ id: 'sign', label: `Sign ${toSign} document${toSign === 1 ? '' : 's'} waiting on you`, go: () => setView('vault') })
+    if (gaps.length > 0) nextSteps.push({ id: 'facts', label: `Confirm ${gaps.length} profile detail${gaps.length === 1 ? '' : 's'} your advisor needs`, go: () => setView('facts') })
+    if (mine.length === 0) nextSteps.push({ id: 'fund', label: 'Connect or fund an account to get invested', go: () => setView('home') })
+    if (nextSteps.length === 0) nextSteps.push({ id: 'wait', label: 'Nothing needed right now — your advisor is preparing the next step', go: () => setView('ask') })
+  }
 
   function addPlaid(offer: PlaidOffer) {
     onAddAccounts(accountsFromPlaid(household.id, offer))
@@ -412,28 +437,155 @@ export function ClientPortal({
                 </div>
               </div>
 
-              {actionItems.length > 0 && (
+              {onboardingActive && completeness && (
+                <section className="portal-section portal-onboard">
+                  <div className="portal-section-head">
+                    <div>
+                      <div className="portal-kicker">Getting you set up</div>
+                      <h3>Your onboarding · {record?.currentStageLabel}</h3>
+                    </div>
+                    <span className="portal-onboard-pct">{completeness.pct}% complete</span>
+                  </div>
+                  <div className="portal-onboard-bar" role="img" aria-label={`Onboarding ${completeness.pct}% complete`}>
+                    <span style={{ width: `${completeness.pct}%` }} />
+                  </div>
+                  <ol className="portal-onboard-phases">
+                    {onboardingPhases.map((entry) => {
+                      const state = entry.pct >= 100 ? 'done' : entry.phase === activePhase?.phase ? 'active' : 'upcoming'
+                      return (
+                        <li key={entry.phase} className={`portal-onboard-phase is-${state}`}>
+                          <span className="portal-onboard-dot" aria-hidden="true">{state === 'done' ? '✓' : ''}</span>
+                          <span className="portal-onboard-phase-body">
+                            <strong>{entry.label}</strong>
+                            <em>{entry.pct}% · {entry.sections.length} section{entry.sections.length === 1 ? '' : 's'}</em>
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                  <div className="portal-onboard-grid">
+                    <div className="portal-onboard-col">
+                      <h4>What we still need from you</h4>
+                      {completeness.gaps.length === 0 ? (
+                        <p className="muted">Your profile is complete. Nothing outstanding.</p>
+                      ) : (
+                        <ul className="portal-onboard-list">
+                          {completeness.gaps.slice(0, 6).map((gap) => (
+                            <li key={`${gap.section}-${gap.field}`}>
+                              <span className={`portal-onboard-flag flag-${gap.status}`}>{gap.status}</span>
+                              <span className="portal-onboard-need">
+                                <strong>{gap.field}</strong>
+                                <em>{gap.section}</em>
+                              </span>
+                            </li>
+                          ))}
+                          {completeness.gaps.length > 6 && (
+                            <li className="muted">+{completeness.gaps.length - 6} more on your Profile tab</li>
+                          )}
+                        </ul>
+                      )}
+                      <button type="button" className="btn primary" onClick={() => setView('facts')}>
+                        Update my profile
+                      </button>
+                    </div>
+                    <div className="portal-onboard-col">
+                      <h4>Documents · {completeness.docsFiled}/{completeness.docsTotal} filed</h4>
+                      {outstandingDocs.length === 0 ? (
+                        <p className="muted">Every document is filed. Nothing to sign.</p>
+                      ) : (
+                        <ul className="portal-onboard-list">
+                          {outstandingDocs.slice(0, 6).map((doc) => (
+                            <li key={doc.id}>
+                              <span className={`doc-status status-${doc.status}`}>{docStatusLabel(doc.status)}</span>
+                              <span className="portal-onboard-need">
+                                <strong>{doc.name}</strong>
+                                <em>{DOC_TYPE_LABEL[doc.category]}</em>
+                              </span>
+                            </li>
+                          ))}
+                          {outstandingDocs.length > 6 && (
+                            <li className="muted">+{outstandingDocs.length - 6} more in Documents</li>
+                          )}
+                        </ul>
+                      )}
+                      <button type="button" className="btn" onClick={() => setView('vault')}>
+                        Go to documents
+                      </button>
+                    </div>
+                  </div>
+                  <div className="portal-onboard-next">
+                    <h4>Your next steps</h4>
+                    <ul className="portal-onboard-steps">
+                      {nextSteps.map((step) => (
+                        <li key={step.id}>
+                          <button type="button" onClick={step.go}>
+                            <span className="portal-onboard-step-dot" aria-hidden="true" />
+                            {step.label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </section>
+              )}
+
+              <div className="portal-splitrow">
                 <section className="portal-section portal-actioncenter">
                   <div className="portal-section-head">
                     <h3>Needs your attention</h3>
                     <span className="portal-count">{actionItems.length}</span>
                   </div>
-                  <ul className="portal-actionlist">
-                    {actionItems.map((item) => (
-                      <li key={item.id} className={`portal-action tone-${item.tone}`}>
-                        <span className="portal-action-dot" aria-hidden="true" />
-                        <span className="portal-action-body">
-                          <strong>{item.title}</strong>
-                          <em>{item.detail}</em>
+                  {actionItems.length === 0 ? (
+                    <p className="muted">You’re all caught up. Nothing needs you right now.</p>
+                  ) : (
+                    <ul className="portal-actionlist">
+                      {actionItems.map((item) => (
+                        <li key={item.id} className={`portal-action tone-${item.tone}`}>
+                          <span className="portal-action-dot" aria-hidden="true" />
+                          <span className="portal-action-body">
+                            <strong>{item.title}</strong>
+                            <em>{item.detail}</em>
+                          </span>
+                          <button type="button" className="btn primary" onClick={item.go}>
+                            {item.cta}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                <section className="portal-section portal-team">
+                  <div className="portal-section-head">
+                    <h3>Your advisory team</h3>
+                    <button type="button" className="btn" onClick={() => setView('ask')}>
+                      Ask a question
+                    </button>
+                  </div>
+                  <ul className="portal-teamlist">
+                    {advisoryTeam.map((member) => (
+                      <li key={member.name}>
+                        <span className={`portal-avatar ${member.kind}`} aria-hidden="true">
+                          {member.name.split(' ').map((part) => part[0]).join('')}
                         </span>
-                        <button type="button" className="btn primary" onClick={item.go}>
-                          {item.cta}
+                        <span className="portal-team-body">
+                          <strong>{member.name}</strong>
+                          <em>{member.role} · {member.detail}</em>
+                          <span className="portal-team-channel">Best reached: {member.channel}</span>
+                        </span>
+                        <button type="button" className="btn" onClick={() => setView('request')}>
+                          Message
                         </button>
                       </li>
                     ))}
                   </ul>
+                  {contacts.length > 0 && (
+                    <p className="muted portal-team-note">
+                      On file for this household: {contacts.map((person) => person.name).join(', ')}.
+                    </p>
+                  )}
                 </section>
-              )}
+              </div>
 
               <div className="portal-grid">
               <section className="portal-section portal-perf span-2">
@@ -590,37 +742,6 @@ export function ClientPortal({
                   </button>
                 </div>
                 <ActivityList rows={activity.slice(0, 4)} />
-              </section>
-
-              <section className="portal-section portal-team span-2">
-                <div className="portal-section-head">
-                  <h3>Your advisory team</h3>
-                  <button type="button" className="btn" onClick={() => setView('ask')}>
-                    Ask a question
-                  </button>
-                </div>
-                <ul className="portal-teamlist">
-                  {advisoryTeam.map((member) => (
-                    <li key={member.name}>
-                      <span className={`portal-avatar ${member.kind}`} aria-hidden="true">
-                        {member.name.split(' ').map((part) => part[0]).join('')}
-                      </span>
-                      <span className="portal-team-body">
-                        <strong>{member.name}</strong>
-                        <em>{member.role} · {member.detail}</em>
-                        <span className="portal-team-channel">Best reached: {member.channel}</span>
-                      </span>
-                      <button type="button" className="btn" onClick={() => setView('request')}>
-                        Message
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {contacts.length > 0 && (
-                  <p className="muted portal-team-note">
-                    On file for this household: {contacts.map((person) => person.name).join(', ')}.
-                  </p>
-                )}
               </section>
               </div>
             </div>
