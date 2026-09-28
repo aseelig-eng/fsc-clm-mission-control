@@ -1,10 +1,20 @@
 import type {
+  Advisor,
   Competitor,
   ExceptionItem,
   Household,
   ParaplannerDeliverable,
   PersonaValue,
 } from './types'
+
+// Advisors whose books this paraplanner supports. A paraplanner typically
+// covers multiple advisors' books of business, so the workbench defaults to
+// "All advisors" but can be scoped to one or more.
+export const advisors: Advisor[] = [
+  { id: 'adv-rivera', name: 'Ana Rivera', initials: 'AR', book: 'Affluent & Pre-Retiree' },
+  { id: 'adv-okafor', name: 'David Okafor', initials: 'DO', book: 'HNW & Business Owners' },
+  { id: 'adv-lindqvist', name: 'Mia Lindqvist', initials: 'ML', book: 'Estate & Multi-Gen' },
+]
 
 export const metrics = [
   { label: 'Median time-to-funded', value: '4.2 days', delta: '−18 days vs manual', tone: 'good' as const },
@@ -623,6 +633,7 @@ export const paraplannerQueue: ParaplannerDeliverable[] = [
     id: 'p1',
     type: 'IPS',
     household: 'Elena Vasquez',
+    advisorId: 'adv-rivera',
     status: 'awaiting_data',
     agentDid: 'Held the draft. Person Account has a name and email only — no goal, horizon, risk, or assets to cite.',
     yourJob: 'Do not write an IPS. After Monday’s intro, request the discovery fact-find.',
@@ -632,6 +643,7 @@ export const paraplannerQueue: ParaplannerDeliverable[] = [
     id: 'p2',
     type: 'Annual Review',
     household: 'Adams Household',
+    advisorId: 'adv-rivera',
     status: 'draft_ready',
     agentDid: 'Built deck: net worth, goal progress, drift, RMD timeline, Roth conversion scenarios.',
     yourJob: 'Validate tax numbers with specialist; mark ready for advisor dry-run.',
@@ -641,6 +653,7 @@ export const paraplannerQueue: ParaplannerDeliverable[] = [
     id: 'p3',
     type: 'Proposal',
     household: 'Whitfield Household',
+    advisorId: 'adv-okafor',
     status: 'awaiting_data',
     agentDid: 'Proposal narrative and IPS are drafted from the in-person meeting. Fee Schedule A stays unlocked until principal approves EDD.',
     yourJob: 'Do not lock fees or send. Resume when Principal Approved is true.',
@@ -650,6 +663,7 @@ export const paraplannerQueue: ParaplannerDeliverable[] = [
     id: 'p4',
     type: 'Suitability',
     household: 'Maya Chen',
+    advisorId: 'adv-rivera',
     status: 'approved',
     agentDid: 'Reg BI rationale memo generated from fact-find + model match.',
     yourJob: 'Archived to Client Vault; available for exam pull.',
@@ -659,6 +673,7 @@ export const paraplannerQueue: ParaplannerDeliverable[] = [
     id: 'p5',
     type: 'Estate Memo',
     household: 'Estate of James Okonkwo',
+    advisorId: 'adv-lindqvist',
     status: 'needs_review',
     agentDid: 'Drafted account-retitle sequence, beneficiary notifications, and step-up basis checklist.',
     yourJob: 'Coordinate with estate counsel; advisor presents to surviving spouse.',

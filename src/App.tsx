@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  advisors,
   competitors,
   exceptions,
   households,
@@ -20,6 +21,8 @@ import { meetingsForHousehold, openMeetingActions, type Meeting } from './data/m
 import { integrations as integrationCatalog } from './data/integrations'
 import { IntegrationHub } from './components/IntegrationHub'
 import { MeetingWorkspace } from './components/MeetingWorkspace'
+import { DocumentPreview } from './components/DocumentPreview'
+import type { ComplianceDocument } from './data/onboardingFramework'
 import { MATURITY_LABELS, personsForHousehold, type ContactChannel } from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
 import { BookPulse } from './components/BookPulse'
@@ -440,6 +443,7 @@ export default function App() {
   const clientSearchRef = useRef<HTMLDivElement>(null)
   const [selectedExId, setSelectedExId] = useState(exceptions[0].id)
   const [selectedParaId, setSelectedParaId] = useState(paraplannerQueue[0].id)
+  const [advisorFilter, setAdvisorFilter] = useState<Set<string>>(new Set())
   const [personaIdx, setPersonaIdx] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
   const [resolved, setResolved] = useState<Set<string>>(new Set())
@@ -464,6 +468,7 @@ export default function App() {
   const [portalOpen, setPortalOpen] = useState(false)
   const [playbookMeeting, setPlaybookMeeting] = useState<Meeting | null>(null)
   const [integrationHubOpen, setIntegrationHubOpen] = useState(false)
+  const [previewDoc, setPreviewDoc] = useState<ComplianceDocument | null>(null)
   const [integrationList, setIntegrationList] = useState(() => integrationCatalog)
   const [portalHouseholdId, setPortalHouseholdId] = useState(households[0].id)
   const [plans, setPlans] = useState<Record<string, PlanState>>(() => initialPlans)
@@ -544,7 +549,21 @@ export default function App() {
     household.stages[0]
   const stageBar = selectedStage ? selectedStageProgress(household.stages, selectedStage) : null
   const selectedEx = openExceptions.find((e) => e.id === selectedExId) ?? openExceptions[0]
-  const selectedPara = paraplannerQueue.find((p) => p.id === selectedParaId) ?? paraplannerQueue[0]
+  const filteredParaQueue =
+    advisorFilter.size === 0
+      ? paraplannerQueue
+      : paraplannerQueue.filter((p) => advisorFilter.has(p.advisorId))
+  const selectedPara =
+    filteredParaQueue.find((p) => p.id === selectedParaId) ?? filteredParaQueue[0] ?? paraplannerQueue[0]
+  const advisorName = (id: string) => advisors.find((a) => a.id === id)?.name ?? id
+  function toggleAdvisorFilter(id: string) {
+    setAdvisorFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   const persona = personaValues[personaIdx]
   const openSection: FormSection | undefined = onboarding?.sections.find((s) => s.id === openSectionId)
 
@@ -1725,8 +1744,20 @@ export default function App() {
                     <ul className="doc-list">
                       {onboarding.documents.map((d) => (
                         <li key={d.id}>
-                          <button type="button" className="doc-btn" onClick={() => openDrill(`doc-${d.id}`)}>
-                            <div className="doc-name">{d.name}</div>
+                          <button
+                            type="button"
+                            className="doc-btn"
+                            onClick={() => {
+                              setPreviewDoc(d)
+                              openDrill(`doc-${d.id}`)
+                            }}
+                          >
+                            <div className="doc-name">
+                              {d.name}
+                              <span className="doc-preview-hint">
+                                {d.status === 'filed' ? 'View filed copy' : 'Preview draft'} →
+                              </span>
+                            </div>
                             <div className="doc-meta">
                               <span className={`badge ${docStatusClass(d.status)}`}>{d.status}</span>
                               {d.filedOn && <span className="muted">Filed {d.filedOn}</span>}
@@ -1739,69 +1770,6 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="panel">
-                  <div className="panel-header">
-                    <span>Lifecycle Monitor Agent</span>
-                    <span className={`badge ${onboarding.monitor.status === 'monitoring' || onboarding.monitor.status === 'activated' ? 'done' : 'needs'}`}>
-                      {statusLabel(onboarding.monitor.status)}
-                    </span>
-                  </div>
-                  <div className="panel-body">
-                    <div className="callout" style={{ marginBottom: 10 }}>
-                      <strong>Decision</strong>
-                      {onboarding.monitor.decision}
-                    </div>
-                    <ul className="monitor-list">
-                      <li>
-                        Annual KYC refresh:{' '}
-                        {onboarding.monitor.annualKycRefreshScheduled
-                          ? `scheduled ${onboarding.monitor.annualKycRefreshDate ?? ''}`
-                          : 'not scheduled'}
-                      </li>
-                      <li>
-                        Life-event listener:{' '}
-                        {onboarding.monitor.lifeEventListenerArmed ? 'armed' : 'not armed'}
-                      </li>
-                      <li>Reminders scheduled: {onboarding.monitor.remindersScheduled}</li>
-                      <li>Portal provisioned: {onboarding.monitor.portalProvisioned ? 'yes' : 'no'}</li>
-                      <li>Welcome kit / 30-60-90: {onboarding.monitor.cadence30_60_90 ? 'active' : 'pending'}</li>
-                      <li>Billing initialized: {onboarding.monitor.billingInitialized ? 'yes' : 'no'}</li>
-                    </ul>
-                    {onboarding.monitor.orientation && (
-                      <div className="callout" style={{ marginTop: 10 }}>
-                        <strong>Orientation / Meeting Concierge</strong>
-                        {onboarding.monitor.orientation.datetime.replace('T', ' · ')}
-                        <br />
-                        Playbook {onboarding.monitor.orientation.playbookId}
-                        {onboarding.monitor.orientation.filedOnPersonAccount
-                          ? ' · filed on Person Account'
-                          : ''}
-                      </div>
-                    )}
-                    <div className="intake-keys">
-                      <div>
-                        <span className="k">Gov ID</span>
-                        <span className="v">{onboarding.governmentIdType}</span>
-                      </div>
-                      <div>
-                        <span className="k">Source of wealth</span>
-                        <span className="v">{onboarding.sourceOfWealth}</span>
-                      </div>
-                      <div>
-                        <span className="k">Funding method</span>
-                        <span className="v">{onboarding.fundingMethod}</span>
-                      </div>
-                      <div>
-                        <span className="k">Funding amount</span>
-                        <span className="v">
-                          {onboarding.fundingAmountUsd != null
-                            ? `$${onboarding.fundingAmountUsd.toLocaleString()}`
-                            : '—'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
               </>
             )}
@@ -2178,20 +2146,82 @@ export default function App() {
               <span className="muted">Template-Faithful · Cited · Gated</span>
             </div>
             <div className="panel-body">
+              <div className="para-toolbar">
+                <div className="advisor-filter">
+                  <span className="advisor-filter-label">Supporting advisor</span>
+                  <div className="advisor-chips">
+                    <button
+                      type="button"
+                      className={`advisor-chip ${advisorFilter.size === 0 ? 'active' : ''}`}
+                      onClick={() => setAdvisorFilter(new Set())}
+                    >
+                      All advisors
+                      <span className="advisor-chip-count">{paraplannerQueue.length}</span>
+                    </button>
+                    {advisors.map((adv) => {
+                      const count = paraplannerQueue.filter((p) => p.advisorId === adv.id).length
+                      const active = advisorFilter.has(adv.id)
+                      return (
+                        <button
+                          key={adv.id}
+                          type="button"
+                          className={`advisor-chip ${active ? 'active' : ''}`}
+                          onClick={() => toggleAdvisorFilter(adv.id)}
+                          title={adv.book}
+                        >
+                          <span className="advisor-avatar" aria-hidden="true">{adv.initials}</span>
+                          {adv.name}
+                          <span className="advisor-chip-count">{count}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="para-quick-create">
+                  <span className="muted">Draft with agent:</span>
+                  {(['IPS', 'Proposal', 'Annual Review', 'Estate Memo'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      className="btn ghost sm"
+                      onClick={() =>
+                        flash(
+                          `Agent is drafting a new ${t}${
+                            advisorFilter.size === 1
+                              ? ` for ${advisorName([...advisorFilter][0])}’s book`
+                              : ''
+                          } — citations pulled from the fact-find.`,
+                        )
+                      }
+                    >
+                      + {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <table className="para-table">
                 <thead>
                   <tr>
                     <th>Type</th>
                     <th>Household</th>
+                    <th>Advisor</th>
                     <th>Status</th>
                     <th>Est. Time Saved</th>
+                    <th aria-label="Quick actions" />
                   </tr>
                 </thead>
                 <tbody>
-                  {paraplannerQueue.map((row) => (
+                  {filteredParaQueue.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="muted" style={{ textAlign: 'center', padding: '18px' }}>
+                        No deliverables for the selected advisor.
+                      </td>
+                    </tr>
+                  )}
+                  {filteredParaQueue.map((row) => (
                     <tr
                       key={row.id}
-                      className={selectedParaId === row.id ? 'selected' : ''}
+                      className={selectedPara.id === row.id ? 'selected' : ''}
                       onClick={() => setSelectedParaId(row.id)}
                       style={{ cursor: 'pointer' }}
                     >
@@ -2200,17 +2230,70 @@ export default function App() {
                       </td>
                       <td>{row.household}</td>
                       <td>
+                        <span className="para-advisor">
+                          <span className="advisor-avatar sm" aria-hidden="true">
+                            {advisors.find((a) => a.id === row.advisorId)?.initials ?? '—'}
+                          </span>
+                          {advisorName(row.advisorId)}
+                        </span>
+                      </td>
+                      <td>
                         <span className={`badge ${row.status === 'approved' ? 'done' : row.status === 'needs_review' ? 'needs' : 'medium'}`}>
                           {row.status.replace('_', ' ')}
                         </span>
                       </td>
                       <td>{row.estMinutesSaved} min</td>
+                      <td className="para-row-actions" onClick={(e) => e.stopPropagation()}>
+                        {row.status === 'awaiting_data' ? (
+                          <button
+                            type="button"
+                            className="btn ghost sm"
+                            onClick={() => flash(`Requested missing data for ${row.household}`)}
+                          >
+                            Request data
+                          </button>
+                        ) : row.status === 'approved' ? (
+                          <button
+                            type="button"
+                            className="btn ghost sm"
+                            onClick={() => flash(`Opened filed ${row.type} for ${row.household}`)}
+                          >
+                            Open filed
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="btn ghost sm"
+                              onClick={() => flash(`Opened ${row.type} draft for ${row.household}`)}
+                            >
+                              Open draft
+                            </button>
+                            <button
+                              type="button"
+                              className="btn success sm"
+                              onClick={() => flash(`Marked ${row.type} ready for advisor`)}
+                            >
+                              Ready
+                            </button>
+                          </>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
               <div className="para-detail" style={{ marginTop: 16 }}>
+                <div className="para-detail-head">
+                  <strong>{selectedPara.type} · {selectedPara.household}</strong>
+                  <span className="para-advisor">
+                    <span className="advisor-avatar sm" aria-hidden="true">
+                      {advisors.find((a) => a.id === selectedPara.advisorId)?.initials ?? '—'}
+                    </span>
+                    {advisorName(selectedPara.advisorId)}
+                  </span>
+                </div>
                 <div className="callout">
                   <strong>Why This Needs You</strong>
                   {selectedPara.status === 'awaiting_data'
@@ -2451,6 +2534,15 @@ export default function App() {
           integrations={integrationList}
           onToggle={toggleIntegration}
           onClose={() => setIntegrationHubOpen(false)}
+          onFlash={flash}
+        />
+      )}
+      {previewDoc && (
+        <DocumentPreview
+          doc={previewDoc}
+          record={onboarding}
+          householdName={household.name}
+          onClose={() => setPreviewDoc(null)}
           onFlash={flash}
         />
       )}

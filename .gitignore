@@ -19,6 +19,11 @@ dist-ssr
 /meeting-workspace.png
 /followup-tab.png
 /integration-hub-vendors.png
+/para-workbench.png
+/para-filtered.png
+/record-2up.png
+/doc-iaa-filed.png
+/doc-tod-draft.png
 
 # Editor directories and files
 .vscode/*
