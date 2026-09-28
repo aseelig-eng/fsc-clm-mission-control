@@ -129,6 +129,12 @@ export function IntegrationHub({
                       </span>
                     </div>
                     <p className="integration-blurb">{item.blurb}</p>
+                    <span
+                      className={`integration-conn ${item.connection === 'Read/Write' ? 'rw' : 'ro'}`}
+                      title={item.connection === 'Read/Write' ? 'Two-way sync' : 'Read-only access'}
+                    >
+                      {item.connection}
+                    </span>
                     {item.status === 'connected' && item.syncs && (
                       <p className="integration-syncs">
                         <strong>Syncing:</strong> {item.syncs}

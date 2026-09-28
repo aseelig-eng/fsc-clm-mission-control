@@ -4673,6 +4673,28 @@ button.stage-card.selected {
   color: var(--sf-gray-3);
 }
 
+.integration-conn {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.integration-conn.rw {
+  color: #1b5e20;
+  background: #e6f4ea;
+  border-color: #b7dfc2;
+}
+
+.integration-conn.ro {
+  color: var(--sf-gray-2);
+  background: var(--sf-gray-6, #f3f3f3);
+  border-color: var(--sf-gray-5, #e0e0e0);
+}
+
 .integration-toggle {
   align-self: flex-start;
   margin-top: 4px;
