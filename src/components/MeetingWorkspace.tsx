@@ -1,7 +1,25 @@
 import { useMemo, useState } from 'react'
-import { meetingAI, type Meeting, type NotetakerStatus } from '../data/meetings'
+import {
+  meetingAI,
+  meetingAgenticActions,
+  type Meeting,
+  type MeetingAgenticAction,
+  type NotetakerStatus,
+} from '../data/meetings'
 
-type Tab = 'brief' | 'notes' | 'actions' | 'followup' | 'ask'
+type Tab = 'brief' | 'agent' | 'notes' | 'actions' | 'followup' | 'ask'
+
+const AGENTIC_STATE_TONE: Record<MeetingAgenticAction['state'], string> = {
+  ready: 'done',
+  suggested: 'needs',
+  blocked: 'critical',
+}
+
+const AGENTIC_STATE_LABEL: Record<MeetingAgenticAction['state'], string> = {
+  ready: 'Agent ready',
+  suggested: 'One click',
+  blocked: 'Blocked',
+}
 
 const NOTETAKER_LABEL: Record<NotetakerStatus, string> = {
   armed: 'Notetaker armed',
@@ -34,11 +52,27 @@ export function MeetingWorkspace({
   onSyncActions: (meeting: Meeting) => void
 }) {
   const ai = useMemo(() => meetingAI(meeting), [meeting])
+  const agenticActions = useMemo(() => meetingAgenticActions(meeting), [meeting])
   const completed = meeting.status === 'completed'
-  const [tab, setTab] = useState<Tab>(completed ? 'notes' : 'brief')
+  const [tab, setTab] = useState<Tab>(completed ? 'notes' : 'agent')
   const [notetaker, setNotetaker] = useState<NotetakerStatus>(ai.notetaker)
   const [synced, setSynced] = useState(!!ai.syncedToCrm)
   const [askLog, setAskLog] = useState<{ q: string; a: string }[]>([])
+  const [doneActions, setDoneActions] = useState<Set<string>>(new Set())
+
+  const phaseLabel = completed ? 'Post-meeting' : 'Pre-meeting'
+
+  function runAgenticAction(action: MeetingAgenticAction) {
+    if (action.state === 'blocked') {
+      onFlash('This meeting is held — the agent step is blocked until it clears.')
+      return
+    }
+    setDoneActions((prev) => new Set(prev).add(action.id))
+    // The "open next steps as tasks" action reuses the existing task sync.
+    if (action.id.endsWith('-post-tasks')) onSyncActions(meeting)
+    else onFlash(action.done)
+    if (action.id.endsWith('-pre-notetaker')) setNotetaker('armed')
+  }
 
   function askAI(question: string) {
     const answer = completed
@@ -49,6 +83,7 @@ export function MeetingWorkspace({
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'brief', label: 'Prep brief' },
+    { id: 'agent', label: `${phaseLabel} actions · ${agenticActions.length}` },
     { id: 'notes', label: 'AI notes' },
     { id: 'actions', label: `Action items · ${meeting.actions.length}` },
     { id: 'followup', label: 'Follow-up' },
@@ -126,6 +161,47 @@ export function MeetingWorkspace({
                 {meeting.agenda.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
+              </ul>
+            </>
+          )}
+
+          {tab === 'agent' && (
+            <>
+              <h4>{phaseLabel} agentic actions</h4>
+              <p className="muted" style={{ marginTop: 0 }}>
+                {completed
+                  ? 'The meeting is captured. These are the one-click moves to publish and follow up.'
+                  : 'The Concierge prepped these before the call. Review what the agent did, then approve.'}
+              </p>
+              <ul className="meeting-agentic-list">
+                {agenticActions.map((action) => {
+                  const done = doneActions.has(action.id)
+                  return (
+                    <li key={action.id} className={`meeting-agentic-item ${done ? 'is-done' : ''}`}>
+                      <div className="meeting-agentic-head">
+                        <span className={`badge ${done ? 'done' : AGENTIC_STATE_TONE[action.state]}`}>
+                          {done ? 'Done ✓' : AGENTIC_STATE_LABEL[action.state]}
+                        </span>
+                        <strong>{action.label}</strong>
+                      </div>
+                      <div className="muted">{action.detail}</div>
+                      <button
+                        type="button"
+                        className={`btn ${action.state === 'blocked' ? '' : 'primary'} meeting-agentic-btn`}
+                        disabled={done || action.state === 'blocked'}
+                        onClick={() => runAgenticAction(action)}
+                      >
+                        {done
+                          ? 'Completed'
+                          : action.state === 'blocked'
+                            ? 'Blocked'
+                            : action.state === 'ready'
+                              ? 'Review & approve'
+                              : 'Run action'}
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
             </>
           )}

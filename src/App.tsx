@@ -17,10 +17,19 @@ import {
   type FormSection,
 } from './data/onboardingFramework'
 import { buildDrillItems, type DrillItem } from './data/drilldown'
-import { meetingsForHousehold, openMeetingActions, type Meeting } from './data/meetings'
+import {
+  meetings as meetingSeed,
+  meetingsForHousehold,
+  openMeetingActions,
+  createMeeting,
+  meetingAgenticActions,
+  type Meeting,
+  type NewMeetingInput,
+} from './data/meetings'
 import { integrations as integrationCatalog } from './data/integrations'
 import { IntegrationHub } from './components/IntegrationHub'
 import { MeetingWorkspace } from './components/MeetingWorkspace'
+import { ScheduleMeeting } from './components/ScheduleMeeting'
 import { DocumentPreview } from './components/DocumentPreview'
 import type { ComplianceDocument } from './data/onboardingFramework'
 import { MATURITY_LABELS, personsForHousehold, type ContactChannel } from './data/portraits'
@@ -118,6 +127,16 @@ function docStatusClass(status: string) {
   if (status === 'nigo' || status === 'needs_signature') return 'critical'
   if (status === 'pending') return 'needs'
   return 'medium'
+}
+
+function meetingWhen(iso: string) {
+  return new Date(iso).toLocaleString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function actionTypeLabel(type: AdvisorAction['type']) {
@@ -468,6 +487,8 @@ export default function App() {
   const [coworkerOpen, setCoworkerOpen] = useState(false)
   const [portalOpen, setPortalOpen] = useState(false)
   const [playbookMeeting, setPlaybookMeeting] = useState<Meeting | null>(null)
+  const [meetingList, setMeetingList] = useState<Meeting[]>(() => structuredClone(meetingSeed))
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const [integrationHubOpen, setIntegrationHubOpen] = useState(false)
   const [previewDoc, setPreviewDoc] = useState<ComplianceDocument | null>(null)
   const [integrationList, setIntegrationList] = useState(() => integrationCatalog)
@@ -498,10 +519,24 @@ export default function App() {
 
   const clientProgress = useMemo(() => householdProgress(household), [household])
   const bookProgress = useMemo(() => overallProgress(households), [])
+  const householdName = (id: string) => households.find((h) => h.id === id)?.name ?? 'Household'
+  // Book-wide upcoming meetings, soonest first, each with its lead pre-meeting agent action.
+  const upcomingMeetings = useMemo(
+    () =>
+      meetingList
+        .filter((m) => m.status === 'scheduled')
+        .slice()
+        .sort((a, b) => a.when.localeCompare(b.when))
+        .map((m) => ({
+          meeting: m,
+          preAction: meetingAgenticActions(m).find((a) => a.phase === 'pre' && a.state !== 'blocked'),
+        })),
+    [meetingList],
+  )
   const drillItems = useMemo(() => buildDrillItems(household), [household])
   const drillItem = drillItems.find((d) => d.id === drillId) ?? drillItems[0] ?? null
-  const hhMeetings = useMemo(() => meetingsForHousehold(household.id), [household])
-  const hhMeetingActions = useMemo(() => openMeetingActions(household.id), [household])
+  const hhMeetings = useMemo(() => meetingsForHousehold(household.id, meetingList), [household, meetingList])
+  const hhMeetingActions = useMemo(() => openMeetingActions(household.id, meetingList), [household, meetingList])
   const hhOpenCases = useMemo(
     () => deskCases.filter((item) => item.householdId === household.id && item.status !== 'Closed'),
     [deskCases, household.id],
@@ -520,6 +555,41 @@ export default function App() {
 
   const openExceptions = exceptions.filter((e) => !resolved.has(e.id))
   const pendingNotices = clientNotices.filter((notice) => !notice.reviewed)
+  // Book-wide prioritized to-do list: open exceptions (signals) + open meeting
+  // actions, each carrying a recommended action, ranked by urgency then due date.
+  const prioritizedTasks = useMemo(() => {
+    const rank: Record<string, number> = { critical: 0, high: 1, blocked: 1, medium: 2, open: 2 }
+    const fromExceptions = openExceptions.map((ex) => ({
+      id: `pt-ex-${ex.id}`,
+      kind: 'signal' as const,
+      priority: ex.priority,
+      title: ex.title,
+      who: ex.household,
+      recommended: ex.recommendedAction,
+      due: '',
+      onOpen: () => {
+        const match = households.find(
+          (h) => ex.household.includes(h.name.split(' ')[0]) || h.name.includes(ex.household.split(' ')[0]),
+        )
+        if (match) selectHousehold(match.id)
+      },
+    }))
+    const fromMeetings = households
+      .flatMap((h) => openMeetingActions(h.id, meetingList))
+      .map(({ meeting, action }) => ({
+        id: `pt-ma-${action.id}`,
+        kind: 'meeting' as const,
+        priority: action.status === 'blocked' ? 'blocked' : 'high',
+        title: action.title,
+        who: `${householdName(meeting.householdId)} · from “${meeting.title}”`,
+        recommended: action.recommendedReview,
+        due: action.due,
+        onOpen: () => setPlaybookMeeting(meeting),
+      }))
+    return [...fromExceptions, ...fromMeetings]
+      .sort((a, b) => (rank[a.priority] ?? 3) - (rank[b.priority] ?? 3) || a.due.localeCompare(b.due))
+      .slice(0, 8)
+  }, [openExceptions, meetingList])
   const clientMatches = useMemo(() => {
     const query = clientQuery.trim().toLowerCase()
     const ranked = households
@@ -568,7 +638,10 @@ export default function App() {
   const persona = personaValues[personaIdx]
   const openSection: FormSection | undefined = onboarding?.sections.find((s) => s.id === openSectionId)
 
-  const scheduledMeetings = hhMeetings.filter((m) => m.status === 'scheduled')
+  const scheduledMeetings = hhMeetings
+    .filter((m) => m.status === 'scheduled')
+    .slice()
+    .sort((a, b) => a.when.localeCompare(b.when))
   const completedMeetings = hhMeetings.filter((m) => m.status === 'completed')
 
   function updateRecordField(
@@ -1067,6 +1140,18 @@ export default function App() {
     (item) => item.category === 'CRM' && item.status === 'connected',
   )
 
+  function scheduleMeeting(input: NewMeetingInput) {
+    const meeting = createMeeting(input)
+    setMeetingList((prev) => [...prev, meeting])
+    setScheduleOpen(false)
+    pinHousehold(meeting.householdId)
+    setSelectedHhId(meeting.householdId)
+    setShowingBook(false)
+    setCockpitView('status')
+    setPlaybookMeeting(meeting)
+    flash(`Scheduled “${meeting.title}” — Concierge is prepping the brief.`)
+  }
+
   function syncMeetingActions(meeting: Meeting) {
     // Turn AI-extracted action items into tasks in the household work queue,
     // the way Jump/Zoom push follow-ups into the CRM.
@@ -1399,6 +1484,86 @@ export default function App() {
           {showingBook && (
             <>
               <BookPulse households={households} exceptions={openExceptions} onOpenHousehold={selectHousehold} />
+
+              <div className="book-agenda">
+                <aside className="panel book-meetings">
+                  <div className="panel-header">
+                    <span>Upcoming Meetings</span>
+                    <button type="button" className="btn primary sm" onClick={() => setScheduleOpen(true)}>
+                      + Schedule meeting
+                    </button>
+                  </div>
+                  <ul className="book-meeting-list">
+                    {upcomingMeetings.length === 0 && (
+                      <li className="panel-body muted">No meetings scheduled. Use “Schedule meeting” to book one.</li>
+                    )}
+                    {upcomingMeetings.map(({ meeting, preAction }) => (
+                      <li key={meeting.id}>
+                        <button
+                          type="button"
+                          className="book-meeting-card"
+                          onClick={() => setPlaybookMeeting(meeting)}
+                        >
+                          <div className="book-meeting-when">{meetingWhen(meeting.when)}</div>
+                          <div className="book-meeting-title">{meeting.title}</div>
+                          <div className="muted">
+                            {householdName(meeting.householdId)} · {meeting.channel.replace('_', ' ')} · {meeting.playbookName ?? 'Meeting'}
+                          </div>
+                          {preAction && (
+                            <div className="book-meeting-agentic">
+                              <span className="signal-recommend-label">Pre-meeting agent</span>
+                              <span className="signal-recommend-text">{preAction.label} — {preAction.detail}</span>
+                            </div>
+                          )}
+                        </button>
+                        {preAction && (
+                          <button
+                            type="button"
+                            className="action-chip type-schedule primary-action book-meeting-run"
+                            onClick={() => {
+                              flash(preAction.done)
+                            }}
+                          >
+                            {preAction.state === 'ready' ? 'Review prep' : 'Run pre-meeting prep'}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </aside>
+
+                <aside className="panel book-tasks">
+                  <div className="panel-header">
+                    <span>Prioritized Tasks</span>
+                    <span className="muted">{prioritizedTasks.length} to do</span>
+                  </div>
+                  <ul className="book-task-list">
+                    {prioritizedTasks.length === 0 && (
+                      <li className="panel-body muted">All clear — nothing needs you right now.</li>
+                    )}
+                    {prioritizedTasks.map((task) => (
+                      <li key={task.id}>
+                        <button type="button" className="book-task-card" onClick={task.onOpen}>
+                          <div className="book-task-head">
+                            <span className={`badge ${task.priority}`}>{task.priority}</span>
+                            <span className="queue-type">{task.kind === 'signal' ? 'Signal' : 'Meeting'}</span>
+                            <strong>{task.title}</strong>
+                          </div>
+                          <div className="meta">
+                            {task.who}
+                            {task.due ? ` · due ${task.due}` : ''}
+                          </div>
+                          <div className="signal-recommend">
+                            <span className="signal-recommend-label">Recommended</span>
+                            <span className="signal-recommend-text">{task.recommended}</span>
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </aside>
+              </div>
+
               <aside className="panel" style={{ overflow: 'auto' }}>
                 <div className="panel-header">
                   <span>Needs You — Signal Only</span>
@@ -1772,8 +1937,13 @@ export default function App() {
             <div className="panel">
               <div className="panel-header">
                 <span>Meeting Management</span>
-                <span className="muted">
-                  {scheduledMeetings.length} upcoming · {hhMeetingActions.length} open actions
+                <span className="panel-header-tail">
+                  <span className="muted">
+                    {scheduledMeetings.length} upcoming · {hhMeetingActions.length} open actions
+                  </span>
+                  <button type="button" className="btn primary sm" onClick={() => setScheduleOpen(true)}>
+                    + Schedule
+                  </button>
                 </span>
               </div>
               <div className="panel-body">
@@ -2520,6 +2690,15 @@ export default function App() {
             syncMeetingActions(meeting)
             setPlaybookMeeting(null)
           }}
+        />
+      )}
+
+      {scheduleOpen && (
+        <ScheduleMeeting
+          households={households}
+          defaultHouseholdId={showingBook ? households[0].id : household.id}
+          onClose={() => setScheduleOpen(false)}
+          onCreate={scheduleMeeting}
         />
       )}
 
