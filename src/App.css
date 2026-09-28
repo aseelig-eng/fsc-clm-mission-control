@@ -4399,8 +4399,31 @@ button.stage-card.selected {
 }
 
 .portal .portal-nav button.active {
-  background: #142033;
+  background: #147d54;
   color: white;
+}
+
+/* Juniper green accents scoped to the client portal */
+.portal .btn.primary {
+  background: #147d54;
+  border-color: #147d54;
+}
+
+.portal .btn.primary:hover {
+  background: #0f6b48;
+  border-color: #0f6b48;
+}
+
+.portal .portal-ranges button.active {
+  background: #147d54;
+}
+
+.portal .portal-count {
+  background: #147d54;
+}
+
+.portal .portal-pot > span {
+  background: #147d54;
 }
 
 .portal-home {
@@ -4675,6 +4698,92 @@ button.stage-card.selected {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* ── Portal: Juniper Square layout ───────────────────────────── */
+.portal-home.juniper {
+  max-width: 1040px;
+}
+
+.portal-stats {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+
+.portal-stat {
+  background: #fff;
+  border: 1px solid #e6eaf0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.portal-stat.wide {
+  grid-column: span 2;
+}
+
+.portal-stat strong {
+  font-size: 22px;
+  font-weight: 700;
+  color: #142033;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.portal-stat.wide strong {
+  color: #147d54;
+}
+
+.portal-stat span {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #66788a;
+}
+
+.portal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.portal-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+.portal-perf {
+  color: #147d54;
+}
+
+.portal-perf .portal-chart {
+  height: 200px;
+}
+
+.portal-perf .portal-section-head {
+  align-items: flex-start;
+}
+
+.portal-perf .portal-change {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .portal-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .portal-stat.wide {
+    grid-column: span 2;
+  }
+
+  .portal-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Portal: Action center ───────────────────────────────────── */

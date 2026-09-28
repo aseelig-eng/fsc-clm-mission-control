@@ -22,11 +22,12 @@ import type { CoworkerContext } from '../coworker'
 import { AccountBook } from './AccountBook'
 import { CoworkerPanel } from './CoworkerPanel'
 
-type PortalView = 'home' | 'activity' | 'move' | 'request' | 'vault' | 'facts' | 'ask'
+type PortalView = 'home' | 'activity' | 'request' | 'vault' | 'facts' | 'ask'
 type RangeId = '1D' | '1W' | '1M' | '1Y' | 'All'
 type ActivityFilter = 'all' | 'transfer' | 'trade' | 'income'
 
 const SERVICE_KINDS = [
+  { id: 'move', label: 'Move money', action: 'Review the money movement request' },
   { id: 'address', label: 'Update my address', action: 'Update the address on the file' },
   { id: 'beneficiary', label: 'Change a beneficiary', action: 'Review the beneficiary change' },
   { id: 'statement', label: 'Send a statement or tax form', action: 'Send the requested document' },
@@ -121,7 +122,6 @@ export function ClientPortal({
   onAddAccounts,
   onUpdateField,
   onSignDocument,
-  onClientRequest,
   onServiceRequest,
   serviceRequests,
 }: {
@@ -159,7 +159,6 @@ export function ClientPortal({
   const [moveFrom, setMoveFrom] = useState('')
   const [moveAmount, setMoveAmount] = useState('')
   const [moveNote, setMoveNote] = useState('')
-  const [moveSent, setMoveSent] = useState('')
   const [requestKind, setRequestKind] = useState<(typeof SERVICE_KINDS)[number]['id']>('address')
   const [requestDetail, setRequestDetail] = useState('')
   const [requestSent, setRequestSent] = useState('')
@@ -169,7 +168,6 @@ export function ClientPortal({
     setSignName('')
     setSignConsent(false)
     setSignError('')
-    setMoveSent('')
     setRequestSent('')
     setRequestDetail('')
     setOpenAccountId(null)
@@ -298,8 +296,11 @@ export function ClientPortal({
       title: 'A transfer needs you',
       detail: `${account.institution} ···${account.mask} · ${account.status}`,
       tone: 'warn',
-      cta: 'Open transfers',
-      go: () => setView('move'),
+      cta: 'Open a request',
+      go: () => {
+        setRequestKind('transfer')
+        setView('request')
+      },
     })
   }
   if (gaps.length > 0) {
@@ -365,7 +366,6 @@ export function ClientPortal({
             [
               ['home', 'Home'],
               ['activity', 'Activity'],
-              ['move', 'Move'],
               ['request', 'Service'],
               ['vault', 'Documents'],
               ['facts', 'Profile'],
@@ -384,40 +384,33 @@ export function ClientPortal({
         </nav>
         <main className={`portal-main ${view === 'ask' ? 'portal-main-ask' : ''}`}>
           {view === 'home' && (
-            <div className="portal-home">
-              <section className={`portal-hero ${up ? 'up' : 'down'}`}>
-                <p className="portal-hero-label">Household value</p>
-                <p className="portal-total">{usd(totals.total)}</p>
-                <p className={`portal-change ${up ? 'up' : 'down'}`}>
-                  {up ? '+' : '−'}
-                  {usd(Math.abs(change))} ({up ? '+' : '−'}
-                  {Math.abs(changePct).toFixed(1)}%) · {range}
-                </p>
-                <svg className="portal-chart" viewBox="0 0 100 36" preserveAspectRatio="none" role="img" aria-label={`Portfolio value, ${range}`}>
-                  <path d={chartPath(series)} fill="none" stroke="currentColor" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
-                </svg>
-                <div className="portal-ranges" role="tablist" aria-label="Performance range">
-                  {RANGES.map((item) => (
-                    <button key={item} type="button" role="tab" aria-selected={range === item} className={range === item ? 'active' : ''} onClick={() => setRange(item)}>
-                      {item}
-                    </button>
-                  ))}
+            <div className="portal-home juniper">
+              <div className="portal-stats">
+                <div className="portal-stat wide">
+                  <strong>{usd(totals.total)}</strong>
+                  <span>Total household value</span>
                 </div>
-                <div className="portal-split">
-                  <div>
-                    <span>With your advisor</span>
-                    <strong>{usd(totals.managed)}</strong>
-                  </div>
-                  <div>
-                    <span>Held away</span>
-                    <strong>{usd(totals.heldAway)}</strong>
-                  </div>
-                  <div>
-                    <span>Cash</span>
-                    <strong>{usd(cash)}</strong>
-                  </div>
+                <div className="portal-stat">
+                  <strong>{usd(totals.managed)}</strong>
+                  <span>With your advisor</span>
                 </div>
-              </section>
+                <div className="portal-stat">
+                  <strong>{usd(totals.heldAway)}</strong>
+                  <span>Held away</span>
+                </div>
+                <div className="portal-stat">
+                  <strong>{usd(cash)}</strong>
+                  <span>Cash</span>
+                </div>
+                <div className="portal-stat">
+                  <strong>{mine.length}</strong>
+                  <span>Account{mine.length === 1 ? '' : 's'}</span>
+                </div>
+                <div className="portal-stat">
+                  <strong>{positions.length}</strong>
+                  <span>Position{positions.length === 1 ? '' : 's'}</span>
+                </div>
+              </div>
 
               {actionItems.length > 0 && (
                 <section className="portal-section portal-actioncenter">
@@ -442,7 +435,38 @@ export function ClientPortal({
                 </section>
               )}
 
-              <section className="portal-section">
+              <div className="portal-grid">
+              <section className="portal-section portal-perf span-2">
+                <div className="portal-section-head">
+                  <div>
+                    <h3>Portfolio value over time</h3>
+                    <p className={`portal-change ${up ? 'up' : 'down'}`}>
+                      {usd(totals.total)} · {up ? '+' : '−'}
+                      {usd(Math.abs(change))} ({up ? '+' : '−'}
+                      {Math.abs(changePct).toFixed(1)}%) · {range}
+                    </p>
+                  </div>
+                  <div className="portal-ranges" role="tablist" aria-label="Performance range">
+                    {RANGES.map((item) => (
+                      <button key={item} type="button" role="tab" aria-selected={range === item} className={range === item ? 'active' : ''} onClick={() => setRange(item)}>
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <svg className={`portal-chart ${up ? 'up' : 'down'}`} viewBox="0 0 100 36" preserveAspectRatio="none" role="img" aria-label={`Portfolio value, ${range}`}>
+                  <defs>
+                    <linearGradient id="portal-perf-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="currentColor" stopOpacity="0.18" />
+                      <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path d={`${chartPath(series)} L100,36 L0,36 Z`} fill="url(#portal-perf-fill)" stroke="none" />
+                  <path d={chartPath(series)} fill="none" stroke="currentColor" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+                </svg>
+              </section>
+
+              <section className="portal-section span-2">
                 <div className="portal-section-head">
                   <h3>Accounts</h3>
                   <div className="portal-add">
@@ -568,7 +592,7 @@ export function ClientPortal({
                 <ActivityList rows={activity.slice(0, 4)} />
               </section>
 
-              <section className="portal-section portal-team">
+              <section className="portal-section portal-team span-2">
                 <div className="portal-section-head">
                   <h3>Your advisory team</h3>
                   <button type="button" className="btn" onClick={() => setView('ask')}>
@@ -598,6 +622,7 @@ export function ClientPortal({
                   </p>
                 )}
               </section>
+              </div>
             </div>
           )}
           {view === 'activity' && (
@@ -623,79 +648,37 @@ export function ClientPortal({
               {visibleActivity.length === 0 && <p className="muted">Nothing in this view yet.</p>}
             </div>
           )}
-          {view === 'move' && (
-            <div className="portal-home">
-              <section className="portal-section">
-                <h3>Move money</h3>
-                <p>This asks your advisor to move money. It does not send an order to the custodian or to the other firm.</p>
-                {blockedMove.map((account) => (
-                  <p key={account.id} className="portal-spotlight static">
-                    <strong>{account.institution} ···{account.mask}</strong>
-                    <span>{account.status}</span>
-                  </p>
-                ))}
-                {moveSent ? (
-                  <p className="portal-sent">{moveSent}</p>
-                ) : (
-                  <form
-                    className="portal-move"
-                    onSubmit={(event) => {
-                      event.preventDefault()
-                      const account = mine.find((item) => item.id === moveFrom)
-                      const amount = Number(moveAmount.replace(/[^0-9.]/g, ''))
-                      if (!account || !Number.isFinite(amount) || amount <= 0) return
-                      const detail = `${usd(amount)} from ${account.institution} ${account.name} ···${account.mask}${moveNote.trim() ? `. ${moveNote.trim()}` : ''}. Client request. Nothing was sent to the custodian.`
-                      onClientRequest(household.id, 'Client asked to move money', detail)
-                      setMoveSent(`Sent to your advisor: ${usd(amount)} from ···${account.mask}.`)
-                      setMoveAmount('')
-                      setMoveNote('')
-                    }}
-                  >
-                    <label>
-                      From
-                      <select value={moveFrom} onChange={(event) => setMoveFrom(event.target.value)} required>
-                        <option value="">Choose an account</option>
-                        {mine.map((account) => (
-                          <option key={account.id} value={account.id}>
-                            {account.institution} ···{account.mask} · {usd(accountBalance(account))}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Amount
-                      <input value={moveAmount} onChange={(event) => setMoveAmount(event.target.value)} inputMode="decimal" placeholder="5000" required />
-                    </label>
-                    <label>
-                      Note for your advisor
-                      <input value={moveNote} onChange={(event) => setMoveNote(event.target.value)} placeholder="Fund the Roth, or leave this blank" />
-                    </label>
-                    <button type="submit" className="btn primary">
-                      Ask my advisor
-                    </button>
-                  </form>
-                )}
-                <div className="portal-add">
-                  <button type="button" className="btn" onClick={() => setPlaid('pick')}>
-                    Connect a held-away account
-                  </button>
-                  <button type="button" className="btn" onClick={() => setManualOpen(true)}>
-                    Enter one manually
-                  </button>
-                </div>
-              </section>
-            </div>
-          )}
           {view === 'request' && (
             <div className="portal-home">
               <section className="portal-section">
                 <h3>Service request</h3>
                 <p>Tell your advisor what you need. This opens a case on their work list. It does not move money or change the custodian by itself.</p>
+                {requestKind === 'move' && blockedMove.length > 0 && (
+                  <div className="portal-sign-row">
+                    {blockedMove.map((account) => (
+                      <p key={account.id} className="portal-spotlight static">
+                        <strong>{account.institution} ···{account.mask}</strong>
+                        <span>{account.status}</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
                 <form
                   className="portal-move"
                   onSubmit={(event) => {
                     event.preventDefault()
                     const kind = SERVICE_KINDS.find((item) => item.id === requestKind) ?? SERVICE_KINDS[0]
+                    if (kind.id === 'move') {
+                      const account = mine.find((item) => item.id === moveFrom)
+                      const amount = Number(moveAmount.replace(/[^0-9.]/g, ''))
+                      if (!account || !Number.isFinite(amount) || amount <= 0) return
+                      const detail = `${usd(amount)} from ${account.institution} ${account.name} ···${account.mask}${moveNote.trim() ? `. ${moveNote.trim()}` : ''}. Client request. Nothing was sent to the custodian.`
+                      onServiceRequest(household.id, kind.label, detail, kind.action)
+                      setRequestSent(`Sent. Move money is a new case for your advisor: ${usd(amount)} from ···${account.mask}.`)
+                      setMoveAmount('')
+                      setMoveNote('')
+                      return
+                    }
                     const detail = requestDetail.trim()
                     if (!detail) return
                     onServiceRequest(household.id, kind.label, detail, kind.action)
@@ -713,20 +696,47 @@ export function ClientPortal({
                       ))}
                     </select>
                   </label>
-                  <label>
-                    Details
-                    <textarea
-                      value={requestDetail}
-                      onChange={(event) => setRequestDetail(event.target.value)}
-                      placeholder="What should your advisor do?"
-                      required
-                      rows={4}
-                    />
-                  </label>
+                  {requestKind === 'move' ? (
+                    <>
+                      <label>
+                        From
+                        <select value={moveFrom} onChange={(event) => setMoveFrom(event.target.value)} required>
+                          <option value="">Choose an account</option>
+                          {mine.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.institution} ···{account.mask} · {usd(accountBalance(account))}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Amount
+                        <input value={moveAmount} onChange={(event) => setMoveAmount(event.target.value)} inputMode="decimal" placeholder="5000" required />
+                      </label>
+                      <label>
+                        Note for your advisor
+                        <input value={moveNote} onChange={(event) => setMoveNote(event.target.value)} placeholder="Fund the Roth, or leave this blank" />
+                      </label>
+                    </>
+                  ) : (
+                    <label>
+                      Details
+                      <textarea
+                        value={requestDetail}
+                        onChange={(event) => setRequestDetail(event.target.value)}
+                        placeholder="What should your advisor do?"
+                        required
+                        rows={4}
+                      />
+                    </label>
+                  )}
                   <button type="submit" className="btn primary">
                     Submit request
                   </button>
                 </form>
+                {requestKind === 'move' && (
+                  <p className="muted">This asks your advisor to move money. It does not send an order to the custodian or to the other firm.</p>
+                )}
                 {requestSent && <p className="portal-sent">{requestSent}</p>}
                 {serviceRequests.length > 0 && (
                   <ul className="portal-activity">
