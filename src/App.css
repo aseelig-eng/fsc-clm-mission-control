@@ -1702,6 +1702,43 @@ h4 {
   box-shadow: 0 4px 16px rgba(1, 118, 211, 0.12);
 }
 
+.pulse-brief-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pulse-brief-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--sf-gray-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pulse-brief {
+  margin: 6px 0 12px;
+  padding-left: 12px;
+  border-left: 3px solid var(--sf-blue);
+}
+
+.pulse-brief p {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sf-gray-2);
+}
+
+.pulse-brief p:last-child {
+  margin-bottom: 0;
+}
+
+.pulse-brief-lead {
+  font-weight: 600;
+  color: var(--sf-gray-1) !important;
+}
+
 .pulse-header {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
