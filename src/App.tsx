@@ -59,7 +59,7 @@ import {
   type CaseStatus,
   type TaskStatus,
 } from './data/serviceDesk'
-import { AccountBook } from './components/AccountBook'
+import { PortfolioOverview } from './components/PortfolioOverview'
 import { CoworkerPanel } from './components/CoworkerPanel'
 import type { CoworkerAction } from './coworker'
 import { initialAccounts, usd, type ClientNotice, type FinancialAccount } from './data/accounts'
@@ -489,6 +489,7 @@ function ReviewPanel({
 export default function App() {
   const [role, setRole] = useState<Role>('advisor')
   const [cockpitView, setCockpitView] = useState<'status' | 'work' | 'record'>('status')
+  const [recordTab, setRecordTab] = useState<'accounts' | 'portfolio' | 'forms' | 'documents'>('accounts')
   const [showingBook, setShowingBook] = useState(true)
   const [selectedHhId, setSelectedHhId] = useState(households[0].id)
   const [openTabs, setOpenTabs] = useState<string[]>([])
@@ -1803,31 +1804,64 @@ export default function App() {
 
             {!showingBook && cockpitView === 'record' && onboarding && completeness && (
               <>
-              <div className="panel">
-                <div className="panel-header">
-                  <span>Financial Accounts</span>
-                  <span className="muted">
-                    {accounts.filter((account) => account.householdId === household.id && account.review === 'pending').length > 0
-                      ? 'Client addition waiting on you'
-                      : 'Managed and held-away'}
-                  </span>
-                </div>
-                <div className="panel-body">
-                  <AccountBook accounts={accounts.filter((account) => account.householdId === household.id)} />
-                </div>
+              <div className="record-subtabs" role="tablist" aria-label="Record sections">
+                {(
+                  [
+                    ['accounts', 'Financial Accounts'],
+                    ['portfolio', 'Portfolio Planner'],
+                    ['forms', 'Data & Forms'],
+                    ['documents', 'Documents'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={recordTab === id}
+                    className={recordTab === id ? 'active' : ''}
+                    onClick={() => setRecordTab(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-              <AdviceDesk
-                key={`${household.id}-record`}
-                plan={plans[household.id]}
-                portfolio={portfolios[household.id]}
-                showPlan
-                showPortfolio
-                onPlan={(patch) => setPlans((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))}
-                onPortfolio={(patch) =>
-                  setPortfolios((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
-                }
-              />
-              <div className="framework-grid">
+
+              {recordTab === 'accounts' && (
+                <div className="panel">
+                  <div className="panel-header">
+                    <h3 className="panel-title">Financial Accounts</h3>
+                    <span className="muted">
+                      {accounts.filter((account) => account.householdId === household.id && account.review === 'pending').length > 0
+                        ? 'Client addition waiting on you'
+                        : 'The same portfolio view your client sees'}
+                    </span>
+                  </div>
+                  <div className="panel-body">
+                    <PortfolioOverview
+                      accounts={accounts.filter((account) => account.householdId === household.id)}
+                      goals={plans[household.id]?.goals ?? []}
+                      targetEquity={portfolios[household.id]?.targetEquity ?? null}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {recordTab === 'portfolio' && (
+                <AdviceDesk
+                  key={`${household.id}-record`}
+                  plan={plans[household.id]}
+                  portfolio={portfolios[household.id]}
+                  showPlan
+                  showPortfolio
+                  onPlan={(patch) => setPlans((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))}
+                  onPortfolio={(patch) =>
+                    setPortfolios((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
+                  }
+                />
+              )}
+
+              {recordTab === 'forms' && (
+              <div className="framework-grid single">
                 <div className="panel">
                   <div className="panel-header">
                     <span>Data &amp; Forms — Person Account</span>
@@ -1925,7 +1959,10 @@ export default function App() {
                     )}
                   </div>
                 </div>
+              </div>
+              )}
 
+              {recordTab === 'documents' && (
                 <div className="panel">
                   <div className="panel-header">
                     <span>Compliance Document Vault</span>
@@ -1973,8 +2010,7 @@ export default function App() {
                     </ul>
                   </div>
                 </div>
-
-              </div>
+              )}
               </>
             )}
 

@@ -583,6 +583,46 @@ h4 {
   padding: 12px 14px;
 }
 
+/* Panel title that matches the AdviceDesk "Portfolio Planner" h3 (16px). */
+.panel-title {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: 700;
+}
+
+/* Record-page sub-tabs — pill bar, mirrors .acct-filters styling. */
+.record-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.record-subtabs button {
+  border: 1px solid var(--sf-gray-5);
+  background: white;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  color: #24415f;
+}
+
+.record-subtabs button:hover {
+  background: var(--sf-gray-6);
+}
+
+.record-subtabs button.active {
+  background: #10243f;
+  color: white;
+  border-color: #10243f;
+}
+
+.framework-grid.single {
+  grid-template-columns: 1fr;
+}
+
 .muted {
   color: var(--sf-gray-3);
   font-size: var(--text-meta);

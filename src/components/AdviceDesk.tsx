@@ -237,7 +237,7 @@ export function AdviceDesk({
       {showPortfolio && (
         <section className="advice-card">
           <header>
-            <h3>Portfolio</h3>
+            <h3>Portfolio Planner</h3>
             <p>Proposal through funding, reviews, and estate.</p>
           </header>
           {portfolio.targetEquity != null && (
