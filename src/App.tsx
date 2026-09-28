@@ -27,7 +27,11 @@ import {
   type Meeting,
   type NewMeetingInput,
 } from './data/meetings'
-import { integrations as integrationCatalog } from './data/integrations'
+import {
+  integrations as integrationCatalog,
+  type Integration,
+  type IntegrationStatus,
+} from './data/integrations'
 import { IntegrationHub } from './components/IntegrationHub'
 import { MeetingWorkspace } from './components/MeetingWorkspace'
 import { MeetingPrepBrief, type PrepSignal } from './components/MeetingPrepBrief'
@@ -70,6 +74,35 @@ import {
 } from './data/progress'
 import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, Role } from './data/types'
 import './App.css'
+
+// Persist only each integration's connected/available status by id, keyed off the
+// live catalog so new/removed sources still flow through on the next load.
+const INTEGRATION_STATUS_KEY = 'fsc-clm.integration-status.v1'
+
+function loadIntegrationList(): Integration[] {
+  let saved: Record<string, IntegrationStatus> = {}
+  try {
+    const raw = localStorage.getItem(INTEGRATION_STATUS_KEY)
+    if (raw) saved = JSON.parse(raw) as Record<string, IntegrationStatus>
+  } catch {
+    saved = {}
+  }
+  return integrationCatalog.map((item) =>
+    saved[item.id] && saved[item.id] !== item.status
+      ? { ...item, status: saved[item.id] }
+      : item,
+  )
+}
+
+function saveIntegrationList(list: Integration[]) {
+  try {
+    const map: Record<string, IntegrationStatus> = {}
+    for (const item of list) map[item.id] = item.status
+    localStorage.setItem(INTEGRATION_STATUS_KEY, JSON.stringify(map))
+  } catch {
+    // storage unavailable (private mode / quota) — connection stays session-local
+  }
+}
 
 function dayPart() {
   const hour = new Date().getHours()
@@ -496,7 +529,7 @@ export default function App() {
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [integrationHubOpen, setIntegrationHubOpen] = useState(false)
   const [previewDoc, setPreviewDoc] = useState<ComplianceDocument | null>(null)
-  const [integrationList, setIntegrationList] = useState(() => integrationCatalog)
+  const [integrationList, setIntegrationList] = useState(() => loadIntegrationList())
   const [portalHouseholdId, setPortalHouseholdId] = useState(households[0].id)
   const [plans, setPlans] = useState<Record<string, PlanState>>(() => initialPlans)
   const [portfolios, setPortfolios] = useState<Record<string, PortfolioState>>(() => initialPortfolios)
@@ -1173,6 +1206,10 @@ export default function App() {
     ])
     flash(`${signedName} signed ${doc.name}. The packet is in good order for resubmit.`)
   }
+
+  useEffect(() => {
+    saveIntegrationList(integrationList)
+  }, [integrationList])
 
   function toggleIntegration(id: string) {
     setIntegrationList((prev) =>
