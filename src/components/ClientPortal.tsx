@@ -36,6 +36,22 @@ const SERVICE_KINDS = [
   { id: 'other', label: 'Something else', action: 'Respond to the request' },
 ] as const
 
+// Client-facing meeting types, mirroring the advisor Meeting Concierge.
+const MEETING_TYPES = [
+  { id: 'discovery', label: 'Discovery / planning' },
+  { id: 'annual_review', label: 'Annual review' },
+  { id: 'proposal', label: 'Proposal / IPS review' },
+  { id: 'service', label: 'Service check-in' },
+  { id: 'estate', label: 'Estate / beneficiary' },
+] as const
+
+// Channels mirror ScheduleMeeting (video → Zoom, phone → RingCentral, in person).
+const MEETING_CHANNELS = [
+  { id: 'video', label: 'Video', via: 'Zoom' },
+  { id: 'phone', label: 'Phone', via: 'RingCentral' },
+  { id: 'in_person', label: 'In person', via: 'Mobile notetaker' },
+] as const
+
 const RANGES: RangeId[] = ['1D', '1W', '1M', '1Y', 'All']
 
 function clientName(householdId: string, fallback: string) {
@@ -162,6 +178,11 @@ export function ClientPortal({
   const [requestKind, setRequestKind] = useState<(typeof SERVICE_KINDS)[number]['id']>('address')
   const [requestDetail, setRequestDetail] = useState('')
   const [requestSent, setRequestSent] = useState('')
+  const [meetingType, setMeetingType] = useState<(typeof MEETING_TYPES)[number]['id']>('discovery')
+  const [meetingDate, setMeetingDate] = useState('2026-10-01')
+  const [meetingTime, setMeetingTime] = useState('10:00')
+  const [meetingChannel, setMeetingChannel] = useState<(typeof MEETING_CHANNELS)[number]['id']>('video')
+  const [meetingNote, setMeetingNote] = useState('')
 
   useEffect(() => {
     setSigningId(null)
@@ -170,6 +191,7 @@ export function ClientPortal({
     setSignError('')
     setRequestSent('')
     setRequestDetail('')
+    setMeetingNote('')
     setOpenAccountId(null)
   }, [household.id])
 
@@ -800,6 +822,17 @@ export function ClientPortal({
                       setMoveNote('')
                       return
                     }
+                    if (kind.id === 'meeting') {
+                      if (!meetingDate || !meetingTime) return
+                      const typeLabel = MEETING_TYPES.find((item) => item.id === meetingType)?.label ?? 'Meeting'
+                      const channel = MEETING_CHANNELS.find((item) => item.id === meetingChannel) ?? MEETING_CHANNELS[0]
+                      const when = `${meetingDate} at ${meetingTime}`
+                      const detail = `${typeLabel} · ${when} · ${channel.label} (${channel.via})${meetingNote.trim() ? `. ${meetingNote.trim()}` : ''}. Client-requested meeting. The Concierge will prep a brief and arm the notetaker.`
+                      onServiceRequest(household.id, kind.label, detail, kind.action)
+                      setRequestSent(`Sent. Your advisor will confirm a ${typeLabel.toLowerCase()} on ${when} via ${channel.label}.`)
+                      setMeetingNote('')
+                      return
+                    }
                     const detail = requestDetail.trim()
                     if (!detail) return
                     onServiceRequest(household.id, kind.label, detail, kind.action)
@@ -839,6 +872,56 @@ export function ClientPortal({
                         <input value={moveNote} onChange={(event) => setMoveNote(event.target.value)} placeholder="Fund the Roth, or leave this blank" />
                       </label>
                     </>
+                  ) : requestKind === 'meeting' ? (
+                    <>
+                      <div className="portal-meeting-grid">
+                        <label>
+                          Meeting type
+                          <select value={meetingType} onChange={(event) => setMeetingType(event.target.value as (typeof MEETING_TYPES)[number]['id'])}>
+                            {MEETING_TYPES.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Channel
+                          <select value={meetingChannel} onChange={(event) => setMeetingChannel(event.target.value as (typeof MEETING_CHANNELS)[number]['id'])}>
+                            {MEETING_CHANNELS.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.label} · {item.via}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Preferred date
+                          <input type="date" value={meetingDate} onChange={(event) => setMeetingDate(event.target.value)} required />
+                        </label>
+                        <label>
+                          Preferred time
+                          <input type="time" value={meetingTime} onChange={(event) => setMeetingTime(event.target.value)} required />
+                        </label>
+                      </div>
+                      <label>
+                        What would you like to cover?
+                        <textarea
+                          value={meetingNote}
+                          onChange={(event) => setMeetingNote(event.target.value)}
+                          placeholder="A topic or question — optional"
+                          rows={3}
+                        />
+                      </label>
+                      <div className="callout portal-concierge">
+                        <strong>Your advisor’s Concierge will prep this meeting</strong>
+                        <ul>
+                          <li>Assemble a prep brief from your household file.</li>
+                          <li>Arm the AI notetaker to join via {MEETING_CHANNELS.find((item) => item.id === meetingChannel)?.via}.</li>
+                          <li>Send you an agenda confirmation once the time is set.</li>
+                        </ul>
+                      </div>
+                    </>
                   ) : (
                     <label>
                       Details
@@ -852,11 +935,14 @@ export function ClientPortal({
                     </label>
                   )}
                   <button type="submit" className="btn primary">
-                    Submit request
+                    {requestKind === 'meeting' ? 'Request meeting' : 'Submit request'}
                   </button>
                 </form>
                 {requestKind === 'move' && (
                   <p className="muted">This asks your advisor to move money. It does not send an order to the custodian or to the other firm.</p>
+                )}
+                {requestKind === 'meeting' && (
+                  <p className="muted">This sends a meeting request to your advisor. They’ll confirm the exact time — nothing is on the calendar until they accept.</p>
                 )}
                 {requestSent && <p className="portal-sent">{requestSent}</p>}
                 {serviceRequests.length > 0 && (

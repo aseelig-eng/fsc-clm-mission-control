@@ -4761,6 +4761,42 @@ button.stage-card.selected {
   border: 1px solid #d5dde6;
 }
 
+.portal-move:has(.portal-meeting-grid) {
+  max-width: 560px;
+}
+
+.portal-meeting-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.portal-concierge {
+  margin: 2px 0 0;
+}
+
+.portal-concierge strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.portal-concierge ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #4a5a6a;
+}
+
+.portal-concierge ul li {
+  margin: 2px 0;
+}
+
+@media (max-width: 720px) {
+  .portal-meeting-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .portal-sent {
   color: #1b7f4a;
   font-weight: 700;
