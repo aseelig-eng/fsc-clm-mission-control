@@ -22,7 +22,7 @@ import type { CoworkerContext } from '../coworker'
 import { AccountBook } from './AccountBook'
 import { CoworkerPanel } from './CoworkerPanel'
 
-type PortalView = 'home' | 'activity' | 'request' | 'vault' | 'facts' | 'ask'
+type PortalView = 'home' | 'portfolio' | 'request' | 'vault' | 'facts' | 'ask'
 type RangeId = '1D' | '1W' | '1M' | '1Y' | 'All'
 type ActivityFilter = 'all' | 'transfer' | 'trade' | 'income'
 
@@ -412,7 +412,7 @@ export function ClientPortal({
           {(
             [
               ['home', 'Home'],
-              ['activity', 'Activity'],
+              ['portfolio', 'Portfolio Overview'],
               ['request', 'Service'],
               ['vault', 'Documents'],
               ['facts', 'Profile'],
@@ -608,7 +608,10 @@ export function ClientPortal({
                   )}
                 </section>
               </div>
-
+            </div>
+          )}
+          {view === 'portfolio' && (
+            <div className="portal-home juniper">
               <div className="portal-grid">
               <section className="portal-section portal-perf span-2">
                 <div className="portal-section-head">
@@ -756,39 +759,28 @@ export function ClientPortal({
                 </section>
               )}
 
-              <section className="portal-section">
+              <section className="portal-section span-2">
                 <div className="portal-section-head">
-                  <h3>Latest activity</h3>
-                  <button type="button" className="btn" onClick={() => setView('activity')}>
-                    See all
-                  </button>
+                  <h3>Activity</h3>
+                  <div className="portal-ranges" role="tablist" aria-label="Activity type">
+                    {(
+                      [
+                        ['all', 'All'],
+                        ['transfer', 'Transfers'],
+                        ['trade', 'Trades'],
+                        ['income', 'Income'],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button key={id} type="button" role="tab" aria-selected={activityFilter === id} className={activityFilter === id ? 'active' : ''} onClick={() => setActivityFilter(id)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <ActivityList rows={activity.slice(0, 4)} />
+                <ActivityList rows={visibleActivity} />
+                {visibleActivity.length === 0 && <p className="muted">Nothing in this view yet.</p>}
               </section>
               </div>
-            </div>
-          )}
-          {view === 'activity' && (
-            <div className="portal-home">
-              <div className="portal-section-head">
-                <h3>Activity</h3>
-              </div>
-              <div className="portal-ranges" role="tablist" aria-label="Activity type">
-                {(
-                  [
-                    ['all', 'All'],
-                    ['transfer', 'Transfers'],
-                    ['trade', 'Trades'],
-                    ['income', 'Income'],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button key={id} type="button" className={activityFilter === id ? 'active' : ''} onClick={() => setActivityFilter(id)}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <ActivityList rows={visibleActivity} />
-              {visibleActivity.length === 0 && <p className="muted">Nothing in this view yet.</p>}
             </div>
           )}
           {view === 'request' && (
