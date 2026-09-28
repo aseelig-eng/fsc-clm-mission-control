@@ -30,6 +30,7 @@ import {
 import { integrations as integrationCatalog } from './data/integrations'
 import { IntegrationHub } from './components/IntegrationHub'
 import { MeetingWorkspace } from './components/MeetingWorkspace'
+import { MeetingPrepBrief, type PrepSignal } from './components/MeetingPrepBrief'
 import { ScheduleMeeting } from './components/ScheduleMeeting'
 import { DocumentPreview } from './components/DocumentPreview'
 import type { ComplianceDocument } from './data/onboardingFramework'
@@ -490,6 +491,7 @@ export default function App() {
   const [coworkerOpen, setCoworkerOpen] = useState(false)
   const [portalOpen, setPortalOpen] = useState(false)
   const [playbookMeeting, setPlaybookMeeting] = useState<Meeting | null>(null)
+  const [prepBriefMeeting, setPrepBriefMeeting] = useState<Meeting | null>(null)
   const [meetingList, setMeetingList] = useState<Meeting[]>(() => structuredClone(meetingSeed))
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [integrationHubOpen, setIntegrationHubOpen] = useState(false)
@@ -1545,10 +1547,17 @@ export default function App() {
                     )}
                     {upcomingMeetings.map(({ meeting, preAction }) => (
                       <li key={meeting.id}>
-                        <button
-                          type="button"
+                        <div
+                          role="button"
+                          tabIndex={0}
                           className="book-meeting-card"
                           onClick={() => setPlaybookMeeting(meeting)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              setPlaybookMeeting(meeting)
+                            }
+                          }}
                         >
                           <div className="book-meeting-when">{meetingWhen(meeting.when)}</div>
                           <div className="book-meeting-title">{meeting.title}</div>
@@ -1556,23 +1565,24 @@ export default function App() {
                             {householdName(meeting.householdId)} · {meeting.channel.replace('_', ' ')} · {meeting.playbookName ?? 'Meeting'}
                           </div>
                           {preAction && (
-                            <div className="book-meeting-agentic">
-                              <span className="signal-recommend-label">Pre-meeting agent</span>
-                              <span className="signal-recommend-text">{preAction.label} — {preAction.detail}</span>
-                            </div>
+                            <>
+                              <div className="book-meeting-agentic">
+                                <span className="signal-recommend-label">Pre-meeting agent</span>
+                                <span className="signal-recommend-text">{preAction.label} — {preAction.detail}</span>
+                              </div>
+                              <button
+                                type="button"
+                                className="action-chip type-schedule primary-action book-meeting-run"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setPrepBriefMeeting(meeting)
+                                }}
+                              >
+                                {preAction.state === 'ready' ? 'Review prep' : 'Run pre-meeting prep'}
+                              </button>
+                            </>
                           )}
-                        </button>
-                        {preAction && (
-                          <button
-                            type="button"
-                            className="action-chip type-schedule primary-action book-meeting-run"
-                            onClick={() => {
-                              flash(preAction.done)
-                            }}
-                          >
-                            {preAction.state === 'ready' ? 'Review prep' : 'Run pre-meeting prep'}
-                          </button>
-                        )}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -2789,6 +2799,29 @@ export default function App() {
             syncMeetingActions(meeting)
             setPlaybookMeeting(null)
           }}
+        />
+      )}
+
+      {prepBriefMeeting && (
+        <MeetingPrepBrief
+          meeting={prepBriefMeeting}
+          householdName={householdName(prepBriefMeeting.householdId)}
+          openCases={deskCases.filter(
+            (c) => c.householdId === prepBriefMeeting.householdId && c.status !== 'Closed',
+          )}
+          openSignals={exceptionsForHousehold(
+            households.find((h) => h.id === prepBriefMeeting.householdId) ?? household,
+            openExceptions,
+          ).map<PrepSignal>((ex) => ({
+            id: ex.id,
+            title: ex.title,
+            priority: ex.priority,
+            recommended: ex.recommendedAction,
+          }))}
+          openActions={openMeetingActions(prepBriefMeeting.householdId, meetingList).map((x) => x.action)}
+          onClose={() => setPrepBriefMeeting(null)}
+          onFlash={flash}
+          onOpenWorkspace={() => setPlaybookMeeting(prepBriefMeeting)}
         />
       )}
 
