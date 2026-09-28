@@ -31,7 +31,8 @@ import { AdviceDesk } from './components/AdviceDesk'
 import { initialPlans, initialPortfolios, PLAN_STAGES, type PlanState, type PortfolioState } from './data/advice'
 import { GenerationalHandoff } from './components/GenerationalHandoff'
 import { handoffFor } from './data/generational'
-import { factsForStage } from './data/stageFacts'
+import { stageMetrics } from './data/stageFacts'
+import { recordFieldMap } from './data/documentTemplates'
 import { ClientPortal } from './components/ClientPortal'
 import { ServiceDesk } from './components/ServiceDesk'
 import {
@@ -1477,7 +1478,7 @@ export default function App() {
                 )}
 
                 <div className="lifecycle-block">
-                  <div className="lifecycle-block-title">{household.name} — Lifecycle</div>
+                  <div className="lifecycle-block-title">{household.name} — Lifecycle Stage</div>
                 <div className="lifecycle-rail">
                   {household.stages.map((s) => {
                     const needsResolution =
@@ -1510,7 +1511,7 @@ export default function App() {
                 <ProgressBar
                   size="md"
                   pct={stageBar?.pct ?? clientProgress.pct}
-                  label="Client Lifecycle Progress"
+                  label={`${selectedStage?.label ?? household.stageLabel} Stage Progress`}
                   detail={
                     stageBar?.detail ??
                     `${clientProgress.complete} complete · ${clientProgress.inFlight} in flight · current: ${household.stageLabel}`
@@ -1519,22 +1520,15 @@ export default function App() {
                 />
 
                 <div className="hh-summary" style={{ marginTop: 12 }}>
-                  <div>
-                    <div className="k">AUM / stage</div>
-                    <div className="v">{selectedStage ? factsForStage(household, selectedStage).aum : '—'}</div>
-                  </div>
-                  <div>
-                    <div className="k">Current stage</div>
-                    <div className="v">{selectedStage?.label ?? household.stageLabel}</div>
-                  </div>
-                  <div>
-                    <div className="k">Risk / IPS</div>
-                    <div className="v">{selectedStage ? factsForStage(household, selectedStage).risk : '—'}</div>
-                  </div>
-                  <div>
-                    <div className="k">Next client touch</div>
-                    <div className="v">{selectedStage ? factsForStage(household, selectedStage).nextTouch : '—'}</div>
-                  </div>
+                  {(selectedStage
+                    ? stageMetrics(household, selectedStage, recordFieldMap(onboarding))
+                    : []
+                  ).map((m) => (
+                    <div key={m.label}>
+                      <div className="k">{m.label}</div>
+                      <div className="v">{m.value}</div>
+                    </div>
+                  ))}
                 </div>
 
                 {(() => {

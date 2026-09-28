@@ -24,6 +24,8 @@ dist-ssr
 /record-2up.png
 /doc-iaa-filed.png
 /doc-tod-draft.png
+/lifecycle-check.png
+/lifecycle-stage-metrics.png
 
 # Editor directories and files
 .vscode/*
