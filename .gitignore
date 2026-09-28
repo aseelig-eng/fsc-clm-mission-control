@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Test/screenshot artifacts
+.playwright-mcp
+/hub-logos.png
+/integration-hub.png
+/meeting-workspace.png
+/followup-tab.png
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

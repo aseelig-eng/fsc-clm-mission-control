@@ -22,6 +22,36 @@ export interface MeetingActionItem {
   relatedStage?: LifecycleStageId
 }
 
+/** AI notetaker state, matching Zoom AI Companion / Jump Notetaker / Granola */
+export type NotetakerStatus = 'armed' | 'recording' | 'processing' | 'ready' | 'off'
+
+export interface TranscriptLine {
+  speaker: string
+  /** mm:ss offset into the call */
+  at: string
+  text: string
+}
+
+export interface MeetingAI {
+  notetaker: NotetakerStatus
+  /** Which connected platform captured it (Zoom, Teams, Meet…) */
+  source?: string
+  recorded?: boolean
+  transcriptMinutes?: number
+  /** AI-generated summary paragraph (Zoom AI Companion style) */
+  summary?: string
+  /** Bulleted key takeaways / highlights */
+  takeaways?: string[]
+  /** Speaker-attributed transcript excerpt */
+  transcript?: TranscriptLine[]
+  /** Drafted follow-up email the advisor approves and sends */
+  followupEmail?: { subject: string; body: string }
+  /** Suggested "Ask AI about this meeting" prompts */
+  askSuggestions?: string[]
+  /** Whether the AI output has been pushed to the CRM interaction summary */
+  syncedToCrm?: boolean
+}
+
 export interface Meeting {
   id: string
   householdId: string
@@ -43,6 +73,8 @@ export interface Meeting {
   /** Post-meeting next steps, the way an interaction summary publishes them */
   nextSteps?: string[]
   prepBriefReady?: boolean
+  /** AI notetaker + assistant output */
+  ai?: MeetingAI
 }
 
 export const meetings: Meeting[] = [
@@ -398,6 +430,94 @@ export const meetings: Meeting[] = [
     prepBriefReady: true,
   },
 ]
+
+const CHANNEL_SOURCE: Record<Meeting['channel'], string> = {
+  video: 'Zoom',
+  phone: 'RingCentral',
+  in_person: 'Mobile notetaker',
+}
+
+function firstName(attendee: string) {
+  return attendee.split(' ')[0]
+}
+
+/**
+ * Synthesize the AI notetaker + assistant output for a meeting from what the
+ * meeting already knows (agenda, summary, decisions, actions, next steps).
+ * Completed meetings get a full recording + transcript + summary; scheduled
+ * meetings get an armed notetaker and a prep-brief posture. This mirrors the
+ * Zoom AI Companion / Jump Notetaker / Granola experience without hand-authoring
+ * every field on every meeting.
+ */
+export function meetingAI(m: Meeting): MeetingAI {
+  if (m.ai) return m.ai
+  const client = m.attendees.find((a) => !/rivera|lee|ortiz|specialist|compliance|counsel|cra|paraplanner/i.test(a)) ?? m.attendees[0]
+  const clientFirst = firstName(client ?? 'the client')
+
+  if (m.status === 'completed') {
+    const minutes = m.channel === 'in_person' ? 45 : 38
+    const takeaways = [
+      ...(m.decisions ?? []).map((d) => `Decision: ${d}`),
+      ...(m.nextSteps ?? []).slice(0, 3).map((n) => `Next: ${n}`),
+    ].slice(0, 5)
+    const transcript: TranscriptLine[] = [
+      { speaker: 'A. Rivera', at: '00:42', text: `Thanks for the time today — I want to make sure we land ${m.agenda[0]?.toLowerCase() ?? 'the agenda'}.` },
+      { speaker: clientFirst, at: '01:15', text: m.summary?.split('.')[0] ?? 'That works for me, and here is where I stand.' },
+      { speaker: 'A. Rivera', at: '04:03', text: (m.decisions?.[0] ? `So we are agreed to ${m.decisions[0].toLowerCase()}.` : 'Let me recap what we agreed.') },
+      { speaker: clientFirst, at: '04:20', text: 'Yes, that reflects what we discussed.' },
+    ]
+    return {
+      notetaker: 'ready',
+      source: CHANNEL_SOURCE[m.channel],
+      recorded: m.channel !== 'in_person',
+      transcriptMinutes: minutes,
+      summary:
+        m.summary ??
+        `${m.title} with ${client}. The conversation covered ${m.agenda.slice(0, 3).join(', ').toLowerCase()}. Decisions and next steps were captured and synced to the household file.`,
+      takeaways: takeaways.length > 0 ? takeaways : m.agenda.map((a) => `Covered: ${a}`),
+      transcript,
+      followupEmail: {
+        subject: `Recap — ${m.title}`,
+        body: [
+          `Hi ${clientFirst},`,
+          '',
+          `Thank you for the time today. Here is a quick recap of what we covered and the next steps.`,
+          '',
+          ...(m.decisions ?? []).map((d) => `• ${d}`),
+          ...(m.nextSteps ?? []).map((n) => `• Next: ${n}`),
+          '',
+          'I will keep the file updated and follow up as these progress. Let me know if I missed anything.',
+          '',
+          'Best,',
+          'A. Rivera',
+        ].join('\n'),
+      },
+      askSuggestions: [
+        'What did the client commit to?',
+        'List every open action item and owner.',
+        'Draft a note for the compliance file.',
+      ],
+      syncedToCrm: true,
+    }
+  }
+
+  // Scheduled / upcoming — notetaker armed, brief posture.
+  return {
+    notetaker: m.prepBriefReady ? 'armed' : 'off',
+    source: CHANNEL_SOURCE[m.channel],
+    recorded: false,
+    summary: m.prepBriefReady
+      ? `Notetaker is armed to join this ${m.channel.replace('_', ' ')} meeting. It will record, transcribe, and draft a summary + action items when the call ends.`
+      : 'Notetaker is held until this meeting is unblocked. No capture will run.',
+    takeaways: m.preBrief ?? m.agenda.map((a) => `Plan to cover: ${a}`),
+    askSuggestions: [
+      `What should I open with for ${clientFirst}?`,
+      'What is still missing from the file before this meeting?',
+      'Summarize the last meeting with this household.',
+    ],
+    syncedToCrm: false,
+  }
+}
 
 export function meetingsForHousehold(householdId: string) {
   return meetings.filter((m) => m.householdId === householdId)

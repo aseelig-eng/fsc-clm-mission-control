@@ -17,6 +17,9 @@ import {
 } from './data/onboardingFramework'
 import { buildDrillItems, type DrillItem } from './data/drilldown'
 import { meetingsForHousehold, openMeetingActions, type Meeting } from './data/meetings'
+import { integrations as integrationCatalog } from './data/integrations'
+import { IntegrationHub } from './components/IntegrationHub'
+import { MeetingWorkspace } from './components/MeetingWorkspace'
 import { MATURITY_LABELS, personsForHousehold, type ContactChannel } from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
 import { BookPulse } from './components/BookPulse'
@@ -304,10 +307,17 @@ function NeedsYouCard({
   const { primary, rest } = splitActions(actions)
   return (
     <li>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         className={`exception-item ${selected ? 'selected' : ''}`}
         onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpen()
+          }
+        }}
       >
         <div className="title">
           <span className="queue-type">Signal</span>
@@ -341,7 +351,7 @@ function NeedsYouCard({
             ))}
           </div>
         )}
-      </button>
+      </div>
     </li>
   )
 }
@@ -453,6 +463,8 @@ export default function App() {
   const [coworkerOpen, setCoworkerOpen] = useState(false)
   const [portalOpen, setPortalOpen] = useState(false)
   const [playbookMeeting, setPlaybookMeeting] = useState<Meeting | null>(null)
+  const [integrationHubOpen, setIntegrationHubOpen] = useState(false)
+  const [integrationList, setIntegrationList] = useState(() => integrationCatalog)
   const [portalHouseholdId, setPortalHouseholdId] = useState(households[0].id)
   const [plans, setPlans] = useState<Record<string, PlanState>>(() => initialPlans)
   const [portfolios, setPortfolios] = useState<Record<string, PortfolioState>>(() => initialPortfolios)
@@ -804,6 +816,17 @@ export default function App() {
     else selectHousehold(id)
   }
 
+  function openAllMatches() {
+    // Bulk companion to multi-select: open every client currently shown in the
+    // dropdown at once, then focus the first one that wasn't already open.
+    const ids = clientMatches.shown.map((item) => item.household.id)
+    const toOpen = ids.filter((id) => !openTabs.includes(id))
+    if (toOpen.length === 0) return
+    setOpenTabs((prev) => [...prev, ...toOpen.filter((id) => !prev.includes(id))])
+    selectHousehold(toOpen[0])
+    flash(`Opened ${toOpen.length} client${toOpen.length === 1 ? '' : 's'} from this search.`)
+  }
+
   function confirmNotice(notice: ClientNotice) {
     const next = structuredClone(records)
     const record = next[notice.householdId]
@@ -1010,6 +1033,46 @@ export default function App() {
     flash(`${signedName} signed ${doc.name}. The packet is in good order for resubmit.`)
   }
 
+  function toggleIntegration(id: string) {
+    setIntegrationList((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, status: item.status === 'connected' ? 'available' : 'connected' }
+          : item,
+      ),
+    )
+  }
+
+  const crmConnected = integrationList.some(
+    (item) => item.category === 'CRM' && item.status === 'connected',
+  )
+
+  function syncMeetingActions(meeting: Meeting) {
+    // Turn AI-extracted action items into tasks in the household work queue,
+    // the way Jump/Zoom push follow-ups into the CRM.
+    const householdId = meeting.householdId
+    const newTasks = meeting.actions
+      .filter((action) => action.status !== 'done')
+      .map((action) => ({
+        id: `t-mtg-${action.id}`,
+        householdId,
+        subject: action.title,
+        status: (action.status === 'blocked' ? 'On Hold' : 'Not Started') as TaskStatus,
+        priority: 'High' as const,
+        due: action.due,
+      }))
+    if (newTasks.length === 0) return
+    setDeskTasks((prev) => {
+      const existing = new Set(prev.map((row) => row.id))
+      const additions = newTasks.filter((task) => !existing.has(task.id))
+      return additions.length > 0 ? [...additions, ...prev] : prev
+    })
+    pinHousehold(householdId)
+    setSelectedHhId(householdId)
+    setShowingBook(false)
+    setCockpitView('work')
+  }
+
   function runCoworker(action: CoworkerAction) {
     setRole('advisor')
     if (action.type === 'show-book') {
@@ -1051,6 +1114,13 @@ export default function App() {
             }}
           >
             Client portal
+          </button>
+          <button
+            type="button"
+            className="header-pill"
+            onClick={() => setIntegrationHubOpen(true)}
+          >
+            Integration Hub · {integrationList.filter((item) => item.status === 'connected').length}
           </button>
           <button
             type="button"
@@ -1178,9 +1248,27 @@ export default function App() {
                       )
                     })}
                     <li className="client-search-foot">
-                      {clientQuery.trim()
-                        ? `${clientMatches.shown.length} of ${clientMatches.total} · tap to open several`
-                        : `${households.length} clients. Tap to open several at once.`}
+                      <span className="client-search-foot-text">
+                        {clientQuery.trim()
+                          ? `${clientMatches.shown.length} of ${clientMatches.total} · tap to open several`
+                          : `${households.length} clients. Tap to open several at once.`}
+                      </span>
+                      {(() => {
+                        const unopened = clientMatches.shown.filter((item) => !openTabs.includes(item.household.id)).length
+                        if (unopened === 0) return null
+                        return (
+                          <button
+                            type="button"
+                            className="client-search-open-all"
+                            onMouseDown={(event) => {
+                              event.preventDefault()
+                              openAllMatches()
+                            }}
+                          >
+                            Open all {unopened}
+                          </button>
+                        )
+                      })()}
                     </li>
                   </ul>
                 )}
@@ -2346,60 +2434,25 @@ export default function App() {
       )}
 
       {playbookMeeting && (
-        <div className="modal-backdrop" role="presentation" onClick={() => setPlaybookMeeting(null)}>
-          <div
-            className="plaid-modal playbook-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="playbook-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="portal-kicker">{playbookMeeting.playbookName ?? 'Meeting playbook'}</div>
-            <h3 id="playbook-title">{playbookMeeting.title}</h3>
-            <p>
-              {playbookMeeting.when.replace('T', ' · ')} · {playbookMeeting.channel.replace('_', ' ')} ·{' '}
-              {playbookMeeting.attendees.join(', ')}
-            </p>
-            <h4>Agenda</h4>
-            <ul className="brief-lines">
-              {playbookMeeting.agenda.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-            {playbookMeeting.preBrief && (
-              <>
-                <h4>Pre-meeting brief</h4>
-                <ul className="brief-lines">
-                  {playbookMeeting.preBrief.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {playbookMeeting.nextSteps && (
-              <>
-                <h4>Next steps</h4>
-                <ul className="brief-lines">
-                  {playbookMeeting.nextSteps.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {playbookMeeting.summary && <p>{playbookMeeting.summary}</p>}
-            <h4>Actions</h4>
-            <ul className="brief-lines">
-              {playbookMeeting.actions.map((action) => (
-                <li key={action.id}>
-                  {action.title} · {action.owner} · {action.status}
-                </li>
-              ))}
-            </ul>
-            <button type="button" className="btn" onClick={() => setPlaybookMeeting(null)}>
-              Close
-            </button>
-          </div>
-        </div>
+        <MeetingWorkspace
+          meeting={playbookMeeting}
+          crmConnected={crmConnected}
+          onClose={() => setPlaybookMeeting(null)}
+          onFlash={flash}
+          onSyncActions={(meeting) => {
+            syncMeetingActions(meeting)
+            setPlaybookMeeting(null)
+          }}
+        />
+      )}
+
+      {integrationHubOpen && (
+        <IntegrationHub
+          integrations={integrationList}
+          onToggle={toggleIntegration}
+          onClose={() => setIntegrationHubOpen(false)}
+          onFlash={flash}
+        />
       )}
       {toast && (
         <div className="toast" role="status">
