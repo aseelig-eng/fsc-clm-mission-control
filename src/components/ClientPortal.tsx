@@ -466,6 +466,64 @@ export function ClientPortal({
                 </div>
               </div>
 
+              <div className="portal-splitrow">
+                <section className="portal-section portal-actioncenter">
+                  <div className="portal-section-head">
+                    <h3>Needs your attention</h3>
+                    <span className="portal-count">{actionItems.length}</span>
+                  </div>
+                  {actionItems.length === 0 ? (
+                    <p className="muted">You’re all caught up. Nothing needs you right now.</p>
+                  ) : (
+                    <ul className="portal-actionlist">
+                      {actionItems.map((item) => (
+                        <li key={item.id} className={`portal-action tone-${item.tone}`}>
+                          <span className="portal-action-dot" aria-hidden="true" />
+                          <span className="portal-action-body">
+                            <strong>{item.title}</strong>
+                            <em>{item.detail}</em>
+                          </span>
+                          <button type="button" className="btn primary" onClick={item.go}>
+                            {item.cta}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                <section className="portal-section portal-team">
+                  <div className="portal-section-head">
+                    <h3>Your advisory team</h3>
+                    <button type="button" className="btn" onClick={() => setView('ask')}>
+                      Ask a question
+                    </button>
+                  </div>
+                  <ul className="portal-teamlist">
+                    {advisoryTeam.map((member) => (
+                      <li key={member.name}>
+                        <span className={`portal-avatar ${member.kind}`} aria-hidden="true">
+                          {member.name.split(' ').map((part) => part[0]).join('')}
+                        </span>
+                        <span className="portal-team-body">
+                          <strong>{member.name}</strong>
+                          <em>{member.role} · {member.detail}</em>
+                          <span className="portal-team-channel">Best reached: {member.channel}</span>
+                        </span>
+                        <button type="button" className="btn" onClick={() => setView('request')}>
+                          Message
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {contacts.length > 0 && (
+                    <p className="muted portal-team-note">
+                      On file for this household: {contacts.map((person) => person.name).join(', ')}.
+                    </p>
+                  )}
+                </section>
+              </div>
+
               {onboardingActive && completeness && (
                 <section className="portal-section portal-onboard">
                   <div className="portal-section-head">
@@ -557,64 +615,6 @@ export function ClientPortal({
                   </div>
                 </section>
               )}
-
-              <div className="portal-splitrow">
-                <section className="portal-section portal-actioncenter">
-                  <div className="portal-section-head">
-                    <h3>Needs your attention</h3>
-                    <span className="portal-count">{actionItems.length}</span>
-                  </div>
-                  {actionItems.length === 0 ? (
-                    <p className="muted">You’re all caught up. Nothing needs you right now.</p>
-                  ) : (
-                    <ul className="portal-actionlist">
-                      {actionItems.map((item) => (
-                        <li key={item.id} className={`portal-action tone-${item.tone}`}>
-                          <span className="portal-action-dot" aria-hidden="true" />
-                          <span className="portal-action-body">
-                            <strong>{item.title}</strong>
-                            <em>{item.detail}</em>
-                          </span>
-                          <button type="button" className="btn primary" onClick={item.go}>
-                            {item.cta}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-
-                <section className="portal-section portal-team">
-                  <div className="portal-section-head">
-                    <h3>Your advisory team</h3>
-                    <button type="button" className="btn" onClick={() => setView('ask')}>
-                      Ask a question
-                    </button>
-                  </div>
-                  <ul className="portal-teamlist">
-                    {advisoryTeam.map((member) => (
-                      <li key={member.name}>
-                        <span className={`portal-avatar ${member.kind}`} aria-hidden="true">
-                          {member.name.split(' ').map((part) => part[0]).join('')}
-                        </span>
-                        <span className="portal-team-body">
-                          <strong>{member.name}</strong>
-                          <em>{member.role} · {member.detail}</em>
-                          <span className="portal-team-channel">Best reached: {member.channel}</span>
-                        </span>
-                        <button type="button" className="btn" onClick={() => setView('request')}>
-                          Message
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  {contacts.length > 0 && (
-                    <p className="muted portal-team-note">
-                      On file for this household: {contacts.map((person) => person.name).join(', ')}.
-                    </p>
-                  )}
-                </section>
-              </div>
             </div>
           )}
           {view === 'portfolio' && (
