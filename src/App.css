@@ -4399,31 +4399,31 @@ button.stage-card.selected {
 }
 
 .portal .portal-nav button.active {
-  background: #147d54;
+  background: #0078fd;
   color: white;
 }
 
 /* Juniper green accents scoped to the client portal */
 .portal .btn.primary {
-  background: #147d54;
-  border-color: #147d54;
+  background: #0078fd;
+  border-color: #0078fd;
 }
 
 .portal .btn.primary:hover {
-  background: #0f6b48;
-  border-color: #0f6b48;
+  background: #002661;
+  border-color: #002661;
 }
 
 .portal .portal-ranges button.active {
-  background: #147d54;
+  background: #0078fd;
 }
 
 .portal .portal-count {
-  background: #147d54;
+  background: #0078fd;
 }
 
 .portal .portal-pot > span {
-  background: #147d54;
+  background: #0078fd;
 }
 
 .portal-home {
@@ -4735,7 +4735,7 @@ button.stage-card.selected {
 }
 
 .portal-stat.wide strong {
-  color: #147d54;
+  color: #0078fd;
 }
 
 .portal-stat span {
@@ -4756,7 +4756,7 @@ button.stage-card.selected {
 }
 
 .portal-perf {
-  color: #147d54;
+  color: #0078fd;
 }
 
 .portal-perf .portal-chart {

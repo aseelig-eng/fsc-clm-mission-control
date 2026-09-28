@@ -45,3 +45,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+/portal-blue-home.png
