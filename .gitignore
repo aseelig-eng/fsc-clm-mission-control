@@ -12,6 +12,29 @@ dist
 dist-ssr
 *.local
 
+# Test/screenshot artifacts
+.playwright-mcp
+/hub-logos.png
+/integration-hub.png
+/meeting-workspace.png
+/followup-tab.png
+/integration-hub-vendors.png
+/para-workbench.png
+/para-filtered.png
+/record-2up.png
+/doc-iaa-filed.png
+/doc-tod-draft.png
+/lifecycle-check.png
+/lifecycle-stage-metrics.png
+/book-agenda.png
+/schedule-modal.png
+/portal-enhancements.png
+/portal-alloc-team.png
+/portal-team-card.png
+/portal-juniper-home.png
+/portal-juniper-grid.png
+/portal-service-move.png
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +45,21 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+/portal-blue-home.png
+/portal-onboarding-h0.png
+/portal-splitrow-h0.png
+/portal-splitrow-only.png
+/para-cases.png
+/portal-meeting-request.png
+/portal-portfolio-overview.png
+/portal-portfolio-activity.png
+/book-pulse-briefing.png
+/upload-service-request.png
+/upload-with-files.png
+/upload-vault.png
+/portal-home-reordered.png
+/connect-source-mcp.png
+/connect-source-lower.png
+/connect-source-oauth.png
+/book-needs-you.png
+/investor-portals.png

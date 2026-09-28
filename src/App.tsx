@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  advisors,
   competitors,
   exceptions,
   households,
   metrics,
   paraplannerQueue,
   personaValues,
+  portalPlayers,
 } from './data/content'
 import {
   PHASE_LABELS,
@@ -16,7 +18,26 @@ import {
   type FormSection,
 } from './data/onboardingFramework'
 import { buildDrillItems, type DrillItem } from './data/drilldown'
-import { meetingsForHousehold, openMeetingActions, type Meeting } from './data/meetings'
+import {
+  meetings as meetingSeed,
+  meetingsForHousehold,
+  openMeetingActions,
+  createMeeting,
+  meetingAgenticActions,
+  type Meeting,
+  type NewMeetingInput,
+} from './data/meetings'
+import {
+  integrations as integrationCatalog,
+  type Integration,
+  type IntegrationStatus,
+} from './data/integrations'
+import { IntegrationHub } from './components/IntegrationHub'
+import { MeetingWorkspace } from './components/MeetingWorkspace'
+import { MeetingPrepBrief, type PrepSignal } from './components/MeetingPrepBrief'
+import { ScheduleMeeting } from './components/ScheduleMeeting'
+import { DocumentPreview } from './components/DocumentPreview'
+import type { ComplianceDocument } from './data/onboardingFramework'
 import { MATURITY_LABELS, personsForHousehold, type ContactChannel } from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
 import { BookPulse } from './components/BookPulse'
@@ -25,13 +46,12 @@ import { AdviceDesk } from './components/AdviceDesk'
 import { initialPlans, initialPortfolios, PLAN_STAGES, type PlanState, type PortfolioState } from './data/advice'
 import { GenerationalHandoff } from './components/GenerationalHandoff'
 import { handoffFor } from './data/generational'
-import { factsForStage } from './data/stageFacts'
+import { stageMetrics } from './data/stageFacts'
+import { recordFieldMap } from './data/documentTemplates'
 import { ClientPortal } from './components/ClientPortal'
-import { ServiceDesk } from './components/ServiceDesk'
 import {
   caseSteps,
   collectItems,
-  goalRecords,
   serviceCases,
   taskSteps,
   workTasks,
@@ -52,6 +72,35 @@ import {
 } from './data/progress'
 import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, Role } from './data/types'
 import './App.css'
+
+// Persist only each integration's connected/available status by id, keyed off the
+// live catalog so new/removed sources still flow through on the next load.
+const INTEGRATION_STATUS_KEY = 'fsc-clm.integration-status.v1'
+
+function loadIntegrationList(): Integration[] {
+  let saved: Record<string, IntegrationStatus> = {}
+  try {
+    const raw = localStorage.getItem(INTEGRATION_STATUS_KEY)
+    if (raw) saved = JSON.parse(raw) as Record<string, IntegrationStatus>
+  } catch {
+    saved = {}
+  }
+  return integrationCatalog.map((item) =>
+    saved[item.id] && saved[item.id] !== item.status
+      ? { ...item, status: saved[item.id] }
+      : item,
+  )
+}
+
+function saveIntegrationList(list: Integration[]) {
+  try {
+    const map: Record<string, IntegrationStatus> = {}
+    for (const item of list) map[item.id] = item.status
+    localStorage.setItem(INTEGRATION_STATUS_KEY, JSON.stringify(map))
+  } catch {
+    // storage unavailable (private mode / quota) — connection stays session-local
+  }
+}
 
 function dayPart() {
   const hour = new Date().getHours()
@@ -111,6 +160,16 @@ function docStatusClass(status: string) {
   if (status === 'nigo' || status === 'needs_signature') return 'critical'
   if (status === 'pending') return 'needs'
   return 'medium'
+}
+
+function meetingWhen(iso: string) {
+  return new Date(iso).toLocaleString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function actionTypeLabel(type: AdvisorAction['type']) {
@@ -288,6 +347,7 @@ function NeedsYouCard({
   meta,
   recommended,
   actions,
+  queueType = 'Signal',
   onOpen,
   onAct,
 }: {
@@ -297,6 +357,7 @@ function NeedsYouCard({
   meta: string
   recommended: string
   actions: AdvisorAction[]
+  queueType?: string
   onOpen: () => void
   onAct: (action: AdvisorAction) => void
 }) {
@@ -304,13 +365,20 @@ function NeedsYouCard({
   const { primary, rest } = splitActions(actions)
   return (
     <li>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         className={`exception-item ${selected ? 'selected' : ''}`}
         onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpen()
+          }
+        }}
       >
         <div className="title">
-          <span className="queue-type">Signal</span>
+          <span className="queue-type">{queueType}</span>
           <span className={`badge ${priority}`}>{priority}</span>
           {title}
         </div>
@@ -341,7 +409,7 @@ function NeedsYouCard({
             ))}
           </div>
         )}
-      </button>
+      </div>
     </li>
   )
 }
@@ -430,6 +498,7 @@ export default function App() {
   const clientSearchRef = useRef<HTMLDivElement>(null)
   const [selectedExId, setSelectedExId] = useState(exceptions[0].id)
   const [selectedParaId, setSelectedParaId] = useState(paraplannerQueue[0].id)
+  const [advisorFilter, setAdvisorFilter] = useState<Set<string>>(new Set())
   const [personaIdx, setPersonaIdx] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
   const [resolved, setResolved] = useState<Set<string>>(new Set())
@@ -453,6 +522,12 @@ export default function App() {
   const [coworkerOpen, setCoworkerOpen] = useState(false)
   const [portalOpen, setPortalOpen] = useState(false)
   const [playbookMeeting, setPlaybookMeeting] = useState<Meeting | null>(null)
+  const [prepBriefMeeting, setPrepBriefMeeting] = useState<Meeting | null>(null)
+  const [meetingList, setMeetingList] = useState<Meeting[]>(() => structuredClone(meetingSeed))
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [integrationHubOpen, setIntegrationHubOpen] = useState(false)
+  const [previewDoc, setPreviewDoc] = useState<ComplianceDocument | null>(null)
+  const [integrationList, setIntegrationList] = useState(() => loadIntegrationList())
   const [portalHouseholdId, setPortalHouseholdId] = useState(households[0].id)
   const [plans, setPlans] = useState<Record<string, PlanState>>(() => initialPlans)
   const [portfolios, setPortfolios] = useState<Record<string, PortfolioState>>(() => initialPortfolios)
@@ -460,8 +535,9 @@ export default function App() {
   const [records, setRecords] = useState<Record<string, ClientOnboardingRecord>>(() => structuredClone(onboardingByHousehold))
   const [deskCases, setDeskCases] = useState(() => structuredClone(serviceCases))
   const [deskTasks, setDeskTasks] = useState(() => structuredClone(workTasks))
-  const [deskChecklist, setDeskChecklist] = useState(() => structuredClone(collectItems))
-  const [deskGoals, setDeskGoals] = useState(() => structuredClone(goalRecords))
+  // Checklist state is written by agentic steps (runAgenticStep) but no longer
+  // rendered (the Record-page "Checklist and goals" panel was removed).
+  const [, setDeskChecklist] = useState(() => structuredClone(collectItems))
   const [profileEdits, setProfileEdits] = useState<
     Record<string, { sentiment?: string; preferredContact?: ContactChannel[] }>
   >({})
@@ -480,10 +556,24 @@ export default function App() {
 
   const clientProgress = useMemo(() => householdProgress(household), [household])
   const bookProgress = useMemo(() => overallProgress(households), [])
+  const householdName = (id: string) => households.find((h) => h.id === id)?.name ?? 'Household'
+  // Book-wide upcoming meetings, soonest first, each with its lead pre-meeting agent action.
+  const upcomingMeetings = useMemo(
+    () =>
+      meetingList
+        .filter((m) => m.status === 'scheduled')
+        .slice()
+        .sort((a, b) => a.when.localeCompare(b.when))
+        .map((m) => ({
+          meeting: m,
+          preAction: meetingAgenticActions(m).find((a) => a.phase === 'pre' && a.state !== 'blocked'),
+        })),
+    [meetingList],
+  )
   const drillItems = useMemo(() => buildDrillItems(household), [household])
   const drillItem = drillItems.find((d) => d.id === drillId) ?? drillItems[0] ?? null
-  const hhMeetings = useMemo(() => meetingsForHousehold(household.id), [household])
-  const hhMeetingActions = useMemo(() => openMeetingActions(household.id), [household])
+  const hhMeetings = useMemo(() => meetingsForHousehold(household.id, meetingList), [household, meetingList])
+  const hhMeetingActions = useMemo(() => openMeetingActions(household.id, meetingList), [household, meetingList])
   const hhOpenCases = useMemo(
     () => deskCases.filter((item) => item.householdId === household.id && item.status !== 'Closed'),
     [deskCases, household.id],
@@ -502,6 +592,61 @@ export default function App() {
 
   const openExceptions = exceptions.filter((e) => !resolved.has(e.id))
   const pendingNotices = clientNotices.filter((notice) => !notice.reviewed)
+  // Book-wide prioritized to-do list: open exceptions (signals) + open meeting
+  // actions, each carrying a recommended action, ranked by urgency then due date.
+  const prioritizedTasks = useMemo(() => {
+    const rank: Record<string, number> = { critical: 0, high: 1, blocked: 1, medium: 2, open: 2, low: 3 }
+    const fromCases = deskCases
+      .filter((item) => item.status !== 'Closed')
+      .map((item) => ({
+        id: `pt-case-${item.id}`,
+        kind: 'case' as const,
+        priority: item.priority.toLowerCase(),
+        title: item.subject,
+        who: `${householdName(item.householdId)}${item.origin === 'Portal' ? ' · from client portal' : ` · ${item.origin}`}`,
+        recommended: item.step?.label ?? `Work the ${item.type.toLowerCase()}`,
+        due: '',
+        actions: (item.step
+          ? [{ type: 'review_inputs', label: item.step.label, detail: item.step.result }]
+          : [{ type: 'call_client', label: `Work the ${item.type.toLowerCase()}`, detail: `Open ${householdName(item.householdId)} in the work view.` }]) as AdvisorAction[],
+        onOpen: () => {
+          selectHousehold(item.householdId)
+          setCockpitView('work')
+        },
+      }))
+    const fromExceptions = openExceptions.map((ex) => ({
+      id: `pt-ex-${ex.id}`,
+      kind: 'signal' as const,
+      priority: ex.priority,
+      title: ex.title,
+      who: ex.household,
+      recommended: ex.recommendedAction,
+      due: '',
+      actions: ex.advisorActions,
+      onOpen: () => {
+        const match = households.find(
+          (h) => ex.household.includes(h.name.split(' ')[0]) || h.name.includes(ex.household.split(' ')[0]),
+        )
+        if (match) selectHousehold(match.id)
+      },
+    }))
+    const fromMeetings = households
+      .flatMap((h) => openMeetingActions(h.id, meetingList))
+      .map(({ meeting, action }) => ({
+        id: `pt-ma-${action.id}`,
+        kind: 'meeting' as const,
+        priority: action.status === 'blocked' ? 'blocked' : 'high',
+        title: action.title,
+        who: `${householdName(meeting.householdId)} · from “${meeting.title}”`,
+        recommended: action.recommendedReview,
+        due: action.due,
+        actions: [{ type: 'schedule', label: action.title, detail: action.recommendedReview }] as AdvisorAction[],
+        onOpen: () => setPlaybookMeeting(meeting),
+      }))
+    return [...fromCases, ...fromExceptions, ...fromMeetings]
+      .sort((a, b) => (rank[a.priority] ?? 3) - (rank[b.priority] ?? 3) || a.due.localeCompare(b.due))
+      .slice(0, 10)
+  }, [openExceptions, meetingList, deskCases])
   const clientMatches = useMemo(() => {
     const query = clientQuery.trim().toLowerCase()
     const ranked = households
@@ -532,11 +677,51 @@ export default function App() {
     household.stages[0]
   const stageBar = selectedStage ? selectedStageProgress(household.stages, selectedStage) : null
   const selectedEx = openExceptions.find((e) => e.id === selectedExId) ?? openExceptions[0]
-  const selectedPara = paraplannerQueue.find((p) => p.id === selectedParaId) ?? paraplannerQueue[0]
+  const filteredParaQueue =
+    advisorFilter.size === 0
+      ? paraplannerQueue
+      : paraplannerQueue.filter((p) => advisorFilter.has(p.advisorId))
+  const selectedPara =
+    filteredParaQueue.find((p) => p.id === selectedParaId) ?? filteredParaQueue[0] ?? paraplannerQueue[0]
+  const advisorName = (id: string) => advisors.find((a) => a.id === id)?.name ?? id
+  const advisorForHousehold = (householdId: string): string =>
+    householdId === 'h2' ? 'adv-okafor' : householdId === 'h4' ? 'adv-lindqvist' : 'adv-rivera'
+  // Portal-originated cases + onboarding data-gaps the paraplanner can action.
+  const paraCases = useMemo(
+    () =>
+      deskCases
+        .filter((item) => item.status !== 'Closed')
+        .map((item) => ({
+          id: `para-case-${item.id}`,
+          caseId: item.id,
+          householdId: item.householdId,
+          household: householdName(item.householdId),
+          advisorId: advisorForHousehold(item.householdId),
+          subject: item.subject,
+          origin: item.origin,
+          status: item.status,
+          priority: item.priority,
+          action: item.step?.label ?? `Prep the ${item.type.toLowerCase()}`,
+        })),
+    [deskCases],
+  )
+  const filteredParaCases =
+    advisorFilter.size === 0 ? paraCases : paraCases.filter((c) => advisorFilter.has(c.advisorId))
+  function toggleAdvisorFilter(id: string) {
+    setAdvisorFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   const persona = personaValues[personaIdx]
   const openSection: FormSection | undefined = onboarding?.sections.find((s) => s.id === openSectionId)
 
-  const scheduledMeetings = hhMeetings.filter((m) => m.status === 'scheduled')
+  const scheduledMeetings = hhMeetings
+    .filter((m) => m.status === 'scheduled')
+    .slice()
+    .sort((a, b) => a.when.localeCompare(b.when))
   const completedMeetings = hhMeetings.filter((m) => m.status === 'completed')
 
   function updateRecordField(
@@ -804,6 +989,17 @@ export default function App() {
     else selectHousehold(id)
   }
 
+  function openAllMatches() {
+    // Bulk companion to multi-select: open every client currently shown in the
+    // dropdown at once, then focus the first one that wasn't already open.
+    const ids = clientMatches.shown.map((item) => item.household.id)
+    const toOpen = ids.filter((id) => !openTabs.includes(id))
+    if (toOpen.length === 0) return
+    setOpenTabs((prev) => [...prev, ...toOpen.filter((id) => !prev.includes(id))])
+    selectHousehold(toOpen[0])
+    flash(`Opened ${toOpen.length} client${toOpen.length === 1 ? '' : 's'} from this search.`)
+  }
+
   function confirmNotice(notice: ClientNotice) {
     const next = structuredClone(records)
     const record = next[notice.householdId]
@@ -1010,6 +1206,62 @@ export default function App() {
     flash(`${signedName} signed ${doc.name}. The packet is in good order for resubmit.`)
   }
 
+  useEffect(() => {
+    saveIntegrationList(integrationList)
+  }, [integrationList])
+
+  function toggleIntegration(id: string) {
+    setIntegrationList((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, status: item.status === 'connected' ? 'available' : 'connected' }
+          : item,
+      ),
+    )
+  }
+
+  const crmConnected = integrationList.some(
+    (item) => item.category === 'CRM' && item.status === 'connected',
+  )
+
+  function scheduleMeeting(input: NewMeetingInput) {
+    const meeting = createMeeting(input)
+    setMeetingList((prev) => [...prev, meeting])
+    setScheduleOpen(false)
+    pinHousehold(meeting.householdId)
+    setSelectedHhId(meeting.householdId)
+    setShowingBook(false)
+    setCockpitView('status')
+    setPlaybookMeeting(meeting)
+    flash(`Scheduled “${meeting.title}” — Concierge is prepping the brief.`)
+  }
+
+  function syncMeetingActions(meeting: Meeting) {
+    // Turn AI-extracted action items into tasks in the household work queue,
+    // the way Jump/Zoom push follow-ups into the CRM.
+    const householdId = meeting.householdId
+    const newTasks = meeting.actions
+      .filter((action) => action.status !== 'done')
+      .map((action) => ({
+        id: `t-mtg-${action.id}`,
+        householdId,
+        subject: action.title,
+        status: (action.status === 'blocked' ? 'On Hold' : 'Not Started') as TaskStatus,
+        priority: 'High' as const,
+        due: action.due,
+      }))
+    if (newTasks.length === 0) return
+    setDeskTasks((prev) => {
+      const existing = new Set(prev.map((row) => row.id))
+      const additions = newTasks.filter((task) => !existing.has(task.id))
+      return additions.length > 0 ? [...additions, ...prev] : prev
+    })
+    pinHousehold(householdId)
+    setSelectedHhId(householdId)
+    setShowingBook(false)
+    setCockpitView('work')
+  }
+
   function runCoworker(action: CoworkerAction) {
     setRole('advisor')
     if (action.type === 'show-book') {
@@ -1051,6 +1303,13 @@ export default function App() {
             }}
           >
             Client portal
+          </button>
+          <button
+            type="button"
+            className="header-pill"
+            onClick={() => setIntegrationHubOpen(true)}
+          >
+            Integration Hub · {integrationList.filter((item) => item.status === 'connected').length}
           </button>
           <button
             type="button"
@@ -1178,9 +1437,27 @@ export default function App() {
                       )
                     })}
                     <li className="client-search-foot">
-                      {clientQuery.trim()
-                        ? `${clientMatches.shown.length} of ${clientMatches.total} · tap to open several`
-                        : `${households.length} clients. Tap to open several at once.`}
+                      <span className="client-search-foot-text">
+                        {clientQuery.trim()
+                          ? `${clientMatches.shown.length} of ${clientMatches.total} · tap to open several`
+                          : `${households.length} clients. Tap to open several at once.`}
+                      </span>
+                      {(() => {
+                        const unopened = clientMatches.shown.filter((item) => !openTabs.includes(item.household.id)).length
+                        if (unopened === 0) return null
+                        return (
+                          <button
+                            type="button"
+                            className="client-search-open-all"
+                            onMouseDown={(event) => {
+                              event.preventDefault()
+                              openAllMatches()
+                            }}
+                          >
+                            Open all {unopened}
+                          </button>
+                        )
+                      })()}
                     </li>
                   </ul>
                 )}
@@ -1291,52 +1568,111 @@ export default function App() {
           {showingBook && (
             <>
               <BookPulse households={households} exceptions={openExceptions} onOpenHousehold={selectHousehold} />
-              <aside className="panel" style={{ overflow: 'auto' }}>
-                <div className="panel-header">
-                  <span>Needs You — Signal Only</span>
-                  <span className="muted">{openExceptions.length + pendingNotices.length} open</span>
-                </div>
-                <ul className="exception-list needs-you-board">
-                  {pendingNotices.map((notice) => (
-                    <NeedsYouCard
-                      key={notice.id}
-                      selected={false}
-                      priority="high"
-                      title={notice.title}
-                      meta={`${notice.householdName} · Client portal`}
-                      recommended="Confirm it on the client profile. This is client-reported, not advice."
-                      actions={[
-                        {
-                          type: 'review_inputs',
-                          label: 'Review and confirm',
-                          detail: notice.detail,
-                        },
-                      ]}
-                      onOpen={() => openNotice(notice, false)}
-                      onAct={() => openNotice(notice, true)}
-                    />
-                  ))}
-                  {openExceptions.map((ex) => (
-                    <NeedsYouCard
-                      key={ex.id}
-                      selected={selectedEx?.id === ex.id}
-                      priority={ex.priority}
-                      title={ex.title}
-                      meta={`${ex.household} · Owner: ${ex.owner}`}
-                      recommended={ex.recommendedAction}
-                      actions={ex.advisorActions}
-                      onOpen={() => focusException(ex)}
-                      onAct={(a) => {
-                        focusException(ex)
-                        flash(`${actionTypeLabel(a.type)}: ${a.label}`)
-                      }}
-                    />
-                  ))}
-                  {openExceptions.length === 0 && pendingNotices.length === 0 && (
-                    <li className="panel-body muted">All clear — agents are running. Time for clients.</li>
-                  )}
-                </ul>
-              </aside>
+
+              <div className="book-agenda">
+                <aside className="panel book-meetings">
+                  <div className="panel-header">
+                    <span>Upcoming Meetings</span>
+                    <button type="button" className="btn primary sm" onClick={() => setScheduleOpen(true)}>
+                      + Schedule meeting
+                    </button>
+                  </div>
+                  <ul className="book-meeting-list">
+                    {upcomingMeetings.length === 0 && (
+                      <li className="panel-body muted">No meetings scheduled. Use “Schedule meeting” to book one.</li>
+                    )}
+                    {upcomingMeetings.map(({ meeting, preAction }) => (
+                      <li key={meeting.id}>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="book-meeting-card"
+                          onClick={() => setPlaybookMeeting(meeting)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              setPlaybookMeeting(meeting)
+                            }
+                          }}
+                        >
+                          <div className="book-meeting-when">{meetingWhen(meeting.when)}</div>
+                          <div className="book-meeting-title">{meeting.title}</div>
+                          <div className="muted">
+                            {householdName(meeting.householdId)} · {meeting.channel.replace('_', ' ')} · {meeting.playbookName ?? 'Meeting'}
+                          </div>
+                          {preAction && (
+                            <>
+                              <div className="book-meeting-agentic">
+                                <span className="signal-recommend-label">Pre-meeting agent</span>
+                                <span className="signal-recommend-text">{preAction.label} — {preAction.detail}</span>
+                              </div>
+                              <button
+                                type="button"
+                                className="action-chip type-schedule primary-action book-meeting-run"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setPrepBriefMeeting(meeting)
+                                }}
+                              >
+                                {preAction.state === 'ready' ? 'Review prep' : 'Run pre-meeting prep'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </aside>
+
+                <aside className="panel book-tasks">
+                  <div className="panel-header">
+                    <span>Needs You</span>
+                    <span className="muted">{prioritizedTasks.length + pendingNotices.length} to do</span>
+                  </div>
+                  <ul className="exception-list needs-you-board">
+                    {pendingNotices.map((notice) => (
+                      <NeedsYouCard
+                        key={notice.id}
+                        selected={false}
+                        queueType="Portal"
+                        priority="high"
+                        title={notice.title}
+                        meta={`${notice.householdName} · Client portal`}
+                        recommended="Confirm it on the client profile. This is client-reported, not advice."
+                        actions={[
+                          {
+                            type: 'review_inputs',
+                            label: 'Review and confirm',
+                            detail: notice.detail,
+                          },
+                        ]}
+                        onOpen={() => openNotice(notice, false)}
+                        onAct={() => openNotice(notice, true)}
+                      />
+                    ))}
+                    {prioritizedTasks.map((task) => (
+                      <NeedsYouCard
+                        key={task.id}
+                        selected={false}
+                        queueType={task.kind === 'signal' ? 'Signal' : task.kind === 'case' ? 'Case' : 'Meeting'}
+                        priority={task.priority}
+                        title={task.title}
+                        meta={`${task.who}${task.due ? ` · due ${task.due}` : ''}`}
+                        recommended={task.recommended}
+                        actions={task.actions}
+                        onOpen={task.onOpen}
+                        onAct={(a) => {
+                          task.onOpen()
+                          flash(`${actionTypeLabel(a.type)}: ${a.label}`)
+                        }}
+                      />
+                    ))}
+                    {prioritizedTasks.length === 0 && pendingNotices.length === 0 && (
+                      <li className="panel-body muted">All clear — nothing needs you right now.</li>
+                    )}
+                  </ul>
+                </aside>
+              </div>
             </>
           )}
 
@@ -1370,7 +1706,7 @@ export default function App() {
                 )}
 
                 <div className="lifecycle-block">
-                  <div className="lifecycle-block-title">{household.name} — Lifecycle</div>
+                  <div className="lifecycle-block-title">{household.name} — Lifecycle Stage</div>
                 <div className="lifecycle-rail">
                   {household.stages.map((s) => {
                     const needsResolution =
@@ -1403,7 +1739,7 @@ export default function App() {
                 <ProgressBar
                   size="md"
                   pct={stageBar?.pct ?? clientProgress.pct}
-                  label="Client Lifecycle Progress"
+                  label={`${selectedStage?.label ?? household.stageLabel} Stage Progress`}
                   detail={
                     stageBar?.detail ??
                     `${clientProgress.complete} complete · ${clientProgress.inFlight} in flight · current: ${household.stageLabel}`
@@ -1412,22 +1748,15 @@ export default function App() {
                 />
 
                 <div className="hh-summary" style={{ marginTop: 12 }}>
-                  <div>
-                    <div className="k">AUM / stage</div>
-                    <div className="v">{selectedStage ? factsForStage(household, selectedStage).aum : '—'}</div>
-                  </div>
-                  <div>
-                    <div className="k">Current stage</div>
-                    <div className="v">{selectedStage?.label ?? household.stageLabel}</div>
-                  </div>
-                  <div>
-                    <div className="k">Risk / IPS</div>
-                    <div className="v">{selectedStage ? factsForStage(household, selectedStage).risk : '—'}</div>
-                  </div>
-                  <div>
-                    <div className="k">Next client touch</div>
-                    <div className="v">{selectedStage ? factsForStage(household, selectedStage).nextTouch : '—'}</div>
-                  </div>
+                  {(selectedStage
+                    ? stageMetrics(household, selectedStage, recordFieldMap(onboarding))
+                    : []
+                  ).map((m) => (
+                    <div key={m.label}>
+                      <div className="k">{m.label}</div>
+                      <div className="v">{m.value}</div>
+                    </div>
+                  ))}
                 </div>
 
                 {(() => {
@@ -1474,24 +1803,6 @@ export default function App() {
 
             {!showingBook && cockpitView === 'record' && onboarding && completeness && (
               <>
-              <div className="panel">
-                <div className="panel-header">
-                  <span>Checklist and goals</span>
-                  <span className="muted">Still to collect, separate from the filed vault</span>
-                </div>
-                <div className="panel-body">
-                  <ServiceDesk
-                    checklist={deskChecklist.filter((item) => item.householdId === household.id)}
-                    goals={deskGoals.filter((item) => item.householdId === household.id)}
-                    onChecklist={(id, status) =>
-                      setDeskChecklist((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)))
-                    }
-                    onGoal={(id, status) =>
-                      setDeskGoals((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)))
-                    }
-                  />
-                </div>
-              </div>
               <div className="panel">
                 <div className="panel-header">
                   <span>Financial Accounts</span>
@@ -1637,8 +1948,20 @@ export default function App() {
                     <ul className="doc-list">
                       {onboarding.documents.map((d) => (
                         <li key={d.id}>
-                          <button type="button" className="doc-btn" onClick={() => openDrill(`doc-${d.id}`)}>
-                            <div className="doc-name">{d.name}</div>
+                          <button
+                            type="button"
+                            className="doc-btn"
+                            onClick={() => {
+                              setPreviewDoc(d)
+                              openDrill(`doc-${d.id}`)
+                            }}
+                          >
+                            <div className="doc-name">
+                              {d.name}
+                              <span className="doc-preview-hint">
+                                {d.status === 'filed' ? 'View filed copy' : 'Preview draft'} →
+                              </span>
+                            </div>
                             <div className="doc-meta">
                               <span className={`badge ${docStatusClass(d.status)}`}>{d.status}</span>
                               {d.filedOn && <span className="muted">Filed {d.filedOn}</span>}
@@ -1651,69 +1974,6 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="panel">
-                  <div className="panel-header">
-                    <span>Lifecycle Monitor Agent</span>
-                    <span className={`badge ${onboarding.monitor.status === 'monitoring' || onboarding.monitor.status === 'activated' ? 'done' : 'needs'}`}>
-                      {statusLabel(onboarding.monitor.status)}
-                    </span>
-                  </div>
-                  <div className="panel-body">
-                    <div className="callout" style={{ marginBottom: 10 }}>
-                      <strong>Decision</strong>
-                      {onboarding.monitor.decision}
-                    </div>
-                    <ul className="monitor-list">
-                      <li>
-                        Annual KYC refresh:{' '}
-                        {onboarding.monitor.annualKycRefreshScheduled
-                          ? `scheduled ${onboarding.monitor.annualKycRefreshDate ?? ''}`
-                          : 'not scheduled'}
-                      </li>
-                      <li>
-                        Life-event listener:{' '}
-                        {onboarding.monitor.lifeEventListenerArmed ? 'armed' : 'not armed'}
-                      </li>
-                      <li>Reminders scheduled: {onboarding.monitor.remindersScheduled}</li>
-                      <li>Portal provisioned: {onboarding.monitor.portalProvisioned ? 'yes' : 'no'}</li>
-                      <li>Welcome kit / 30-60-90: {onboarding.monitor.cadence30_60_90 ? 'active' : 'pending'}</li>
-                      <li>Billing initialized: {onboarding.monitor.billingInitialized ? 'yes' : 'no'}</li>
-                    </ul>
-                    {onboarding.monitor.orientation && (
-                      <div className="callout" style={{ marginTop: 10 }}>
-                        <strong>Orientation / Meeting Concierge</strong>
-                        {onboarding.monitor.orientation.datetime.replace('T', ' · ')}
-                        <br />
-                        Playbook {onboarding.monitor.orientation.playbookId}
-                        {onboarding.monitor.orientation.filedOnPersonAccount
-                          ? ' · filed on Person Account'
-                          : ''}
-                      </div>
-                    )}
-                    <div className="intake-keys">
-                      <div>
-                        <span className="k">Gov ID</span>
-                        <span className="v">{onboarding.governmentIdType}</span>
-                      </div>
-                      <div>
-                        <span className="k">Source of wealth</span>
-                        <span className="v">{onboarding.sourceOfWealth}</span>
-                      </div>
-                      <div>
-                        <span className="k">Funding method</span>
-                        <span className="v">{onboarding.fundingMethod}</span>
-                      </div>
-                      <div>
-                        <span className="k">Funding amount</span>
-                        <span className="v">
-                          {onboarding.fundingAmountUsd != null
-                            ? `$${onboarding.fundingAmountUsd.toLocaleString()}`
-                            : '—'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
               </>
             )}
@@ -1722,8 +1982,13 @@ export default function App() {
             <div className="panel">
               <div className="panel-header">
                 <span>Meeting Management</span>
-                <span className="muted">
-                  {scheduledMeetings.length} upcoming · {hhMeetingActions.length} open actions
+                <span className="panel-header-tail">
+                  <span className="muted">
+                    {scheduledMeetings.length} upcoming · {hhMeetingActions.length} open actions
+                  </span>
+                  <button type="button" className="btn primary sm" onClick={() => setScheduleOpen(true)}>
+                    + Schedule
+                  </button>
                 </span>
               </div>
               <div className="panel-body">
@@ -2090,20 +2355,131 @@ export default function App() {
               <span className="muted">Template-Faithful · Cited · Gated</span>
             </div>
             <div className="panel-body">
+              <div className="para-toolbar">
+                <div className="advisor-filter">
+                  <span className="advisor-filter-label">Supporting advisor</span>
+                  <div className="advisor-chips">
+                    <button
+                      type="button"
+                      className={`advisor-chip ${advisorFilter.size === 0 ? 'active' : ''}`}
+                      onClick={() => setAdvisorFilter(new Set())}
+                    >
+                      All advisors
+                      <span className="advisor-chip-count">{paraplannerQueue.length}</span>
+                    </button>
+                    {advisors.map((adv) => {
+                      const count = paraplannerQueue.filter((p) => p.advisorId === adv.id).length
+                      const active = advisorFilter.has(adv.id)
+                      return (
+                        <button
+                          key={adv.id}
+                          type="button"
+                          className={`advisor-chip ${active ? 'active' : ''}`}
+                          onClick={() => toggleAdvisorFilter(adv.id)}
+                          title={adv.book}
+                        >
+                          <span className="advisor-avatar" aria-hidden="true">{adv.initials}</span>
+                          {adv.name}
+                          <span className="advisor-chip-count">{count}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="para-quick-create">
+                  <span className="muted">Draft with agent:</span>
+                  {(['IPS', 'Proposal', 'Annual Review', 'Estate Memo'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      className="btn ghost sm"
+                      onClick={() =>
+                        flash(
+                          `Agent is drafting a new ${t}${
+                            advisorFilter.size === 1
+                              ? ` for ${advisorName([...advisorFilter][0])}’s book`
+                              : ''
+                          } — citations pulled from the fact-find.`,
+                        )
+                      }
+                    >
+                      + {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {filteredParaCases.length > 0 && (
+                <div className="para-cases">
+                  <div className="para-cases-head">
+                    <strong>Client requests from the portal</strong>
+                    <span className="muted">{filteredParaCases.length} open · shared with the advisor’s work list</span>
+                  </div>
+                  <ul className="para-cases-list">
+                    {filteredParaCases.map((c) => (
+                      <li key={c.id} className="para-case-row">
+                        <span className={`badge ${c.priority.toLowerCase()}`}>{c.priority}</span>
+                        <span className="para-case-body">
+                          <strong>{c.subject}</strong>
+                          <em>
+                            {c.household} · {advisorName(c.advisorId)} · {c.origin === 'Portal' ? 'from client portal' : c.origin} · {c.status}
+                          </em>
+                        </span>
+                        <span className="para-case-actions">
+                          <button
+                            type="button"
+                            className="btn ghost sm"
+                            onClick={() => {
+                              setDeskCases((prev) =>
+                                prev.map((row) => (row.id === c.caseId ? { ...row, status: 'Working' } : row)),
+                              )
+                              flash(`${c.action} — ${c.household}. Marked Working for ${advisorName(c.advisorId)}.`)
+                            }}
+                          >
+                            {c.action}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn success sm"
+                            onClick={() => {
+                              setDeskCases((prev) =>
+                                prev.map((row) => (row.id === c.caseId ? { ...row, status: 'Waiting on client' } : row)),
+                              )
+                              flash(`Prepped ${c.subject} for ${c.household} — handed back to ${advisorName(c.advisorId)}.`)
+                            }}
+                          >
+                            Ready for advisor
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <table className="para-table">
                 <thead>
                   <tr>
                     <th>Type</th>
                     <th>Household</th>
+                    <th>Advisor</th>
                     <th>Status</th>
                     <th>Est. Time Saved</th>
+                    <th aria-label="Quick actions" />
                   </tr>
                 </thead>
                 <tbody>
-                  {paraplannerQueue.map((row) => (
+                  {filteredParaQueue.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="muted" style={{ textAlign: 'center', padding: '18px' }}>
+                        No deliverables for the selected advisor.
+                      </td>
+                    </tr>
+                  )}
+                  {filteredParaQueue.map((row) => (
                     <tr
                       key={row.id}
-                      className={selectedParaId === row.id ? 'selected' : ''}
+                      className={selectedPara.id === row.id ? 'selected' : ''}
                       onClick={() => setSelectedParaId(row.id)}
                       style={{ cursor: 'pointer' }}
                     >
@@ -2112,17 +2488,70 @@ export default function App() {
                       </td>
                       <td>{row.household}</td>
                       <td>
+                        <span className="para-advisor">
+                          <span className="advisor-avatar sm" aria-hidden="true">
+                            {advisors.find((a) => a.id === row.advisorId)?.initials ?? '—'}
+                          </span>
+                          {advisorName(row.advisorId)}
+                        </span>
+                      </td>
+                      <td>
                         <span className={`badge ${row.status === 'approved' ? 'done' : row.status === 'needs_review' ? 'needs' : 'medium'}`}>
                           {row.status.replace('_', ' ')}
                         </span>
                       </td>
                       <td>{row.estMinutesSaved} min</td>
+                      <td className="para-row-actions" onClick={(e) => e.stopPropagation()}>
+                        {row.status === 'awaiting_data' ? (
+                          <button
+                            type="button"
+                            className="btn ghost sm"
+                            onClick={() => flash(`Requested missing data for ${row.household}`)}
+                          >
+                            Request data
+                          </button>
+                        ) : row.status === 'approved' ? (
+                          <button
+                            type="button"
+                            className="btn ghost sm"
+                            onClick={() => flash(`Opened filed ${row.type} for ${row.household}`)}
+                          >
+                            Open filed
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="btn ghost sm"
+                              onClick={() => flash(`Opened ${row.type} draft for ${row.household}`)}
+                            >
+                              Open draft
+                            </button>
+                            <button
+                              type="button"
+                              className="btn success sm"
+                              onClick={() => flash(`Marked ${row.type} ready for advisor`)}
+                            >
+                              Ready
+                            </button>
+                          </>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
               <div className="para-detail" style={{ marginTop: 16 }}>
+                <div className="para-detail-head">
+                  <strong>{selectedPara.type} · {selectedPara.household}</strong>
+                  <span className="para-advisor">
+                    <span className="advisor-avatar sm" aria-hidden="true">
+                      {advisors.find((a) => a.id === selectedPara.advisorId)?.initials ?? '—'}
+                    </span>
+                    {advisorName(selectedPara.advisorId)}
+                  </span>
+                </div>
                 <div className="callout">
                   <strong>Why This Needs You</strong>
                   {selectedPara.status === 'awaiting_data'
@@ -2274,6 +2703,39 @@ export default function App() {
               </table>
             </div>
           </div>
+
+          <div className="panel" style={{ margin: '0 12px 12px' }}>
+            <div className="panel-header">
+              <span>Investor Portals — Client-Facing Experience</span>
+              <span className="muted">Portal players FSC CLM must match & surpass</span>
+            </div>
+            <div className="panel-body" style={{ overflowX: 'auto' }}>
+              <table className="comp-table">
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Lane</th>
+                    <th>Strength</th>
+                    <th>Gap</th>
+                    <th>FSC Angle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {portalPlayers.map((c) => (
+                    <tr key={c.name}>
+                      <td>
+                        <strong>{c.name}</strong>
+                      </td>
+                      <td>{c.lane}</td>
+                      <td>{c.strength}</td>
+                      <td>{c.gap}</td>
+                      <td>{c.fscAngle}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </>
       )}
       </div>
@@ -2346,60 +2808,66 @@ export default function App() {
       )}
 
       {playbookMeeting && (
-        <div className="modal-backdrop" role="presentation" onClick={() => setPlaybookMeeting(null)}>
-          <div
-            className="plaid-modal playbook-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="playbook-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="portal-kicker">{playbookMeeting.playbookName ?? 'Meeting playbook'}</div>
-            <h3 id="playbook-title">{playbookMeeting.title}</h3>
-            <p>
-              {playbookMeeting.when.replace('T', ' · ')} · {playbookMeeting.channel.replace('_', ' ')} ·{' '}
-              {playbookMeeting.attendees.join(', ')}
-            </p>
-            <h4>Agenda</h4>
-            <ul className="brief-lines">
-              {playbookMeeting.agenda.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-            {playbookMeeting.preBrief && (
-              <>
-                <h4>Pre-meeting brief</h4>
-                <ul className="brief-lines">
-                  {playbookMeeting.preBrief.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {playbookMeeting.nextSteps && (
-              <>
-                <h4>Next steps</h4>
-                <ul className="brief-lines">
-                  {playbookMeeting.nextSteps.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {playbookMeeting.summary && <p>{playbookMeeting.summary}</p>}
-            <h4>Actions</h4>
-            <ul className="brief-lines">
-              {playbookMeeting.actions.map((action) => (
-                <li key={action.id}>
-                  {action.title} · {action.owner} · {action.status}
-                </li>
-              ))}
-            </ul>
-            <button type="button" className="btn" onClick={() => setPlaybookMeeting(null)}>
-              Close
-            </button>
-          </div>
-        </div>
+        <MeetingWorkspace
+          meeting={playbookMeeting}
+          crmConnected={crmConnected}
+          onClose={() => setPlaybookMeeting(null)}
+          onFlash={flash}
+          onSyncActions={(meeting) => {
+            syncMeetingActions(meeting)
+            setPlaybookMeeting(null)
+          }}
+        />
+      )}
+
+      {prepBriefMeeting && (
+        <MeetingPrepBrief
+          meeting={prepBriefMeeting}
+          householdName={householdName(prepBriefMeeting.householdId)}
+          openCases={deskCases.filter(
+            (c) => c.householdId === prepBriefMeeting.householdId && c.status !== 'Closed',
+          )}
+          openSignals={exceptionsForHousehold(
+            households.find((h) => h.id === prepBriefMeeting.householdId) ?? household,
+            openExceptions,
+          ).map<PrepSignal>((ex) => ({
+            id: ex.id,
+            title: ex.title,
+            priority: ex.priority,
+            recommended: ex.recommendedAction,
+          }))}
+          openActions={openMeetingActions(prepBriefMeeting.householdId, meetingList).map((x) => x.action)}
+          onClose={() => setPrepBriefMeeting(null)}
+          onFlash={flash}
+          onOpenWorkspace={() => setPlaybookMeeting(prepBriefMeeting)}
+        />
+      )}
+
+      {scheduleOpen && (
+        <ScheduleMeeting
+          households={households}
+          defaultHouseholdId={showingBook ? households[0].id : household.id}
+          onClose={() => setScheduleOpen(false)}
+          onCreate={scheduleMeeting}
+        />
+      )}
+
+      {integrationHubOpen && (
+        <IntegrationHub
+          integrations={integrationList}
+          onToggle={toggleIntegration}
+          onClose={() => setIntegrationHubOpen(false)}
+          onFlash={flash}
+        />
+      )}
+      {previewDoc && (
+        <DocumentPreview
+          doc={previewDoc}
+          record={onboarding}
+          householdName={household.name}
+          onClose={() => setPreviewDoc(null)}
+          onFlash={flash}
+        />
       )}
       {toast && (
         <div className="toast" role="status">

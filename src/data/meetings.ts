@@ -22,6 +22,36 @@ export interface MeetingActionItem {
   relatedStage?: LifecycleStageId
 }
 
+/** AI notetaker state, matching Zoom AI Companion / Jump Notetaker / Granola */
+export type NotetakerStatus = 'armed' | 'recording' | 'processing' | 'ready' | 'off'
+
+export interface TranscriptLine {
+  speaker: string
+  /** mm:ss offset into the call */
+  at: string
+  text: string
+}
+
+export interface MeetingAI {
+  notetaker: NotetakerStatus
+  /** Which connected platform captured it (Zoom, Teams, Meet…) */
+  source?: string
+  recorded?: boolean
+  transcriptMinutes?: number
+  /** AI-generated summary paragraph (Zoom AI Companion style) */
+  summary?: string
+  /** Bulleted key takeaways / highlights */
+  takeaways?: string[]
+  /** Speaker-attributed transcript excerpt */
+  transcript?: TranscriptLine[]
+  /** Drafted follow-up email the advisor approves and sends */
+  followupEmail?: { subject: string; body: string }
+  /** Suggested "Ask AI about this meeting" prompts */
+  askSuggestions?: string[]
+  /** Whether the AI output has been pushed to the CRM interaction summary */
+  syncedToCrm?: boolean
+}
+
 export interface Meeting {
   id: string
   householdId: string
@@ -43,6 +73,8 @@ export interface Meeting {
   /** Post-meeting next steps, the way an interaction summary publishes them */
   nextSteps?: string[]
   prepBriefReady?: boolean
+  /** AI notetaker + assistant output */
+  ai?: MeetingAI
 }
 
 export const meetings: Meeting[] = [
@@ -399,12 +431,275 @@ export const meetings: Meeting[] = [
   },
 ]
 
-export function meetingsForHousehold(householdId: string) {
-  return meetings.filter((m) => m.householdId === householdId)
+const CHANNEL_SOURCE: Record<Meeting['channel'], string> = {
+  video: 'Zoom',
+  phone: 'RingCentral',
+  in_person: 'Mobile notetaker',
 }
 
-export function openMeetingActions(householdId: string) {
-  return meetingsForHousehold(householdId)
+function firstName(attendee: string) {
+  return attendee.split(' ')[0]
+}
+
+/**
+ * Synthesize the AI notetaker + assistant output for a meeting from what the
+ * meeting already knows (agenda, summary, decisions, actions, next steps).
+ * Completed meetings get a full recording + transcript + summary; scheduled
+ * meetings get an armed notetaker and a prep-brief posture. This mirrors the
+ * Zoom AI Companion / Jump Notetaker / Granola experience without hand-authoring
+ * every field on every meeting.
+ */
+export function meetingAI(m: Meeting): MeetingAI {
+  if (m.ai) return m.ai
+  const client = m.attendees.find((a) => !/rivera|lee|ortiz|specialist|compliance|counsel|cra|paraplanner/i.test(a)) ?? m.attendees[0]
+  const clientFirst = firstName(client ?? 'the client')
+
+  if (m.status === 'completed') {
+    const minutes = m.channel === 'in_person' ? 45 : 38
+    const takeaways = [
+      ...(m.decisions ?? []).map((d) => `Decision: ${d}`),
+      ...(m.nextSteps ?? []).slice(0, 3).map((n) => `Next: ${n}`),
+    ].slice(0, 5)
+    const transcript: TranscriptLine[] = [
+      { speaker: 'A. Rivera', at: '00:42', text: `Thanks for the time today — I want to make sure we land ${m.agenda[0]?.toLowerCase() ?? 'the agenda'}.` },
+      { speaker: clientFirst, at: '01:15', text: m.summary?.split('.')[0] ?? 'That works for me, and here is where I stand.' },
+      { speaker: 'A. Rivera', at: '04:03', text: (m.decisions?.[0] ? `So we are agreed to ${m.decisions[0].toLowerCase()}.` : 'Let me recap what we agreed.') },
+      { speaker: clientFirst, at: '04:20', text: 'Yes, that reflects what we discussed.' },
+    ]
+    return {
+      notetaker: 'ready',
+      source: CHANNEL_SOURCE[m.channel],
+      recorded: m.channel !== 'in_person',
+      transcriptMinutes: minutes,
+      summary:
+        m.summary ??
+        `${m.title} with ${client}. The conversation covered ${m.agenda.slice(0, 3).join(', ').toLowerCase()}. Decisions and next steps were captured and synced to the household file.`,
+      takeaways: takeaways.length > 0 ? takeaways : m.agenda.map((a) => `Covered: ${a}`),
+      transcript,
+      followupEmail: {
+        subject: `Recap — ${m.title}`,
+        body: [
+          `Hi ${clientFirst},`,
+          '',
+          `Thank you for the time today. Here is a quick recap of what we covered and the next steps.`,
+          '',
+          ...(m.decisions ?? []).map((d) => `• ${d}`),
+          ...(m.nextSteps ?? []).map((n) => `• Next: ${n}`),
+          '',
+          'I will keep the file updated and follow up as these progress. Let me know if I missed anything.',
+          '',
+          'Best,',
+          'A. Rivera',
+        ].join('\n'),
+      },
+      askSuggestions: [
+        'What did the client commit to?',
+        'List every open action item and owner.',
+        'Draft a note for the compliance file.',
+      ],
+      syncedToCrm: true,
+    }
+  }
+
+  // Scheduled / upcoming — notetaker armed, brief posture.
+  return {
+    notetaker: m.prepBriefReady ? 'armed' : 'off',
+    source: CHANNEL_SOURCE[m.channel],
+    recorded: false,
+    summary: m.prepBriefReady
+      ? `Notetaker is armed to join this ${m.channel.replace('_', ' ')} meeting. It will record, transcribe, and draft a summary + action items when the call ends.`
+      : 'Notetaker is held until this meeting is unblocked. No capture will run.',
+    takeaways: m.preBrief ?? m.agenda.map((a) => `Plan to cover: ${a}`),
+    askSuggestions: [
+      `What should I open with for ${clientFirst}?`,
+      'What is still missing from the file before this meeting?',
+      'Summarize the last meeting with this household.',
+    ],
+    syncedToCrm: false,
+  }
+}
+
+export function meetingsForHousehold(householdId: string, list: Meeting[] = meetings) {
+  return list.filter((m) => m.householdId === householdId)
+}
+
+export function openMeetingActions(householdId: string, list: Meeting[] = meetings) {
+  return meetingsForHousehold(householdId, list)
     .flatMap((m) => m.actions.map((a) => ({ meeting: m, action: a })))
     .filter((x) => x.action.status === 'open' || x.action.status === 'blocked')
+}
+
+// ── Agentic pre / post-meeting actions ─────────────────────────────
+// The Meeting Concierge runs a set of one-click agent moves before and after
+// a meeting. Pre-meeting actions assemble the brief, pull the file, and prep
+// the notetaker; post-meeting actions publish notes, push follow-ups, and open
+// the next steps. Each action mirrors the AdvisorAction "one-click-down" idea:
+// the agent already did the work; the human approves / reviews.
+
+export type MeetingPhase = 'pre' | 'post'
+
+export interface MeetingAgenticAction {
+  id: string
+  phase: MeetingPhase
+  /** Verb-first label the human clicks */
+  label: string
+  /** What the agent already did / will do */
+  detail: string
+  /** 'ready' = agent finished, awaiting your review; 'suggested' = one click to run; 'blocked' = gated */
+  state: 'ready' | 'suggested' | 'blocked'
+  /** Toast copy when the action is taken */
+  done: string
+}
+
+function firstNameOf(m: Meeting) {
+  const client = m.attendees.find((a) => !/rivera|lee|ortiz|specialist|compliance|counsel|cra|paraplanner/i.test(a)) ?? m.attendees[0]
+  return firstName(client ?? 'the client')
+}
+
+/**
+ * Derive the pre/post agentic actions for a meeting from what it already knows.
+ * Scheduled meetings get pre-meeting prep actions; completed meetings get
+ * post-meeting publish/follow-up actions. Blocked prep (prepBriefReady === false)
+ * surfaces its actions as 'blocked'.
+ */
+export function meetingAgenticActions(m: Meeting): MeetingAgenticAction[] {
+  const who = firstNameOf(m)
+  const source = CHANNEL_SOURCE[m.channel]
+  const gated = m.prepBriefReady === false
+
+  if (m.status === 'completed') {
+    const post: MeetingAgenticAction[] = [
+      {
+        id: `${m.id}-post-summary`,
+        phase: 'post',
+        label: 'Publish AI summary to the file',
+        detail: 'Notetaker transcribed the call and drafted a summary, takeaways, and decisions. Review and post to the household timeline.',
+        state: 'ready',
+        done: 'Summary + takeaways posted to the household timeline.',
+      },
+      {
+        id: `${m.id}-post-followup`,
+        phase: 'post',
+        label: `Send follow-up email to ${who}`,
+        detail: 'A recap email is drafted from the decisions and next steps. Approve to send and log it to the client timeline.',
+        state: 'ready',
+        done: `Follow-up email sent to ${who} and logged.`,
+      },
+      {
+        id: `${m.id}-post-tasks`,
+        phase: 'post',
+        label: 'Open next steps as tasks',
+        detail: `${m.actions.length} action item${m.actions.length === 1 ? '' : 's'} were extracted. Push them into the work queue with owners and due dates.`,
+        state: m.actions.length > 0 ? 'ready' : 'suggested',
+        done: 'Next steps opened in the work queue.',
+      },
+      {
+        id: `${m.id}-post-crm`,
+        phase: 'post',
+        label: 'Sync interaction summary to CRM',
+        detail: 'Write the meeting outcome to the Salesforce Interaction Summary so the record stays audit-ready.',
+        state: 'suggested',
+        done: 'Interaction summary synced to CRM.',
+      },
+    ]
+    return post
+  }
+
+  const pre: MeetingAgenticAction[] = [
+    {
+      id: `${m.id}-pre-brief`,
+      phase: 'pre',
+      label: 'Generate the prep brief',
+      detail: gated
+        ? 'Prep is held until this meeting is unblocked. The brief will assemble once the gate clears.'
+        : 'Agent read the household file and drafted a brief with the agenda, open cases, and what is still missing.',
+      state: gated ? 'blocked' : 'ready',
+      done: 'Prep brief generated from the household file.',
+    },
+    {
+      id: `${m.id}-pre-pull`,
+      phase: 'pre',
+      label: 'Pull latest file + open cases',
+      detail: 'Refresh accounts, balances, documents, and any open cases so nothing on the call is stale.',
+      state: gated ? 'blocked' : 'suggested',
+      done: 'Latest file and open cases pulled into the brief.',
+    },
+    {
+      id: `${m.id}-pre-notetaker`,
+      phase: 'pre',
+      label: `Arm notetaker via ${source}`,
+      detail: `The AI notetaker will join the ${m.channel.replace('_', ' ')} call, record, transcribe, and draft notes + action items at the end.`,
+      state: gated ? 'blocked' : 'suggested',
+      done: `Notetaker armed to join via ${source}.`,
+    },
+    {
+      id: `${m.id}-pre-agenda`,
+      phase: 'pre',
+      label: `Send agenda to ${who}`,
+      detail: 'A confirmation email with the agenda and join link is drafted. Approve to send ahead of the meeting.',
+      state: gated ? 'blocked' : 'suggested',
+      done: `Agenda sent to ${who}.`,
+    },
+  ]
+  return pre
+}
+
+// ── New meeting factory ────────────────────────────────────────────
+
+export interface NewMeetingInput {
+  householdId: string
+  title: string
+  type: MeetingType
+  when: string
+  channel: Meeting['channel']
+  attendees: string[]
+  agenda?: string[]
+}
+
+const PLAYBOOK_BY_TYPE: Record<MeetingType, string> = {
+  prospect: 'Prospect Pre Meeting',
+  discovery: 'Discovery Pre Meeting',
+  proposal: 'Proposal Pre Meeting',
+  orientation: 'Advisor 30/60/90',
+  annual_review: 'Annual Review Pre Meeting',
+  service: 'Service Check-in',
+  estate: 'Estate intro',
+  compliance: 'Compliance Review',
+}
+
+const DEFAULT_AGENDA: Record<MeetingType, string[]> = {
+  prospect: ['How they found us', 'What they want help with', 'Whether to book discovery'],
+  discovery: ['Goals & horizon', 'Balance sheet intake', 'Risk conversation', 'Next steps to proposal'],
+  proposal: ['Proposed allocation & IPS', 'Fee schedule', 'Custody & funding path'],
+  orientation: ['Portal walkthrough', '30/60/90 cadence', 'Billing & statements', 'Q&A'],
+  annual_review: ['Net worth & goals', 'Drift / rebalance', 'Tax planning', 'Next-year plan'],
+  service: ['Performance', 'Cash need', 'Life updates'],
+  estate: ['Condolences & process overview', 'Retitle sequence', 'Successor KYC'],
+  compliance: ['Disclosure review', 'KYC / AML refresh', 'Principal decision'],
+}
+
+let newMeetingSeq = 0
+
+/** Build a new scheduled meeting from the schedule form. */
+export function createMeeting(input: NewMeetingInput): Meeting {
+  newMeetingSeq += 1
+  const agenda = input.agenda?.filter(Boolean).length ? input.agenda.filter(Boolean) : DEFAULT_AGENDA[input.type]
+  return {
+    id: `m-new-${newMeetingSeq}-${input.householdId}`,
+    householdId: input.householdId,
+    title: input.title.trim() || `${input.type.replace('_', ' ')} meeting`,
+    when: input.when,
+    status: 'scheduled',
+    type: input.type,
+    attendees: input.attendees.filter(Boolean).length ? input.attendees.filter(Boolean) : ['A. Rivera'],
+    channel: input.channel,
+    agenda,
+    actions: [],
+    playbookName: PLAYBOOK_BY_TYPE[input.type],
+    preBrief: [
+      'New meeting — the agent will assemble the brief from the household file.',
+      'Confirm the agenda and attendees before the call.',
+    ],
+    prepBriefReady: true,
+  }
 }

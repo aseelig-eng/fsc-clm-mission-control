@@ -237,3 +237,136 @@ export function factsForStage(household: Household, stage: LifecycleStage): Stag
     nextTouch: stage.humanAction ? `You: ${stage.humanAction}` : household.nextClientTouch,
   }
 }
+
+// ── Stage-specific measurable categories ──────────────────────────
+// Every lifecycle stage measures different things. These definitions drive the
+// summary tiles under the progress bar so the categories change as the advisor
+// clicks through the rail. Values resolve from the client's onboarding record
+// (field key) when available, then fall back to stage facts / a static string.
+
+export interface StageMetric {
+  label: string
+  value: string
+}
+
+interface FieldLike {
+  value: string
+  status: string
+}
+
+interface MetricDef {
+  label: string
+  /** Record field key(s) to source the value from (first non-empty wins) */
+  key?: string | string[]
+  /** Fallback when no field value is present */
+  fallback?: (facts: StageFacts, household: Household) => string
+  /** Format the resolved value */
+  format?: (raw: string) => string
+}
+
+const currency = (raw: string) => (/^[\d$]/.test(raw) && !raw.includes('$') ? `$${raw}` : raw)
+
+const STAGE_METRIC_DEFS: Record<LifecycleStageId, MetricDef[]> = {
+  prospect: [
+    { label: 'Lead source', key: 'source', fallback: () => 'Inbound' },
+    { label: 'Prospect owner', key: 'advisor', fallback: (_f, h) => h.name },
+    { label: 'Lead status', fallback: (f) => f.risk },
+    { label: 'Intro meeting', fallback: (f) => f.nextTouch },
+  ],
+  discovery: [
+    { label: 'Primary goal', key: 'goal', fallback: () => 'Not captured' },
+    { label: 'Time horizon', key: 'horizon', format: (v) => (/^\d/.test(v) ? `${v} yrs` : v), fallback: () => 'Not captured' },
+    { label: 'Investable assets', key: ['investable', 'netWorth'], format: currency, fallback: (f) => f.aum },
+    { label: 'Discovery meeting', fallback: (f) => f.nextTouch },
+  ],
+  proposal: [
+    { label: 'Proposed AUM', fallback: (f) => f.aum },
+    { label: 'Model / allocation', key: ['allocation', 'model'], fallback: () => 'Drafting' },
+    { label: 'IPS status', fallback: (f) => f.risk },
+    { label: 'Fee schedule', key: 'feeSchedule', fallback: () => 'Not set' },
+  ],
+  disclosures: [
+    { label: 'Form CRS', key: 'crsAck', fallback: () => 'Pending' },
+    { label: 'ADV 2A / 2B', key: 'advAck', fallback: () => 'Pending' },
+    { label: 'Reg BI rationale', key: 'regBi', fallback: () => 'Pending' },
+    { label: 'Next step', fallback: (f) => f.nextTouch },
+  ],
+  kyc: [
+    { label: 'CIP / ID', key: ['cip', 'idType'], fallback: () => 'Pending' },
+    { label: 'OFAC / PEP', key: ['ofac', 'pep'], fallback: () => 'Screening' },
+    { label: 'Source of wealth', key: 'sow', fallback: () => 'Not documented' },
+    { label: 'Principal approval', key: 'principal', fallback: (f) => f.nextTouch },
+  ],
+  account_open: [
+    { label: 'Custodian', key: 'custodian', fallback: () => 'TBD' },
+    { label: 'Account types', key: 'acctTypes', fallback: () => 'Not selected' },
+    { label: 'Registration', key: 'registration', fallback: () => 'Not set' },
+    { label: 'Account #', key: 'custAcct', fallback: () => 'Not issued' },
+  ],
+  funding: [
+    { label: 'Funding method', key: 'fundMethod', fallback: () => 'Not selected' },
+    { label: 'ACAT status', key: 'acat', fallback: (f) => f.nextTouch },
+    { label: 'Amount funded', key: 'fundAmt', format: currency, fallback: (f) => f.aum },
+    { label: 'Managed AUM', fallback: (f) => f.aum },
+  ],
+  welcome: [
+    { label: 'Client portal', key: 'portal', fallback: () => 'Not provisioned' },
+    { label: 'Welcome kit', key: 'welcome', fallback: () => 'Pending' },
+    { label: 'Orientation', key: 'orientDate', fallback: (f) => f.nextTouch },
+    { label: 'Billing engine', key: 'billing', fallback: () => 'Not initialized' },
+  ],
+  ongoing: [
+    { label: 'Managed AUM', fallback: (f) => f.aum },
+    { label: 'Allocation', key: 'allocation', fallback: (f) => f.risk },
+    { label: 'Monitoring', fallback: (f) => f.risk },
+    { label: 'Next review', fallback: (f) => f.nextTouch },
+  ],
+  annual_review: [
+    { label: 'Review date', fallback: (f) => f.nextTouch },
+    { label: 'AUM under review', fallback: (f) => f.aum },
+    { label: 'Risk / drift', fallback: (f) => f.risk },
+    { label: 'Fee schedule', key: 'feeSchedule', fallback: () => 'On file' },
+  ],
+  life_event: [
+    { label: 'Event', fallback: (f) => f.risk },
+    { label: 'Impacted AUM', fallback: (f) => f.aum },
+    { label: 'Beneficiary', key: 'beneficiary', fallback: () => 'Under review' },
+    { label: 'Next action', fallback: (f) => f.nextTouch },
+  ],
+  estate: [
+    { label: 'Estate value', fallback: (f) => f.aum },
+    { label: 'Settlement', fallback: (f) => f.risk },
+    { label: 'Beneficiary', key: 'beneficiary', fallback: () => 'Successor TBD' },
+    { label: 'Successor contact', fallback: (f) => f.nextTouch },
+  ],
+}
+
+function resolveField(keys: string | string[] | undefined, fields: Record<string, FieldLike>): string {
+  if (!keys) return ''
+  const list = Array.isArray(keys) ? keys : [keys]
+  // Fallback chain: first key with a usable value wins.
+  for (const k of list) {
+    const f = fields[k]
+    if (f && f.value && f.status !== 'missing' && f.status !== 'blocked' && f.status !== 'n/a') {
+      return f.value
+    }
+  }
+  return ''
+}
+
+export function stageMetrics(
+  household: Household,
+  stage: LifecycleStage,
+  fields: Record<string, FieldLike> = {},
+): StageMetric[] {
+  const facts = factsForStage(household, stage)
+  const notReached = stage.status === 'upcoming'
+  const defs = STAGE_METRIC_DEFS[stage.id] ?? []
+  return defs.map((def) => {
+    if (notReached) return { label: def.label, value: 'Upcoming' }
+    const sourced = resolveField(def.key, fields)
+    let value = sourced || (def.fallback ? def.fallback(facts, household) : '—')
+    if (sourced && def.format) value = def.format(sourced)
+    return { label: def.label, value: value || '—' }
+  })
+}

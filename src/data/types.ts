@@ -81,10 +81,21 @@ export interface ParaplannerDeliverable {
   id: string
   type: 'IPS' | 'Proposal' | 'Suitability' | 'Annual Review' | 'Estate Memo'
   household: string
+  /** The advisor whose book this deliverable belongs to */
+  advisorId: string
   status: 'draft_ready' | 'needs_review' | 'awaiting_data' | 'approved'
   agentDid: string
   yourJob: string
   estMinutesSaved: number
+}
+
+export interface Advisor {
+  id: string
+  name: string
+  /** Short initials/avatar label */
+  initials: string
+  /** Team or book descriptor */
+  book: string
 }
 
 export interface Household {
@@ -112,6 +123,14 @@ export interface PersonaValue {
 }
 
 export interface Competitor {
+  name: string
+  lane: string
+  strength: string
+  gap: string
+  fscAngle: string
+}
+
+export interface PortalPlayer {
   name: string
   lane: string
   strength: string

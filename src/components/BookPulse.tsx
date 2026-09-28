@@ -447,6 +447,67 @@ function buildMetrics(households: Household[], exceptions: ExceptionItem[]): Boo
   ]
 }
 
+function buildBriefing(households: Household[], exceptions: ExceptionItem[]) {
+  const firm = Object.fromEntries(metrics.map((m) => [m.label, m]))
+  const pipelineCount = households.filter((h) => NEW_CLIENT_PIPE.some((stage) => stage.id === h.stage)).length
+  const weekMeetings = meetings
+    .filter((m) => m.status === 'scheduled')
+    .filter((m) => {
+      const when = new Date(m.when)
+      return when >= WEEK_START && when <= WEEK_END
+    })
+    .sort((a, b) => a.when.localeCompare(b.when))
+  const nextMeeting = weekMeetings[0]
+  const nextMeetingHousehold = nextMeeting
+    ? households.find((h) => h.id === nextMeeting.householdId)?.name ?? 'a household'
+    : null
+  const critical = exceptions.filter((ex) => ex.priority === 'critical')
+  const highs = exceptions.filter((ex) => ex.priority === 'high')
+  const blocked = households.flatMap((h) =>
+    h.stages.filter((s) => s.status === 'blocked').map((s) => ({ household: h.name, label: s.label })),
+  )
+  const hours = firm['Hours I saved this week']?.value ?? '6.5 hrs'
+  const nigo = firm['NIGO rate']?.value ?? '7%'
+  const timeToFunded = firm['Median time-to-funded']?.value ?? '4.2 days'
+
+  // Lead — where the advisor's attention goes first.
+  const attention: string[] = []
+  if (critical.length > 0) {
+    attention.push(
+      `${critical.length} critical signal${critical.length === 1 ? '' : 's'} need${critical.length === 1 ? 's' : ''} you now — ${critical
+        .map((ex) => ex.household)
+        .join(', ')}`,
+    )
+  }
+  if (blocked.length > 0) {
+    attention.push(
+      `${blocked.length} gate${blocked.length === 1 ? '' : 's'} blocked (${blocked
+        .slice(0, 2)
+        .map((b) => `${b.household.split(' ')[0]} — ${b.label.toLowerCase()}`)
+        .join('; ')}${blocked.length > 2 ? '…' : ''})`,
+    )
+  }
+  if (highs.length > 0 && attention.length < 2) {
+    attention.push(`${highs.length} high-priority item${highs.length === 1 ? '' : 's'} in the queue`)
+  }
+
+  const lead =
+    attention.length > 0
+      ? `Start here: ${attention.join('; ')}.`
+      : 'Nothing is blocking the book today — agents are running clean and the queue is signal-only.'
+
+  const week = `${weekMeetings.length} meeting${weekMeetings.length === 1 ? '' : 's'} on the calendar through Wednesday${
+    nextMeeting ? `, next up ${nextMeetingHousehold} on ${whenLabel(nextMeeting.when)}` : ''
+  }. ${pipelineCount} prospect${pipelineCount === 1 ? '' : 's'} still moving toward funding.`
+
+  const market =
+    'Markets: equities firm — S&P 500 +1.2% on the week, 10-year Treasury near 4.1%, volatility subdued. Funded households sit close to their IPS targets; no rebalance breaches flagged.'
+
+  const efficiency = `Agents returned ${hours} of advisor time this week. NIGO holding at ${nigo} versus the ~25% industry norm, and files are reaching funded in ${timeToFunded}.`
+
+  return { lead, week, market, efficiency }
+}
+
 function MetricVisual({
   visual,
   onOpenHousehold,
@@ -529,15 +590,22 @@ export function BookPulse({
   onOpenHousehold: (id: string) => void
 }) {
   const items = buildMetrics(households, exceptions)
+  const briefing = buildBriefing(households, exceptions)
   const [openId, setOpenId] = useState<string | null>(null)
   const open = items.find((item) => item.id === openId) ?? null
 
   return (
     <div className="pulse-panel">
-      <div className="likeness-kicker">Book Pulse</div>
-      <p className="muted" style={{ margin: '4px 0 12px' }}>
-        A scoreboard for the whole book. Select a tile for the picture behind the number.
-      </p>
+      <div className="pulse-brief-head">
+        <div className="likeness-kicker">Book Pulse</div>
+        <span className="pulse-brief-tag">Generated · this morning</span>
+      </div>
+      <div className="pulse-brief">
+        <p className="pulse-brief-lead">{briefing.lead}</p>
+        <p>{briefing.week}</p>
+        <p>{briefing.market}</p>
+        <p>{briefing.efficiency}</p>
+      </div>
       <div className="book-board">
         {(
           [

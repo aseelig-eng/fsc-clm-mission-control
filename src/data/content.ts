@@ -1,10 +1,21 @@
 import type {
+  Advisor,
   Competitor,
   ExceptionItem,
   Household,
   ParaplannerDeliverable,
   PersonaValue,
+  PortalPlayer,
 } from './types'
+
+// Advisors whose books this paraplanner supports. A paraplanner typically
+// covers multiple advisors' books of business, so the workbench defaults to
+// "All advisors" but can be scoped to one or more.
+export const advisors: Advisor[] = [
+  { id: 'adv-rivera', name: 'Ana Rivera', initials: 'AR', book: 'Affluent & Pre-Retiree' },
+  { id: 'adv-okafor', name: 'David Okafor', initials: 'DO', book: 'HNW & Business Owners' },
+  { id: 'adv-lindqvist', name: 'Mia Lindqvist', initials: 'ML', book: 'Estate & Multi-Gen' },
+]
 
 export const metrics = [
   { label: 'Median time-to-funded', value: '4.2 days', delta: '−18 days vs manual', tone: 'good' as const },
@@ -623,6 +634,7 @@ export const paraplannerQueue: ParaplannerDeliverable[] = [
     id: 'p1',
     type: 'IPS',
     household: 'Elena Vasquez',
+    advisorId: 'adv-rivera',
     status: 'awaiting_data',
     agentDid: 'Held the draft. Person Account has a name and email only — no goal, horizon, risk, or assets to cite.',
     yourJob: 'Do not write an IPS. After Monday’s intro, request the discovery fact-find.',
@@ -632,6 +644,7 @@ export const paraplannerQueue: ParaplannerDeliverable[] = [
     id: 'p2',
     type: 'Annual Review',
     household: 'Adams Household',
+    advisorId: 'adv-rivera',
     status: 'draft_ready',
     agentDid: 'Built deck: net worth, goal progress, drift, RMD timeline, Roth conversion scenarios.',
     yourJob: 'Validate tax numbers with specialist; mark ready for advisor dry-run.',
@@ -641,6 +654,7 @@ export const paraplannerQueue: ParaplannerDeliverable[] = [
     id: 'p3',
     type: 'Proposal',
     household: 'Whitfield Household',
+    advisorId: 'adv-okafor',
     status: 'awaiting_data',
     agentDid: 'Proposal narrative and IPS are drafted from the in-person meeting. Fee Schedule A stays unlocked until principal approves EDD.',
     yourJob: 'Do not lock fees or send. Resume when Principal Approved is true.',
@@ -650,6 +664,7 @@ export const paraplannerQueue: ParaplannerDeliverable[] = [
     id: 'p4',
     type: 'Suitability',
     household: 'Maya Chen',
+    advisorId: 'adv-rivera',
     status: 'approved',
     agentDid: 'Reg BI rationale memo generated from fact-find + model match.',
     yourJob: 'Archived to Client Vault; available for exam pull.',
@@ -659,6 +674,7 @@ export const paraplannerQueue: ParaplannerDeliverable[] = [
     id: 'p5',
     type: 'Estate Memo',
     household: 'Estate of James Okonkwo',
+    advisorId: 'adv-lindqvist',
     status: 'needs_review',
     agentDid: 'Drafted account-retitle sequence, beneficiary notifications, and step-up basis checklist.',
     yourJob: 'Coordinate with estate counsel; advisor presents to surviving spouse.',
@@ -679,11 +695,11 @@ export const personaValues: PersonaValue[] = [
       'Heirs and next-gen only show up at death — when AUM is already leaving',
     ],
     valueProps: [
-      'Mission control shows only exceptions needing judgment — with recommended actions (review docs/inputs, escalate, update account, call, delegate)',
+      'One unified “Needs You” board merges client portal requests, agent signals, and meeting prep — each card carries a queue chip, priority, and recommended action (review docs/inputs, escalate, update account, call, delegate)',
       'Blocked process cards open an unblock popup: why stalled + moves to clear the gate',
       'Person likeness pulse (incl. heir readiness) so every touch starts from who they are',
+      'Meeting Concierge runs pre/post agentic actions (prep brief, notetaker, tasks, writeback); held / actions / next touch stay attached to the household rail',
       'One-click recommended review: agent work, checklist, and CTAs — no swivel-chair hunting',
-      'Meeting held / actions / next touch stay attached to the household rail',
       'Hours return to client conversations, next-gen cultivation, and practice growth',
     ],
     metrics: [
@@ -777,8 +793,9 @@ export const personaValues: PersonaValue[] = [
     valueProps: [
       'Firm-wide TTC, NIGO, consolidation, transition + estate/heir retention dashboards',
       'Human-in-the-loop gates with immutable lineage; likeness maturity (exam-ready) before advice',
+      'Integration Hub governs first-time data-source connections — OAuth / MCP / API-key setup with scoped consent and audit before any agent reads a system',
       'Heir readiness as a retention KPI — cultivate next-gen before wealth moves',
-      'Signal-only ops with recommended advisor actions — scalable judgment, not more tickets',
+      'One “Needs You” queue per advisor (portal requests + signals + meetings) with recommended actions — scalable judgment, not more tickets',
       'Transition Agent protects AUM during recruiter moves; Estate path protects successor relationships',
       'Standardized CLM stages without killing advisor judgment',
     ],
@@ -801,6 +818,8 @@ export const personaValues: PersonaValue[] = [
     ],
     valueProps: [
       'Unified digital packet (IAA, ADV, risk, custodian)',
+      'Portal home shows portfolio overview, needs-your-attention, and the advisory team at a glance',
+      'Self-service that flows straight to the advisor: drag-and-drop document upload, service requests, and meeting scheduling become cases and prep on the advisor side',
       'Portal status + 30/60/90 concierge touches',
       'Advisor shows up prepared from person likeness — not buried in paperwork',
       'Family continuity: next-gen invited early so wealth transfer keeps the relationship',
@@ -862,5 +881,50 @@ export const competitors: Competitor[] = [
     strength: 'Template-faithful drafts, audit citations, CRM writeback',
     gap: 'Point solution — not custodian/KYC/funding spine or heir-readiness CLM',
     fscAngle: 'Embed equivalent Paraplanner Agent inside FSC CLM stages + likeness context',
+  },
+  {
+    name: 'Jump (jump.ai)',
+    lane: 'AI meeting assistant for advisors — notetaker, prep, CRM writeback',
+    strength: 'Fast pre-meeting prep + post-meeting notes, tasks, and compliance summaries; deep CRM (Wealthbox/Redtail/Salesforce) and Zoom/Teams integrations advisors love',
+    gap: 'Meeting-centric layer — no funding/KYC/custodian spine, no household likeness, no lifecycle stages or heir-retention KPIs',
+    fscAngle: 'Match the Meeting Concierge (pre/post agentic actions + notetaker) natively inside FSC CLM, where notes flow to stages, cases, and the household record — not a bolt-on',
+  },
+  {
+    name: 'Zocks',
+    lane: 'Privacy-first conversation intelligence for advisors',
+    strength: 'Structured data capture from calls/meetings (no raw recording), auto-fills fact-find fields and feeds planning tools; strong data-extraction accuracy',
+    gap: 'Capture/insight point solution — stops at the note; no onboarding, NIGO, custodian sync, or lifecycle orchestration to funded and estate',
+    fscAngle: 'Use the same structured-capture idea to populate the Person likeness + fact-find, then act on it across the whole lifecycle — capture is a feature of CLM, not the product',
+  },
+]
+
+export const portalPlayers: PortalPlayer[] = [
+  {
+    name: 'intelliflo (intelliflo office + connect)',
+    lane: 'End-to-end advice platform with a client-facing personal finance portal',
+    strength: 'Mature client portal — secure SSO, 24/7 access, document management, cashflow modeling, income management, and account/valuation views; huge install base (2,500+ firms) plus an app store and community',
+    gap: 'Portal reflects advice output; it is not an agentic CLM spine — no exception-first cockpit, person likeness maturity, or heir-readiness retention signal driving the household forward',
+    fscAngle: 'Match the client-portal depth (docs, cashflow, valuations, self-service) but wire it to the agentic lifecycle — portal actions become cases and stages, not a separate silo',
+  },
+  {
+    name: 'eMoney (emX + client portal)',
+    lane: 'Planning-led client portal with organizer + document vault',
+    strength: 'Best-known planning experience; interactive client site, personal financial organizer, secure vault, and account aggregation advisors and clients trust',
+    gap: 'Planning/aggregation portal — not a funding/KYC/custodian lifecycle or exception cockpit; household stays in the plan, not an orchestrated CLM',
+    fscAngle: 'Embed comparable planning/aggregation views inside FSC while the CLM agents drive onboarding→funded→estate around them',
+  },
+  {
+    name: 'Orion Client Portal',
+    lane: 'Performance + billing client portal on the Orion stack',
+    strength: 'Strong portfolio reporting, performance, and document delivery; mobile client experience tied to Orion accounting',
+    gap: 'Reporting-centric; onboarding and relationship lifecycle sit in other modules glued by integrations',
+    fscAngle: 'Unify reporting into the same household graph the agents act on — one portal across the whole lifecycle, not per-module',
+  },
+  {
+    name: 'Personal Capital / Empower (D2C benchmark)',
+    lane: 'Direct-to-consumer wealth dashboard + net-worth aggregation',
+    strength: 'Consumer-grade UX, aggregation, and self-service that sets client expectations for any advisor portal',
+    gap: 'Direct-to-consumer; no advisor CLM, no firm-side orchestration, compliance gates, or human-in-the-loop advice',
+    fscAngle: 'Deliver that consumer-grade portal feel inside an advisor-governed CLM — self-service plus agentic follow-through and compliance lineage',
   },
 ]
