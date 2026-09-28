@@ -5,6 +5,7 @@ import {
   type Integration,
   type IntegrationCategory,
 } from '../data/integrations'
+import { ConnectSource } from './ConnectSource'
 
 function IntegrationLogo({ item }: { item: Integration }) {
   const [failed, setFailed] = useState(false)
@@ -40,6 +41,10 @@ export function IntegrationHub({
 }) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<IntegrationCategory | 'all' | 'connected'>('all')
+  // The source awaiting first-time administration setup, and the set of sources
+  // that have already completed setup this session (so re-connecting is instant).
+  const [pending, setPending] = useState<Integration | null>(null)
+  const [configured, setConfigured] = useState<Set<string>>(() => new Set())
 
   const connectedCount = integrations.filter((i) => i.status === 'connected').length
 
@@ -144,12 +149,18 @@ export function IntegrationHub({
                       type="button"
                       className={`btn ${item.status === 'connected' ? '' : 'primary'} integration-toggle`}
                       onClick={() => {
+                        if (item.status === 'connected') {
+                          onToggle(item.id)
+                          onFlash(`Disconnected ${item.name}.`)
+                          return
+                        }
+                        // First time connecting this source → administration setup.
+                        if (!configured.has(item.id)) {
+                          setPending(item)
+                          return
+                        }
                         onToggle(item.id)
-                        onFlash(
-                          item.status === 'connected'
-                            ? `Disconnected ${item.name}.`
-                            : `Connected ${item.name}. Two-way sync is on.`,
-                        )
+                        onFlash(`Connected ${item.name}. Two-way sync is on.`)
                       }}
                     >
                       {item.status === 'connected' ? 'Disconnect' : 'Connect'}
@@ -161,6 +172,19 @@ export function IntegrationHub({
           ))}
         </div>
       </div>
+
+      {pending && (
+        <ConnectSource
+          item={pending}
+          onCancel={() => setPending(null)}
+          onConfirm={() => {
+            setConfigured((prev) => new Set(prev).add(pending.id))
+            onToggle(pending.id)
+            onFlash(`Connected ${pending.name}. Setup complete — two-way sync is on.`)
+            setPending(null)
+          }}
+        />
+      )}
     </div>
   )
 }
