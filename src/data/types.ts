@@ -129,3 +129,11 @@ export interface Competitor {
   gap: string
   fscAngle: string
 }
+
+export interface PortalPlayer {
+  name: string
+  lane: string
+  strength: string
+  gap: string
+  fscAngle: string
+}

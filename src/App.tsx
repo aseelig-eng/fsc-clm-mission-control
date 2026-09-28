@@ -7,6 +7,7 @@ import {
   metrics,
   paraplannerQueue,
   personaValues,
+  portalPlayers,
 } from './data/content'
 import {
   PHASE_LABELS,
@@ -2660,6 +2661,39 @@ export default function App() {
                 </thead>
                 <tbody>
                   {competitors.map((c) => (
+                    <tr key={c.name}>
+                      <td>
+                        <strong>{c.name}</strong>
+                      </td>
+                      <td>{c.lane}</td>
+                      <td>{c.strength}</td>
+                      <td>{c.gap}</td>
+                      <td>{c.fscAngle}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="panel" style={{ margin: '0 12px 12px' }}>
+            <div className="panel-header">
+              <span>Investor Portals — Client-Facing Experience</span>
+              <span className="muted">Portal players FSC CLM must match & surpass</span>
+            </div>
+            <div className="panel-body" style={{ overflowX: 'auto' }}>
+              <table className="comp-table">
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Lane</th>
+                    <th>Strength</th>
+                    <th>Gap</th>
+                    <th>FSC Angle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {portalPlayers.map((c) => (
                     <tr key={c.name}>
                       <td>
                         <strong>{c.name}</strong>
