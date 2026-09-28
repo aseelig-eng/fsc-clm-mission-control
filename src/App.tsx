@@ -49,11 +49,9 @@ import { handoffFor } from './data/generational'
 import { stageMetrics } from './data/stageFacts'
 import { recordFieldMap } from './data/documentTemplates'
 import { ClientPortal } from './components/ClientPortal'
-import { ServiceDesk } from './components/ServiceDesk'
 import {
   caseSteps,
   collectItems,
-  goalRecords,
   serviceCases,
   taskSteps,
   workTasks,
@@ -537,8 +535,9 @@ export default function App() {
   const [records, setRecords] = useState<Record<string, ClientOnboardingRecord>>(() => structuredClone(onboardingByHousehold))
   const [deskCases, setDeskCases] = useState(() => structuredClone(serviceCases))
   const [deskTasks, setDeskTasks] = useState(() => structuredClone(workTasks))
-  const [deskChecklist, setDeskChecklist] = useState(() => structuredClone(collectItems))
-  const [deskGoals, setDeskGoals] = useState(() => structuredClone(goalRecords))
+  // Checklist state is written by agentic steps (runAgenticStep) but no longer
+  // rendered (the Record-page "Checklist and goals" panel was removed).
+  const [, setDeskChecklist] = useState(() => structuredClone(collectItems))
   const [profileEdits, setProfileEdits] = useState<
     Record<string, { sentiment?: string; preferredContact?: ContactChannel[] }>
   >({})
@@ -1804,24 +1803,6 @@ export default function App() {
 
             {!showingBook && cockpitView === 'record' && onboarding && completeness && (
               <>
-              <div className="panel">
-                <div className="panel-header">
-                  <span>Checklist and goals</span>
-                  <span className="muted">Still to collect, separate from the filed vault</span>
-                </div>
-                <div className="panel-body">
-                  <ServiceDesk
-                    checklist={deskChecklist.filter((item) => item.householdId === household.id)}
-                    goals={deskGoals.filter((item) => item.householdId === household.id)}
-                    onChecklist={(id, status) =>
-                      setDeskChecklist((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)))
-                    }
-                    onGoal={(id, status) =>
-                      setDeskGoals((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)))
-                    }
-                  />
-                </div>
-              </div>
               <div className="panel">
                 <div className="panel-header">
                   <span>Financial Accounts</span>

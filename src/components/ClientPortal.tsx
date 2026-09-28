@@ -237,7 +237,19 @@ export function ClientPortal({
         })
         .filter((entry): entry is { phase: FormSection['phase']; label: string; sections: FormSection[]; pct: number } => entry != null)
     : []
-  const activePhase = onboardingPhases.find((entry) => entry.pct < 100) ?? onboardingPhases[onboardingPhases.length - 1] ?? null
+  // The active phase is the one the client's current lifecycle stage lives in
+  // (mapped via each section's stageIds), not merely the first phase under 100%.
+  // A near-complete earlier phase (e.g. 98%) should not steal the highlight from
+  // the phase the client is genuinely in. Fall back to first-incomplete if the
+  // current stage can't be located in any phase.
+  const phaseForCurrentStage = onboardingPhases.find((entry) =>
+    entry.sections.some((section) => section.stageIds.includes(household.stage)),
+  )
+  const activePhase =
+    phaseForCurrentStage ??
+    onboardingPhases.find((entry) => entry.pct < 100) ??
+    onboardingPhases[onboardingPhases.length - 1] ??
+    null
   const outstandingDocs = (record?.documents ?? []).filter((doc) => doc.status !== 'filed')
   const nextSteps: { id: string; label: string; go: () => void }[] = []
   if (record) {
