@@ -3005,6 +3005,12 @@ button.stage-card.selected {
   background: var(--sf-gray-6);
 }
 
+.btn:disabled,
+.btn:disabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .btn.primary {
   background: var(--sf-blue);
   border-color: var(--sf-blue);
