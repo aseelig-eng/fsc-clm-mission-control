@@ -248,6 +248,81 @@ export function ClientPortal({
   const openAccount = mine.find((account) => account.id === openAccountId) ?? null
   const blockedMove = mine.filter((account) => /nigo|reject|still open|acat #/i.test(account.status))
 
+  // ── Asset allocation by class (leverages holdings' assetClass) ──────────
+  const investedTotal = mine.reduce((sum, account) => sum + account.holdings.reduce((inner, holding) => inner + holding.value, 0), 0)
+  const allocation = [
+    ...mine
+      .reduce((map, account) => {
+        for (const holding of account.holdings) {
+          const key = holding.assetClass || 'Other'
+          map.set(key, (map.get(key) ?? 0) + holding.value)
+        }
+        return map
+      }, new Map<string, number>())
+      .entries(),
+  ]
+    .map(([label, value]) => ({ label, value, pct: investedTotal > 0 ? (value / investedTotal) * 100 : 0 }))
+    .sort((a, b) => b.value - a.value)
+  const equityPct = allocation
+    .filter((slice) => /equity|stock/i.test(slice.label))
+    .reduce((sum, slice) => sum + slice.pct, 0)
+  const targetEquity = coworker.portfolios?.[household.id]?.targetEquity ?? null
+  const drift = targetEquity == null ? null : Math.round(equityPct - targetEquity)
+
+  // ── Advisory team (advisor + household contacts) ────────────────────────
+  const contacts = personsForHousehold(household.id).filter((person) => !person.profile.deceased)
+  const advisoryTeam = [
+    { name: 'A. Rivera', role: 'Your advisor', detail: 'Lead advisor · CFP®', channel: 'Video or phone', kind: 'advisor' as const },
+    { name: 'J. Okafor', role: 'Client service', detail: 'Service & operations', channel: 'Email · same-day', kind: 'service' as const },
+  ]
+
+  // ── Action center: everything that needs the client, ranked ─────────────
+  type PortalAction = { id: string; title: string; detail: string; tone: 'critical' | 'warn' | 'info'; cta: string; go: () => void }
+  const actionItems: PortalAction[] = []
+  for (const doc of (record?.documents ?? []).filter((doc) => doc.status === 'needs_signature')) {
+    actionItems.push({
+      id: `sign-${doc.id}`,
+      title: `Sign ${doc.name}`,
+      detail: doc.signerName ? `Sign as ${doc.signerName} to keep onboarding moving.` : 'A signature is required to proceed.',
+      tone: 'critical',
+      cta: 'Review & sign',
+      go: () => {
+        setView('vault')
+        setSigningId(doc.id)
+      },
+    })
+  }
+  for (const account of blockedMove) {
+    actionItems.push({
+      id: `move-${account.id}`,
+      title: 'A transfer needs you',
+      detail: `${account.institution} ···${account.mask} · ${account.status}`,
+      tone: 'warn',
+      cta: 'Open transfers',
+      go: () => setView('move'),
+    })
+  }
+  if (gaps.length > 0) {
+    actionItems.push({
+      id: 'profile-gaps',
+      title: `Confirm ${gaps.length} profile detail${gaps.length === 1 ? '' : 's'}`,
+      detail: gaps.slice(0, 3).map((gap) => gap.label).join(', ') + (gaps.length > 3 ? '…' : ''),
+      tone: 'warn',
+      cta: 'Update profile',
+      go: () => setView('facts'),
+    })
+  }
+  for (const item of serviceRequests.filter((request) => request.status !== 'Closed')) {
+    actionItems.push({
+      id: `case-${item.id}`,
+      title: item.subject,
+      detail: `Your advisor is on it · ${item.status}`,
+      tone: 'info',
+      cta: 'View request',
+      go: () => setView('request'),
+    })
+  }
+
   return (
     <div className="portal">
       <header className="portal-top">
@@ -344,11 +419,27 @@ export function ClientPortal({
                 </div>
               </section>
 
-              {blockedMove.length > 0 && (
-                <button type="button" className="portal-spotlight" onClick={() => setView('move')}>
-                  <strong>A transfer needs you</strong>
-                  <span>{blockedMove[0].institution} ···{blockedMove[0].mask} · {blockedMove[0].status}</span>
-                </button>
+              {actionItems.length > 0 && (
+                <section className="portal-section portal-actioncenter">
+                  <div className="portal-section-head">
+                    <h3>Needs your attention</h3>
+                    <span className="portal-count">{actionItems.length}</span>
+                  </div>
+                  <ul className="portal-actionlist">
+                    {actionItems.map((item) => (
+                      <li key={item.id} className={`portal-action tone-${item.tone}`}>
+                        <span className="portal-action-dot" aria-hidden="true" />
+                        <span className="portal-action-body">
+                          <strong>{item.title}</strong>
+                          <em>{item.detail}</em>
+                        </span>
+                        <button type="button" className="btn primary" onClick={item.go}>
+                          {item.cta}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               )}
 
               <section className="portal-section">
@@ -405,6 +496,46 @@ export function ClientPortal({
                 </section>
               )}
 
+              {allocation.length > 0 && (
+                <section className="portal-section">
+                  <div className="portal-section-head">
+                    <h3>Asset allocation</h3>
+                    {drift != null && (
+                      <span className={`portal-drift ${Math.abs(drift) >= 5 ? 'off' : 'on'}`}>
+                        {Math.abs(drift) < 1
+                          ? 'On your target mix'
+                          : `${Math.abs(drift)}% ${drift > 0 ? 'over' : 'under'} target equity`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="portal-allocbar" role="img" aria-label="Asset allocation by class">
+                    {allocation.map((slice) => (
+                      <span
+                        key={slice.label}
+                        className={`portal-allocseg alloc-${slice.label.toLowerCase().replace(/[^a-z]+/g, '-')}`}
+                        style={{ width: `${slice.pct}%` }}
+                        title={`${slice.label} · ${Math.round(slice.pct)}%`}
+                      />
+                    ))}
+                  </div>
+                  <ul className="portal-alloclist">
+                    {allocation.map((slice) => (
+                      <li key={slice.label}>
+                        <span className={`portal-allocdot alloc-${slice.label.toLowerCase().replace(/[^a-z]+/g, '-')}`} aria-hidden="true" />
+                        <span className="portal-alloclabel">{slice.label}</span>
+                        <span className="portal-allocpct">{Math.round(slice.pct)}%</span>
+                        <strong>{usd(slice.value)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                  {targetEquity != null && (
+                    <p className="muted portal-alloc-note">
+                      Your investment policy targets {targetEquity}% equity. Your advisor rebalances when the mix drifts past the guardrail.
+                    </p>
+                  )}
+                </section>
+              )}
+
               {plan.goals.length > 0 && (
                 <section className="portal-section">
                   <h3>Goals</h3>
@@ -435,6 +566,37 @@ export function ClientPortal({
                   </button>
                 </div>
                 <ActivityList rows={activity.slice(0, 4)} />
+              </section>
+
+              <section className="portal-section portal-team">
+                <div className="portal-section-head">
+                  <h3>Your advisory team</h3>
+                  <button type="button" className="btn" onClick={() => setView('ask')}>
+                    Ask a question
+                  </button>
+                </div>
+                <ul className="portal-teamlist">
+                  {advisoryTeam.map((member) => (
+                    <li key={member.name}>
+                      <span className={`portal-avatar ${member.kind}`} aria-hidden="true">
+                        {member.name.split(' ').map((part) => part[0]).join('')}
+                      </span>
+                      <span className="portal-team-body">
+                        <strong>{member.name}</strong>
+                        <em>{member.role} · {member.detail}</em>
+                        <span className="portal-team-channel">Best reached: {member.channel}</span>
+                      </span>
+                      <button type="button" className="btn" onClick={() => setView('request')}>
+                        Message
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {contacts.length > 0 && (
+                  <p className="muted portal-team-note">
+                    On file for this household: {contacts.map((person) => person.name).join(', ')}.
+                  </p>
+                )}
               </section>
             </div>
           )}

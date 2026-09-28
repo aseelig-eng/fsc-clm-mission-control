@@ -4677,9 +4677,253 @@ button.stage-card.selected {
   flex-wrap: wrap;
 }
 
+/* ── Portal: Action center ───────────────────────────────────── */
+.portal-count {
+  background: #142033;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+}
+
+.portal-actioncenter {
+  border-color: #d9e2ec;
+}
+
+.portal-actionlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.portal-action {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #eef1f5;
+}
+
+.portal-action-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #66788a;
+}
+
+.portal-action.tone-critical {
+  background: #fff1f0;
+  border-color: #f6d4d0;
+}
+
+.portal-action.tone-critical .portal-action-dot {
+  background: #ba0517;
+}
+
+.portal-action.tone-warn {
+  background: #fff8f1;
+  border-color: #f3e2cd;
+}
+
+.portal-action.tone-warn .portal-action-dot {
+  background: #b45309;
+}
+
+.portal-action.tone-info .portal-action-dot {
+  background: #1b7f4a;
+}
+
+.portal-action-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.portal-action-body strong {
+  color: #142033;
+}
+
+.portal-action-body em {
+  font-style: normal;
+  font-size: 12px;
+  color: #66788a;
+}
+
+/* ── Portal: Asset allocation ────────────────────────────────── */
+.portal-drift {
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.portal-drift.on {
+  background: #e7f6ee;
+  color: #1b7f4a;
+}
+
+.portal-drift.off {
+  background: #fff4e8;
+  color: #b45309;
+}
+
+.portal-allocbar {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #eef1f5;
+  margin-bottom: 12px;
+}
+
+.portal-allocseg {
+  height: 100%;
+}
+
+.portal-alloclist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.portal-alloclist li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.portal-allocdot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.portal-alloclabel {
+  color: #3d4d60;
+}
+
+.portal-allocpct {
+  color: #66788a;
+  font-variant-numeric: tabular-nums;
+}
+
+.portal-alloclist strong {
+  color: #142033;
+  font-variant-numeric: tabular-nums;
+}
+
+.portal-alloc-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+/* Allocation palette — segment + dot share the class */
+.alloc-us-equity,
+.portal-allocseg.alloc-us-equity { background: #2563eb; }
+.alloc-international,
+.portal-allocseg.alloc-international { background: #7c3aed; }
+.alloc-fixed-income,
+.portal-allocseg.alloc-fixed-income { background: #1b7f4a; }
+.alloc-cash,
+.portal-allocseg.alloc-cash { background: #b45309; }
+.alloc-alternatives,
+.portal-allocseg.alloc-alternatives { background: #db2777; }
+.alloc-other,
+.portal-allocseg.alloc-other { background: #66788a; }
+
+/* ── Portal: Advisory team ───────────────────────────────────── */
+.portal-teamlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.portal-teamlist li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.portal-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  background: #142033;
+}
+
+.portal-avatar.service {
+  background: #1b7f4a;
+}
+
+.portal-team-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.portal-team-body strong {
+  color: #142033;
+}
+
+.portal-team-body em {
+  font-style: normal;
+  font-size: 12px;
+  color: #66788a;
+}
+
+.portal-team-channel {
+  font-size: 12px;
+  color: #3d4d60;
+}
+
+.portal-team-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
 @media (max-width: 720px) {
   .portal-split {
     grid-template-columns: 1fr;
+  }
+
+  .portal-action,
+  .portal-teamlist li {
+    grid-template-columns: auto 1fr;
+  }
+
+  .portal-action button,
+  .portal-teamlist li button {
+    grid-column: 2 / -1;
+    justify-self: start;
   }
 }
 
