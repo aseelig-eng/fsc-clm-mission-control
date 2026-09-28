@@ -21,6 +21,7 @@ import type { ServiceCase } from '../data/serviceDesk'
 import type { CoworkerContext } from '../coworker'
 import { AccountBook } from './AccountBook'
 import { CoworkerPanel } from './CoworkerPanel'
+import { FileDrop, type UploadedFile } from './FileDrop'
 
 type PortalView = 'home' | 'portfolio' | 'request' | 'vault' | 'facts' | 'ask'
 type RangeId = '1D' | '1W' | '1M' | '1Y' | 'All'
@@ -183,6 +184,9 @@ export function ClientPortal({
   const [meetingTime, setMeetingTime] = useState('10:00')
   const [meetingChannel, setMeetingChannel] = useState<(typeof MEETING_CHANNELS)[number]['id']>('video')
   const [meetingNote, setMeetingNote] = useState('')
+  const [requestFiles, setRequestFiles] = useState<UploadedFile[]>([])
+  const [vaultFiles, setVaultFiles] = useState<UploadedFile[]>([])
+  const [vaultUploaded, setVaultUploaded] = useState('')
 
   useEffect(() => {
     setSigningId(null)
@@ -192,6 +196,9 @@ export function ClientPortal({
     setRequestSent('')
     setRequestDetail('')
     setMeetingNote('')
+    setRequestFiles([])
+    setVaultFiles([])
+    setVaultUploaded('')
     setOpenAccountId(null)
   }, [household.id])
 
@@ -803,15 +810,24 @@ export function ClientPortal({
                   onSubmit={(event) => {
                     event.preventDefault()
                     const kind = SERVICE_KINDS.find((item) => item.id === requestKind) ?? SERVICE_KINDS[0]
+                    const attachSuffix =
+                      requestFiles.length > 0
+                        ? ` Attached: ${requestFiles.map((f) => f.name).join(', ')} (${requestFiles.length} file${requestFiles.length === 1 ? '' : 's'}).`
+                        : ''
+                    const attachSent =
+                      requestFiles.length > 0
+                        ? ` ${requestFiles.length} document${requestFiles.length === 1 ? '' : 's'} attached.`
+                        : ''
                     if (kind.id === 'move') {
                       const account = mine.find((item) => item.id === moveFrom)
                       const amount = Number(moveAmount.replace(/[^0-9.]/g, ''))
                       if (!account || !Number.isFinite(amount) || amount <= 0) return
-                      const detail = `${usd(amount)} from ${account.institution} ${account.name} ···${account.mask}${moveNote.trim() ? `. ${moveNote.trim()}` : ''}. Client request. Nothing was sent to the custodian.`
+                      const detail = `${usd(amount)} from ${account.institution} ${account.name} ···${account.mask}${moveNote.trim() ? `. ${moveNote.trim()}` : ''}. Client request. Nothing was sent to the custodian.${attachSuffix}`
                       onServiceRequest(household.id, kind.label, detail, kind.action)
-                      setRequestSent(`Sent. Move money is a new case for your advisor: ${usd(amount)} from ···${account.mask}.`)
+                      setRequestSent(`Sent. Move money is a new case for your advisor: ${usd(amount)} from ···${account.mask}.${attachSent}`)
                       setMoveAmount('')
                       setMoveNote('')
+                      setRequestFiles([])
                       return
                     }
                     if (kind.id === 'meeting') {
@@ -819,17 +835,20 @@ export function ClientPortal({
                       const typeLabel = MEETING_TYPES.find((item) => item.id === meetingType)?.label ?? 'Meeting'
                       const channel = MEETING_CHANNELS.find((item) => item.id === meetingChannel) ?? MEETING_CHANNELS[0]
                       const when = `${meetingDate} at ${meetingTime}`
-                      const detail = `${typeLabel} · ${when} · ${channel.label} (${channel.via})${meetingNote.trim() ? `. ${meetingNote.trim()}` : ''}. Client-requested meeting. The Concierge will prep a brief and arm the notetaker.`
+                      const detail = `${typeLabel} · ${when} · ${channel.label} (${channel.via})${meetingNote.trim() ? `. ${meetingNote.trim()}` : ''}. Client-requested meeting. The Concierge will prep a brief and arm the notetaker.${attachSuffix}`
                       onServiceRequest(household.id, kind.label, detail, kind.action)
-                      setRequestSent(`Sent. Your advisor will confirm a ${typeLabel.toLowerCase()} on ${when} via ${channel.label}.`)
+                      setRequestSent(`Sent. Your advisor will confirm a ${typeLabel.toLowerCase()} on ${when} via ${channel.label}.${attachSent}`)
                       setMeetingNote('')
+                      setRequestFiles([])
                       return
                     }
                     const detail = requestDetail.trim()
-                    if (!detail) return
-                    onServiceRequest(household.id, kind.label, detail, kind.action)
-                    setRequestSent(`Sent. ${kind.label} is a new case for your advisor.`)
+                    if (!detail && requestFiles.length === 0) return
+                    const fullDetail = `${detail || 'See attached document(s).'}${attachSuffix}`
+                    onServiceRequest(household.id, kind.label, fullDetail, kind.action)
+                    setRequestSent(`Sent. ${kind.label} is a new case for your advisor.${attachSent}`)
                     setRequestDetail('')
+                    setRequestFiles([])
                   }}
                 >
                   <label>
@@ -921,11 +940,17 @@ export function ClientPortal({
                         value={requestDetail}
                         onChange={(event) => setRequestDetail(event.target.value)}
                         placeholder="What should your advisor do?"
-                        required
                         rows={4}
                       />
                     </label>
                   )}
+                  <FileDrop
+                    files={requestFiles}
+                    onChange={setRequestFiles}
+                    label={requestKind === 'meeting' ? 'Attach anything for the meeting (optional)' : 'Attach supporting documents (optional)'}
+                    hint="Drag files here, or browse. PDF, images, or Office docs up to 25 MB."
+                    compact
+                  />
                   <button type="submit" className="btn primary">
                     {requestKind === 'meeting' ? 'Request meeting' : 'Submit request'}
                   </button>
@@ -970,6 +995,43 @@ export function ClientPortal({
             <div className="portal-vault">
               <h3>Documents</h3>
               <p>Statements from each custodian, plus anything still waiting on a signature.</p>
+              <section className="portal-upload">
+                <div className="portal-upload-head">
+                  <h4>Upload a document</h4>
+                  <span className="muted">Send a statement, ID, or form to your advisor. They'll file it to your record.</span>
+                </div>
+                <FileDrop
+                  files={vaultFiles}
+                  onChange={(next) => {
+                    setVaultFiles(next)
+                    setVaultUploaded('')
+                  }}
+                  label="Upload documents to your advisor"
+                  hint="Drag files here, or browse. PDF, images, or Office docs up to 25 MB."
+                />
+                {vaultFiles.length > 0 && (
+                  <div className="portal-upload-actions">
+                    <button
+                      type="button"
+                      className="btn primary"
+                      onClick={() => {
+                        const names = vaultFiles.map((f) => f.name).join(', ')
+                        onServiceRequest(
+                          household.id,
+                          'Client uploaded documents',
+                          `${vaultFiles.length} file${vaultFiles.length === 1 ? '' : 's'} uploaded via the portal: ${names}. Ready to review and file to the record.`,
+                          'Review and file the uploaded documents',
+                        )
+                        setVaultUploaded(`Sent ${vaultFiles.length} document${vaultFiles.length === 1 ? '' : 's'} to your advisor. They'll confirm once filed.`)
+                        setVaultFiles([])
+                      }}
+                    >
+                      Send {vaultFiles.length} to advisor
+                    </button>
+                  </div>
+                )}
+                {vaultUploaded && <p className="portal-sent">{vaultUploaded}</p>}
+              </section>
               {toSign > 0 && (
                 <div className="portal-sign-row">
                   {(record?.documents ?? [])
