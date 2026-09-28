@@ -1028,6 +1028,17 @@ h4 {
   min-width: 0;
 }
 
+/* Inside the Book agenda's narrower task column, stack single-column and scroll. */
+.book-tasks .needs-you-board {
+  grid-template-columns: 1fr;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.book-tasks .needs-you-board > li:only-child {
+  grid-column: auto;
+}
+
 .needs-you-board > li:only-child {
   grid-column: 1 / -1;
 }

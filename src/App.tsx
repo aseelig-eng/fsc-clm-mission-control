@@ -314,6 +314,7 @@ function NeedsYouCard({
   meta,
   recommended,
   actions,
+  queueType = 'Signal',
   onOpen,
   onAct,
 }: {
@@ -323,6 +324,7 @@ function NeedsYouCard({
   meta: string
   recommended: string
   actions: AdvisorAction[]
+  queueType?: string
   onOpen: () => void
   onAct: (action: AdvisorAction) => void
 }) {
@@ -343,7 +345,7 @@ function NeedsYouCard({
         }}
       >
         <div className="title">
-          <span className="queue-type">Signal</span>
+          <span className="queue-type">{queueType}</span>
           <span className={`badge ${priority}`}>{priority}</span>
           {title}
         </div>
@@ -569,6 +571,9 @@ export default function App() {
         who: `${householdName(item.householdId)}${item.origin === 'Portal' ? ' · from client portal' : ` · ${item.origin}`}`,
         recommended: item.step?.label ?? `Work the ${item.type.toLowerCase()}`,
         due: '',
+        actions: (item.step
+          ? [{ type: 'review_inputs', label: item.step.label, detail: item.step.result }]
+          : [{ type: 'call_client', label: `Work the ${item.type.toLowerCase()}`, detail: `Open ${householdName(item.householdId)} in the work view.` }]) as AdvisorAction[],
         onOpen: () => {
           selectHousehold(item.householdId)
           setCockpitView('work')
@@ -582,6 +587,7 @@ export default function App() {
       who: ex.household,
       recommended: ex.recommendedAction,
       due: '',
+      actions: ex.advisorActions,
       onOpen: () => {
         const match = households.find(
           (h) => ex.household.includes(h.name.split(' ')[0]) || h.name.includes(ex.household.split(' ')[0]),
@@ -599,6 +605,7 @@ export default function App() {
         who: `${householdName(meeting.householdId)} · from “${meeting.title}”`,
         recommended: action.recommendedReview,
         due: action.due,
+        actions: [{ type: 'schedule', label: action.title, detail: action.recommendedReview }] as AdvisorAction[],
         onOpen: () => setPlaybookMeeting(meeting),
       }))
     return [...fromCases, ...fromExceptions, ...fromMeetings]
@@ -1572,82 +1579,53 @@ export default function App() {
 
                 <aside className="panel book-tasks">
                   <div className="panel-header">
-                    <span>Prioritized Tasks</span>
-                    <span className="muted">{prioritizedTasks.length} to do</span>
+                    <span>Needs You</span>
+                    <span className="muted">{prioritizedTasks.length + pendingNotices.length} to do</span>
                   </div>
-                  <ul className="book-task-list">
-                    {prioritizedTasks.length === 0 && (
+                  <ul className="exception-list needs-you-board">
+                    {pendingNotices.map((notice) => (
+                      <NeedsYouCard
+                        key={notice.id}
+                        selected={false}
+                        queueType="Portal"
+                        priority="high"
+                        title={notice.title}
+                        meta={`${notice.householdName} · Client portal`}
+                        recommended="Confirm it on the client profile. This is client-reported, not advice."
+                        actions={[
+                          {
+                            type: 'review_inputs',
+                            label: 'Review and confirm',
+                            detail: notice.detail,
+                          },
+                        ]}
+                        onOpen={() => openNotice(notice, false)}
+                        onAct={() => openNotice(notice, true)}
+                      />
+                    ))}
+                    {prioritizedTasks.map((task) => (
+                      <NeedsYouCard
+                        key={task.id}
+                        selected={false}
+                        queueType={task.kind === 'signal' ? 'Signal' : task.kind === 'case' ? 'Case' : 'Meeting'}
+                        priority={task.priority}
+                        title={task.title}
+                        meta={`${task.who}${task.due ? ` · due ${task.due}` : ''}`}
+                        recommended={task.recommended}
+                        actions={task.actions}
+                        onOpen={task.onOpen}
+                        onAct={(a) => {
+                          task.onOpen()
+                          flash(`${actionTypeLabel(a.type)}: ${a.label}`)
+                        }}
+                      />
+                    ))}
+                    {prioritizedTasks.length === 0 && pendingNotices.length === 0 && (
                       <li className="panel-body muted">All clear — nothing needs you right now.</li>
                     )}
-                    {prioritizedTasks.map((task) => (
-                      <li key={task.id}>
-                        <button type="button" className="book-task-card" onClick={task.onOpen}>
-                          <div className="book-task-head">
-                            <span className={`badge ${task.priority}`}>{task.priority}</span>
-                            <span className="queue-type">{task.kind === 'signal' ? 'Signal' : task.kind === 'case' ? 'Case' : 'Meeting'}</span>
-                            <strong>{task.title}</strong>
-                          </div>
-                          <div className="meta">
-                            {task.who}
-                            {task.due ? ` · due ${task.due}` : ''}
-                          </div>
-                          <div className="signal-recommend">
-                            <span className="signal-recommend-label">Recommended</span>
-                            <span className="signal-recommend-text">{task.recommended}</span>
-                          </div>
-                        </button>
-                      </li>
-                    ))}
                   </ul>
                 </aside>
               </div>
-
-              <aside className="panel" style={{ overflow: 'auto' }}>
-                <div className="panel-header">
-                  <span>Needs You — Signal Only</span>
-                  <span className="muted">{openExceptions.length + pendingNotices.length} open</span>
-                </div>
-                <ul className="exception-list needs-you-board">
-                  {pendingNotices.map((notice) => (
-                    <NeedsYouCard
-                      key={notice.id}
-                      selected={false}
-                      priority="high"
-                      title={notice.title}
-                      meta={`${notice.householdName} · Client portal`}
-                      recommended="Confirm it on the client profile. This is client-reported, not advice."
-                      actions={[
-                        {
-                          type: 'review_inputs',
-                          label: 'Review and confirm',
-                          detail: notice.detail,
-                        },
-                      ]}
-                      onOpen={() => openNotice(notice, false)}
-                      onAct={() => openNotice(notice, true)}
-                    />
-                  ))}
-                  {openExceptions.map((ex) => (
-                    <NeedsYouCard
-                      key={ex.id}
-                      selected={selectedEx?.id === ex.id}
-                      priority={ex.priority}
-                      title={ex.title}
-                      meta={`${ex.household} · Owner: ${ex.owner}`}
-                      recommended={ex.recommendedAction}
-                      actions={ex.advisorActions}
-                      onOpen={() => focusException(ex)}
-                      onAct={(a) => {
-                        focusException(ex)
-                        flash(`${actionTypeLabel(a.type)}: ${a.label}`)
-                      }}
-                    />
-                  ))}
-                  {openExceptions.length === 0 && pendingNotices.length === 0 && (
-                    <li className="panel-body muted">All clear — agents are running. Time for clients.</li>
-                  )}
-                </ul>
-              </aside>
             </>
           )}
 
