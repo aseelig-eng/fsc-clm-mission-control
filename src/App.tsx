@@ -498,6 +498,7 @@ function ReviewPanel({
 export default function App() {
   const [role, setRole] = useState<Role>('advisor')
   const [cockpitView, setCockpitView] = useState<'status' | 'work' | 'record'>('status')
+  const [recordTab, setRecordTab] = useState<'accounts' | 'planning' | 'data' | 'documents'>('accounts')
   const [showingBook, setShowingBook] = useState(true)
   const [selectedHhId, setSelectedHhId] = useState(households[0].id)
   const [openTabs, setOpenTabs] = useState<string[]>([])
@@ -1837,6 +1838,28 @@ export default function App() {
 
             {!showingBook && cockpitView === 'record' && onboarding && completeness && (
               <>
+              <div className="record-subtabs" role="tablist" aria-label="Record sections">
+                {(
+                  [
+                    { id: 'accounts', label: 'Financial Accounts' },
+                    { id: 'planning', label: 'Planning & Portfolio' },
+                    { id: 'data', label: 'Data & Forms' },
+                    { id: 'documents', label: 'Document Vault' },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={recordTab === tab.id}
+                    className={`record-subtab ${recordTab === tab.id ? 'active' : ''}`}
+                    onClick={() => setRecordTab(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              {recordTab === 'accounts' && (
               <div className="panel">
                 <div className="panel-header">
                   <span>Financial Accounts</span>
@@ -1850,6 +1873,8 @@ export default function App() {
                   <AccountBook accounts={accounts.filter((account) => account.householdId === household.id)} />
                 </div>
               </div>
+              )}
+              {recordTab === 'planning' && (
               <AdviceDesk
                 key={`${household.id}-record`}
                 householdId={household.id}
@@ -1862,7 +1887,8 @@ export default function App() {
                   setPortfolios((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
                 }
               />
-              <div className="framework-grid">
+              )}
+              {recordTab === 'data' && (
                 <div className="panel">
                   <div className="panel-header">
                     <span>Data &amp; Forms — Person Account</span>
@@ -1992,21 +2018,13 @@ export default function App() {
                     )}
                   </div>
                 </div>
-
+              )}
+              {recordTab === 'documents' && (
                 <div className="panel">
                   <div className="panel-header">
                     <span>Compliance Document Vault</span>
-                    <span className="panel-header-tail">
-                      <span className="muted">
-                        {completeness.docsFiled}/{completeness.docsTotal} filed
-                      </span>
-                      <button
-                        type="button"
-                        className="btn primary sm inline-setup-btn"
-                        onClick={() => setPortalSetupOpen(true)}
-                      >
-                        ⚡ One-click portal setup
-                      </button>
+                    <span className="muted">
+                      {completeness.docsFiled}/{completeness.docsTotal} filed
                     </span>
                   </div>
                   <div className="panel-body">
@@ -2061,7 +2079,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-              </div>
+              )}
               </>
             )}
 
