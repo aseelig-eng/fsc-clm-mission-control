@@ -5,7 +5,7 @@ import type { ExceptionItem, Household, LifecycleStage } from '../data/types'
 import { LikenessCompass } from './LikenessCompass'
 import { HouseholdFigures } from './HouseholdFigures'
 import { GoalMark, goalKind } from './GoalMark'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 export type PulseNodeId = 'engage' | 'lifecycle' | 'likeness' | 'heirs' | 'custodian'
 
@@ -20,6 +20,7 @@ type Props = {
   onSelectNode: (nodeId: PulseNodeId) => void
   onSelectFacet: (facet: BehavioralFacet) => void
   plan: PlanState
+  firmBusiness?: ReactNode
 }
 
 function goalShort(name: string) {
@@ -62,6 +63,7 @@ export function HouseholdPulse({
   onSelectNode,
   onSelectFacet,
   plan,
+  firmBusiness,
 }: Props) {
   const [openGoal, setOpenGoal] = useState<PlanGoal | null>(null)
   const engage = person.facets.find((f) => f.id === 'engagement')
@@ -177,6 +179,8 @@ export function HouseholdPulse({
           </div>
         )}
       </div>
+
+      {firmBusiness}
 
       <div className="pulse-visual">
         <div className="pulse-stage">

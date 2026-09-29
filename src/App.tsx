@@ -1729,18 +1729,19 @@ export default function App() {
                       openDrill(`likeness-${selectedPerson.id}-${facet.id}`)
                     }}
                     plan={plans[household.id]}
+                    firmBusiness={
+                      <FirmBusiness
+                        householdId={household.id}
+                        householdName={household.name}
+                        config={firmBusinessConfig}
+                        role={role}
+                        onToggleEnabled={(enabled) =>
+                          setFirmBusinessConfig((prev) => ({ ...prev, enabled }))
+                        }
+                      />
+                    }
                   />
                 )}
-
-                <FirmBusiness
-                  householdId={household.id}
-                  householdName={household.name}
-                  config={firmBusinessConfig}
-                  role={role}
-                  onToggleEnabled={(enabled) =>
-                    setFirmBusinessConfig((prev) => ({ ...prev, enabled }))
-                  }
-                />
 
                 <div className="lifecycle-block">
                   <div className="lifecycle-block-title">{household.name} — Lifecycle Stage</div>
