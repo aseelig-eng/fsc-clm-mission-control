@@ -1098,7 +1098,7 @@ export function ClientPortal({
             />
           )}
           {view === 'vault' && (
-            <div className="portal-vault">
+            <div className="portal-home portal-vault">
               <h3>Documents</h3>
               <p>Statements from each custodian, plus anything still waiting on a signature.</p>
               <section className="portal-upload">
@@ -1218,7 +1218,7 @@ export function ClientPortal({
             </div>
           )}
           {view === 'facts' && (
-            <div>
+            <div className="portal-home">
               <p>Update any field on your file. What you send is flagged for your advisor and written onto your profile. It does not clear a compliance hold by itself. Each field shows when it was last updated and by whom.</p>
               <ul className="portal-facts">
                 {fileFields.map((field) => (
