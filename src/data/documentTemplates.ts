@@ -6,6 +6,10 @@
 // placeholders — a true preview the advisor can eyeball.
 
 import type { ClientOnboardingRecord, ComplianceDocument, FormField } from './onboardingFramework'
+import { custodianDisplayName } from './custodianForms'
+
+/** Document categories whose issuer is the household's actual custodian, not a fixed firm. */
+const CUSTODIAN_ISSUED_CATEGORIES: ComplianceDocument['category'][] = ['custodial', 'transfer', 'movement']
 
 export type DocRowKind = 'text' | 'currency' | 'checkbox' | 'signature' | 'multiline'
 
@@ -518,6 +522,20 @@ const TEMPLATE_BY_ID: Record<string, DocTemplate> = Object.fromEntries(
   TEMPLATES.map((t) => [t.id, t]),
 )
 
-export function templateForDoc(doc: ComplianceDocument): DocTemplate | undefined {
-  return TEMPLATE_BY_ID[doc.id]
+/**
+ * Resolve the mockup template for a document. Custodial/ACAT/ACH documents
+ * hardcode "Charles Schwab & Co., Inc." as a fallback issuer in the template
+ * data above, but the actual issuer is whichever custodian the household
+ * routed to (or their free-text custodian value if it doesn't match one of
+ * our first-class custodians) — swap it in here so the preview never shows
+ * Schwab for a Fidelity, Pershing, LPL, State Street, or other household.
+ */
+export function templateForDoc(doc: ComplianceDocument, record?: ClientOnboardingRecord): DocTemplate | undefined {
+  const template = TEMPLATE_BY_ID[doc.id]
+  if (!template) return template
+  if (!CUSTODIAN_ISSUED_CATEGORIES.includes(doc.category)) return template
+  const custodian = custodianDisplayName(record)
+  if (!custodian) return template
+  const issuer = template.issuer?.replace(/Charles Schwab & Co\., Inc\./, custodian) ?? template.issuer
+  return { ...template, issuer }
 }

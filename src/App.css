@@ -6595,6 +6595,35 @@ button.stage-card.selected {
   flex-shrink: 0;
 }
 
+.doc-fill-error {
+  margin: 0 20px;
+  padding: 8px 12px;
+  background: var(--sf-red-bg);
+  border: 1px solid var(--sf-red);
+  color: var(--sf-red);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.doc-fill-warnings {
+  margin: 8px 20px 0;
+  padding: 8px 12px;
+  background: var(--sf-yellow-bg, #fff8e1);
+  border: 1px solid var(--sf-yellow, #e6a817);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.doc-fill-warnings ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.doc-fill-note {
+  margin: 8px 20px 0;
+  font-size: 12px;
+}
+
 .doc-paper {
   position: relative;
   margin: 20px;

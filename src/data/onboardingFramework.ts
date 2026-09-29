@@ -1,4 +1,5 @@
 import type { LifecycleStageId } from './types'
+import { custodianFieldGaps } from './custodianForms'
 
 export type FieldStatus = 'complete' | 'partial' | 'missing' | 'blocked' | 'n/a'
 export type DocStatus = 'filed' | 'pending' | 'nigo' | 'not_started' | 'needs_signature'
@@ -88,6 +89,12 @@ export function recordCompleteness(record: ClientOnboardingRecord) {
       .filter((f) => f.status === 'missing' || f.status === 'blocked' || f.status === 'partial')
       .map((f) => ({ section: s.label, field: f.label, status: f.status, value: f.value })),
   )
+  // Custodian-specific required fields (name/address/SSN/DOB/registration/
+  // trusted contact, etc. per the household's routed custodian form) are not
+  // modeled as their own FormSection — fold them into the same gaps list so
+  // a required field the custodian form needs surfaces even if no generic
+  // section field happens to cover it, instead of silently filling blank.
+  gaps.push(...custodianFieldGaps(record))
   return {
     pct,
     docsFiled,

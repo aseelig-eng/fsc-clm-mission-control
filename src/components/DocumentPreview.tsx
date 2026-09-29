@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ClientOnboardingRecord, ComplianceDocument } from '../data/onboardingFramework'
 import { docStatusLabel } from '../data/onboardingFramework'
 import {
@@ -6,6 +7,7 @@ import {
   templateForDoc,
   type DocRow,
 } from '../data/documentTemplates'
+import { fillCustodianPdf, resolveCustodianProfile } from '../data/custodianForms'
 
 const NBSP = ' '
 
@@ -50,10 +52,45 @@ export function DocumentPreview({
   onClose: () => void
   onFlash: (msg: string) => void
 }) {
-  const template = templateForDoc(doc)
+  const template = templateForDoc(doc, record)
   const fields = recordFieldMap(record)
   const completed = doc.status === 'filed'
   const nigo = doc.status === 'nigo'
+  const custodianProfile = resolveCustodianProfile(record)
+  const canFillRealPdf =
+    doc.category === 'custodial' || doc.category === 'transfer' || doc.category === 'movement'
+  const [filling, setFilling] = useState(false)
+  const [fillError, setFillError] = useState('')
+  const [fillWarnings, setFillWarnings] = useState<string[]>([])
+
+  async function downloadRealPdf() {
+    if (!record || !custodianProfile) return
+    setFilling(true)
+    setFillError('')
+    setFillWarnings([])
+    try {
+      const { bytes, warnings } = await fillCustodianPdf(record, import.meta.env.BASE_URL)
+      const blob = new Blob([bytes.slice().buffer], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${custodianProfile.id}-${doc.id}-${record.householdId}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setFillWarnings(warnings)
+      onFlash(
+        warnings.length > 0
+          ? `Downloaded filled ${custodianProfile.label} ${custodianProfile.formTitle} — ${warnings.length} field${warnings.length === 1 ? '' : 's'} need review`
+          : `Downloaded filled ${custodianProfile.label} ${custodianProfile.formTitle}`,
+      )
+    } catch (err) {
+      setFillError(err instanceof Error ? err.message : 'Could not fill the PDF.')
+    } finally {
+      setFilling(false)
+    }
+  }
 
   // Fidelity of the preview: how many sourced rows actually have data.
   const allRows = template?.sections.flatMap((s) => s.rows) ?? []
@@ -88,6 +125,11 @@ export function DocumentPreview({
             </p>
           </div>
           <div className="doc-preview-actions">
+            {canFillRealPdf && custodianProfile?.hasRealPdf && (
+              <button type="button" className="btn primary" disabled={filling} onClick={downloadRealPdf}>
+                {filling ? 'Filling…' : `Download ${custodianProfile.label} PDF`}
+              </button>
+            )}
             <button
               type="button"
               className="btn"
@@ -100,6 +142,23 @@ export function DocumentPreview({
             </button>
           </div>
         </div>
+        {fillError && <p className="doc-fill-error muted">{fillError}</p>}
+        {fillWarnings.length > 0 && (
+          <div className="doc-fill-warnings muted">
+            <strong>Review before sending:</strong>
+            <ul>
+              {fillWarnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {canFillRealPdf && custodianProfile && !custodianProfile.hasRealPdf && (
+          <p className="muted doc-fill-note">
+            {custodianProfile.label} ({custodianProfile.formNo}) — best-effort field schema only; a real fillable PDF
+            for this custodian is not available, so this preview is a mockup, not an AcroForm fill.
+          </p>
+        )}
 
         {!template && (
           <div className="doc-paper">
