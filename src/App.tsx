@@ -49,7 +49,7 @@ import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './comp
 import { BookPulse } from './components/BookPulse'
 import { ClientDossier } from './components/ClientDossier'
 import { AdviceDesk } from './components/AdviceDesk'
-import { initialPlans, initialPortfolios, PLAN_STAGES, type PlanState, type PortfolioState } from './data/advice'
+import { initialPlans, initialPortfolios, type PlanState, type PortfolioState } from './data/advice'
 import { GenerationalHandoff } from './components/GenerationalHandoff'
 import { handoffFor } from './data/generational'
 import { stageMetrics } from './data/stageFacts'
@@ -1800,22 +1800,6 @@ export default function App() {
                     </section>
                   )
                 })()}
-
-                {PLAN_STAGES.includes(selectedStage?.id ?? '') && (
-                  <AdviceDesk
-                    key={household.id}
-                    plan={plans[household.id]}
-                    portfolio={portfolios[household.id]}
-                    showPlan
-                    showPortfolio={false}
-                    onPlan={(patch) =>
-                      setPlans((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
-                    }
-                    onPortfolio={(patch) =>
-                      setPortfolios((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
-                    }
-                  />
-                )}
               </div>
             </div>
             )}
