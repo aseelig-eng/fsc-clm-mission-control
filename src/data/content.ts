@@ -35,7 +35,7 @@ export const exceptions: ExceptionItem[] = [
     household: 'Chen Household',
     reason: 'Schwab rejected ACAT #48291. Agent matched form gap to TOD designation.',
     recommendedAction: 'Approve DocuSign resend · 1 click',
-    agentContext: 'Funding Agent drafted client email + correct envelope.',
+    agentContext: 'Relay (Funding) drafted client email + correct envelope.',
     stage: 'funding',
     owner: 'advisor',
     advisorActions: [
@@ -68,7 +68,7 @@ export const exceptions: ExceptionItem[] = [
     household: 'Whitfield Household',
     reason: 'PEP clear; SOW docs parsed. Principal approval still required.',
     recommendedAction: 'Review SOW packet · Approve for custodian submit',
-    agentContext: 'KYC Agent pre-filled principal checklist with evidence links.',
+    agentContext: 'Sleuth (EDD) pre-filled principal checklist with evidence links.',
     stage: 'kyc',
     owner: 'compliance',
     advisorActions: [
@@ -127,7 +127,7 @@ export const exceptions: ExceptionItem[] = [
     priority: 'medium',
     title: 'IPS held — prospect has no fact-find',
     household: 'Elena Vasquez',
-    reason: 'Paraplanner Agent will not draft an IPS from a name and email.',
+    reason: 'Quill (Paraplanner) will not draft an IPS from a name and email.',
     recommendedAction: 'Wait for Monday’s intro · then request discovery data',
     agentContext: 'No goal, horizon, risk, or assets on the Person Account.',
     stage: 'prospect',
@@ -195,7 +195,7 @@ export const households: Household[] = [
     risk: 'Not assessed',
     nextClientTouch: 'Mon 11:00a — prospect intro',
     agentsActive: 1,
-    activeAgents: [{ name: 'Lead Agent', doing: 'Prep brief is ready for Monday’s prospect intro' }],
+    activeAgents: [{ name: 'Scout', doing: 'Prep brief is ready for Monday’s prospect intro' }],
     exceptions: 0,
     stages: [
       {
@@ -226,7 +226,7 @@ export const households: Household[] = [
       {
         id: 'e0',
         time: 'This morning',
-        agent: 'Lead Agent',
+        agent: 'Scout',
         action: 'Created a lead from the public site form',
         detail:
           'Stored first name, last name, and email on a new Person Account. Phone, goal, investable assets, risk, and advisor assignment were left blank. No meeting was booked.',
@@ -245,9 +245,9 @@ export const households: Household[] = [
     nextClientTouch: 'Today 3:30p — funding status call (optional)',
     agentsActive: 3,
     activeAgents: [
-      { name: 'Funding Agent', doing: 'Watching the ACAT and the corrected TOD envelope' },
-      { name: 'Custodian Agent', doing: 'Accounts are open; waiting on funding to settle' },
-      { name: 'KYC Agent', doing: 'CIP and screens are clear; no further KYC work' },
+      { name: 'Relay', doing: 'Watching the ACAT and the corrected TOD envelope' },
+      { name: 'Vault', doing: 'Accounts are open; waiting on funding to settle' },
+      { name: 'Sentry', doing: 'CIP and screens are clear; no further KYC work' },
     ],
     exceptions: 1,
     stages: [
@@ -300,7 +300,7 @@ export const households: Household[] = [
       {
         id: 'e1',
         time: '2m ago',
-        agent: 'Funding Agent',
+        agent: 'Relay',
         action: 'Detected Schwab NIGO on TOD; drafted corrected DocuSign',
         detail:
           'Matched Schwab reject code on ACAT #48291 to a missing wet signature on the sibling TOD. Built a corrected DocuSign envelope from the discovery designation and drafted the client note. Funding is held until you approve the resend.',
@@ -310,7 +310,7 @@ export const households: Household[] = [
       {
         id: 'e2',
         time: '1h ago',
-        agent: 'Custodian Agent',
+        agent: 'Vault',
         action: 'Opened Roth IRA + Individual brokerage via DAIM mock',
         detail:
           'Submitted the Schwab new-account pack through the custodian connector and opened a Roth IRA and an individual brokerage. The managed positions are on those accounts. The TOD addendum was not in the signed set, so the Fidelity ACAT did not settle.',
@@ -320,7 +320,7 @@ export const households: Household[] = [
       {
         id: 'e3',
         time: 'Yesterday',
-        agent: 'KYC Agent',
+        agent: 'Sentry',
         action: 'CIP verified; OFAC/PEP/Adverse Media clear',
         detail:
           'Matched the government ID on file to the application name, date of birth, and address. Ran OFAC, PEP, and adverse-media screens; all returned clear. Filed the results and screen timestamps on the KYC section with agent lineage. No manual review was required.',
@@ -339,10 +339,10 @@ export const households: Household[] = [
     nextClientTouch: 'Thu — trust structure walkthrough',
     agentsActive: 4,
     activeAgents: [
-      { name: 'EDD Agent', doing: 'EDD packet is ready and waiting on principal' },
-      { name: 'Structure Agent', doing: 'Trust, holdcos, and UBOs are mapped' },
-      { name: 'Disclosure Agent', doing: 'IAA, CRS, and ADV are filed' },
-      { name: 'Compliance Agent', doing: 'Holding the principal gate before custodian submit' },
+      { name: 'Sleuth', doing: 'EDD packet is ready and waiting on principal' },
+      { name: 'Atlas', doing: 'Trust, holdcos, and UBOs are mapped' },
+      { name: 'Notary', doing: 'IAA, CRS, and ADV are filed' },
+      { name: 'Gatekeeper', doing: 'Holding the principal gate before custodian submit' },
     ],
     exceptions: 2,
     stages: [
@@ -363,7 +363,7 @@ export const households: Household[] = [
             {
               type: 'review_docs',
               label: 'Review SOW packet + CPA letter',
-              detail: 'Open evidence links prepared by KYC/EDD Agent.',
+              detail: 'Open evidence links prepared by Sleuth (EDD).',
             },
             {
               type: 'review_inputs',
@@ -427,7 +427,7 @@ export const households: Household[] = [
       {
         id: 'e4',
         time: '12m ago',
-        agent: 'EDD Agent',
+        agent: 'Sleuth',
         action: 'SOW extracted from trust deed + CPA letter; risk score 3/5',
         detail:
           'Read the trust deed and CPA letter, extracted source-of-wealth narrative, and scored residual risk 3/5. Assembled the EDD packet and stopped at the principal gate because investable assets are at or above $1M. Custodian submit is blocked until Principal_Approved is set.',
@@ -437,7 +437,7 @@ export const households: Household[] = [
       {
         id: 'e5',
         time: '3h ago',
-        agent: 'Structure Agent',
+        agent: 'Atlas',
         action: 'Mapped trust → 2 holdcos → UBOs in Flexible Hierarchy',
         detail:
           'Parsed the trust documents and built the household graph: primary trust, two holding companies, and the ultimate beneficial owners. Linked Robert and Eleanor as co-primaries and attached counsel as a related party. The graph is saved on the household and is the map for Thursday’s structure walkthrough.',
@@ -447,7 +447,7 @@ export const households: Household[] = [
       {
         id: 'e5b',
         time: 'Yesterday',
-        agent: 'Disclosure Agent',
+        agent: 'Notary',
         action: 'Filed IAA, Form CRS, ADV 2A/2B; Fee Schedule A + IPS pending principal lock',
         detail:
           'Filed the Investment Advisory Agreement, Form CRS, and ADV Parts 2A and 2B to the document vault with e-sign timestamps. Fee Schedule A and the IPS are in the vault but are not client-final until principal locks them. Acknowledgement status was written back to the disclosures section.',
@@ -466,8 +466,8 @@ export const households: Household[] = [
     nextClientTouch: 'Fri 10:00a — Annual Review',
     agentsActive: 2,
     activeAgents: [
-      { name: 'Review Agent', doing: 'Prep report is with the client; two life-change flags are in' },
-      { name: 'Paraplanner Agent', doing: 'Annual review deck is drafted and waiting on your voice' },
+      { name: 'Cadence', doing: 'Prep report is with the client; two life-change flags are in' },
+      { name: 'Quill', doing: 'Annual review deck is drafted and waiting on your voice' },
     ],
     exceptions: 1,
     stages: [
@@ -515,7 +515,7 @@ export const households: Household[] = [
       {
         id: 'e6',
         time: 'This morning',
-        agent: 'Review Agent',
+        agent: 'Cadence',
         action: 'Sent client prep report; captured 2 life-change flags from portal',
         detail:
           'Generated the annual-review prep report from custodian balances, the current IPS, and last year’s notes, then delivered it in the client portal. Jordan opened it and submitted two life-change flags. Those flags are on the Person Account and are queued for the Friday agenda. No portfolio change was made.',
@@ -525,7 +525,7 @@ export const households: Household[] = [
       {
         id: 'e7',
         time: 'This morning',
-        agent: 'Paraplanner Agent',
+        agent: 'Quill',
         action: 'Drafted annual review deck + RMD / Roth conversion options',
         detail:
           'Drafted the annual review deck in the firm template, with drift versus the 60/40 policy and two tax pages: RMD window and a Roth conversion range. Figures are cited to the custodian feed and the tax notes. The deck is held for your voice and the tax specialist before Friday.',
@@ -535,7 +535,7 @@ export const households: Household[] = [
       {
         id: 'e7b',
         time: 'Last week',
-        agent: 'Lifecycle Monitor Agent',
+        agent: 'Pulse',
         action: 'Confirmed activation: annual KYC refresh + life-event listener armed; 9 compliance docs filed on Person Account',
         detail:
           'Marked the household activated for ongoing monitoring. Scheduled the annual KYC refresh, armed the life-event listener, and confirmed nine compliance documents filed on the Person Account. Portal provisioning, the 30/60/90 welcome cadence, and billing initialization were recorded as on.',
@@ -554,8 +554,8 @@ export const households: Household[] = [
     nextClientTouch: 'Tue — surviving spouse intro',
     agentsActive: 2,
     activeAgents: [
-      { name: 'Estate Agent', doing: 'Settlement plan is open; CRA and counsel are notified' },
-      { name: 'Relationship Agent', doing: 'Drafting the surviving-spouse welcome and KYC packet' },
+      { name: 'Legacy', doing: 'Settlement plan is open; CRA and counsel are notified' },
+      { name: 'Concierge', doing: 'Drafting the surviving-spouse welcome and KYC packet' },
     ],
     exceptions: 0,
     stages: [
@@ -608,7 +608,7 @@ export const households: Household[] = [
       {
         id: 'e8',
         time: 'Yesterday',
-        agent: 'Estate Agent',
+        agent: 'Legacy',
         action: 'Opened settlement Action Plan; notified CRA + estate attorney',
         detail:
           'Opened the estate settlement Action Plan from the death notice and froze the decedent accounts pending retitle. Notified the CRA and estate counsel, attached the letters-testamentary checklist, and logged the sequence the spouse meeting must follow. No trades or risk changes were made.',
@@ -618,7 +618,7 @@ export const households: Household[] = [
       {
         id: 'e9',
         time: 'Yesterday',
-        agent: 'Relationship Agent',
+        agent: 'Concierge',
         action: 'Drafted surviving-spouse welcome + next-of-kin KYC packet',
         detail:
           'Still drafting. The welcome note and next-of-kin KYC packet are built from the estate memo and counsel notes, not from the decedent IPS. Nothing has been sent. The Tuesday intro agenda is held until you review the talk track.',

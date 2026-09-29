@@ -2548,6 +2548,9 @@ h4 {
 }
 
 .dossier-interests li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: #fff;
   border: 1px solid var(--sf-blue);
   color: var(--sf-blue-dark);
@@ -2555,6 +2558,178 @@ h4 {
   padding: 4px 10px;
   font-size: 12px;
   font-weight: 700;
+}
+
+.chip-remove {
+  border: none;
+  background: transparent;
+  color: var(--sf-blue-dark);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.chip-remove:hover {
+  color: #b91c1c;
+}
+
+.dossier-interest-add {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dossier-interest-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-add {
+  background: var(--sf-gray-6, #f3f3f3);
+  border: 1px dashed var(--sf-gray-3, #969492);
+  color: #24415f;
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chip-add:hover {
+  border-color: var(--sf-blue);
+  color: var(--sf-blue-dark);
+}
+
+.dossier-interest-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dossier-interest-form .field-edit {
+  flex: 1;
+}
+
+.dossier-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.dossier-parties,
+.dossier-manage-list ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dossier-parties li,
+.dossier-manage-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: var(--sf-gray-6, #f3f3f3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.dossier-parties em {
+  color: var(--sf-gray-3);
+  font-style: normal;
+}
+
+.dossier-log {
+  font-size: 12px;
+  color: var(--sf-gray-2, #514f4d);
+}
+
+.dossier-log li {
+  background: transparent;
+  padding: 2px 0;
+}
+
+/* Manage household drawer */
+.dossier-manage {
+  background: #f8fafc;
+  border: 1px solid var(--sf-gray-5, #dddbda);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.dossier-manage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.dossier-manage-card {
+  background: #fff;
+  border: 1px solid var(--sf-gray-5, #dddbda);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dossier-manage-card.wide {
+  margin-top: 10px;
+}
+
+.dossier-manage-card h5,
+.dossier-manage-list h5 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sf-gray-3);
+}
+
+.dossier-manage-card label,
+.dossier-party-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #24415f;
+}
+
+.dossier-party-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.dossier-manage-list {
+  margin-top: 12px;
+}
+
+.link-btn {
+  border: none;
+  background: transparent;
+  color: var(--sf-blue-dark);
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.dossier-tab.extra {
+  opacity: 0.85;
 }
 
 .dossier-timeline {
@@ -4881,6 +5056,129 @@ button.stage-card.selected {
 
 .portal-concierge ul li {
   margin: 2px 0;
+}
+
+/* Widen the request form when it holds the beneficiary grid */
+.portal-move:has(.portal-beneficiaries) {
+  max-width: 640px;
+}
+
+/* Address change: current + type-ahead */
+.portal-address-current {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--sf-gray-6, #f3f3f3);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.portal-address-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7a89;
+}
+
+.portal-typeahead {
+  position: relative;
+}
+
+.portal-typeahead-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #d5dde6;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(16, 36, 63, 0.12);
+  max-height: 220px;
+  overflow: auto;
+}
+
+.portal-typeahead-list li button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.portal-typeahead-list li button:hover {
+  background: var(--sf-gray-6, #f3f3f3);
+}
+
+.portal-typeahead-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #6b7a89;
+}
+
+/* Beneficiary designation form */
+.portal-beneficiaries {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.portal-beneficiary-row {
+  border: 1px solid #d5dde6;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.portal-beneficiary-row legend {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #24415f;
+  padding: 0 4px;
+}
+
+.portal-beneficiary-row > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.portal-beneficiary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.portal-beneficiary-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.portal-beneficiary-row input,
+.portal-beneficiary-row select {
+  font: inherit;
+  font-weight: 500;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #d5dde6;
 }
 
 @media (max-width: 720px) {

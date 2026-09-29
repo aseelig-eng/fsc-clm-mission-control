@@ -57,7 +57,45 @@ export interface PersonProfile {
   preferredContact?: ContactChannel[]
   sentiment?: string
   lifeEvents?: LifeEventNote[]
+  /** Book segment the household is managed in. */
+  segment?: string
+  /** Where the relationship came from. */
+  referredBy?: string
 }
+
+/** A non-client professional attached to the household (attorney, CPA, etc.). */
+export interface RelatedParty {
+  id: string
+  name: string
+  /** Attorney, CPA / Accountant, Trustee, Power of Attorney, Other. */
+  role: string
+  firm?: string
+  contact?: string
+}
+
+/** An additional household member added on the Relationship File. */
+export interface ExtraMember {
+  id: string
+  name: string
+  role: string
+}
+
+export const CLIENT_SEGMENTS = [
+  'Emerging',
+  'Mass affluent',
+  'High net worth',
+  'Ultra high net worth',
+  'In transition',
+] as const
+
+export const RELATED_PARTY_ROLES = [
+  'Attorney',
+  'CPA / Accountant',
+  'Trustee',
+  'Power of Attorney',
+  'Tax specialist',
+  'Other',
+] as const
 
 export interface PersonLikeness {
   id: string
@@ -145,6 +183,8 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         preferredContact: ['email'],
         sentiment: 'Unknown — one form, no conversation yet',
         lifeEvents: [],
+        segment: 'Emerging',
+        referredBy: 'Public website form',
       },
       facets: (
         [
@@ -167,7 +207,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         inferredBy: 'agent' as const,
         recommendedReview: 'Do not infer. Collect this in the intro call.',
       })),
-      maturity: maturity(18, 40, 12, 8, 'This morning · Lead Agent', ['Website form']),
+      maturity: maturity(18, 40, 12, 8, 'This morning · Scout', ['Website form']),
     },
   ],
   h1: [
@@ -189,6 +229,8 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         preferredContact: ['text', 'email', 'whatsapp'],
         sentiment: 'Warm, and watching whether funding is handled well',
         lifeEvents: [{ when: 'Ahead', label: 'Home purchase is a later moment, not this quarter' }],
+        segment: 'Mass affluent',
+        referredBy: 'Schwab custodian referral',
       },
       facets: [
         {
@@ -273,7 +315,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           recommendedReview: 'Own the NIGO apology personally — agent drafts, you send.',
         },
       ],
-      maturity: maturity(78, 92, 70, 62, '2h ago · Funding Agent', [
+      maturity: maturity(78, 92, 70, 62, '2h ago · Relay', [
         'Discovery meeting',
         'Risk assessment',
         'Portal',
@@ -301,6 +343,8 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         preferredContact: ['email', 'in_person'],
         sentiment: 'Exacting. Trust is personal, and he reads every packet',
         lifeEvents: [{ when: 'This week', label: 'US beneficiary added on the trust' }],
+        segment: 'Ultra high net worth',
+        referredBy: 'Estate counsel introduction',
       },
       facets: [
         {
@@ -385,7 +429,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           recommendedReview: 'CC Eleanor on principal outcome — household trust is joint.',
         },
       ],
-      maturity: maturity(82, 75, 90, 50, 'Yesterday · Disclosure Agent', [
+      maturity: maturity(82, 75, 90, 50, 'Yesterday · Notary', [
         'In-person proposal',
         'Trust documents',
         'CPA letter',
@@ -521,6 +565,8 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         preferredContact: ['email', 'video'],
         sentiment: 'Steady and loyal. Wants tax craft, not a new pitch',
         lifeEvents: [{ when: 'This year', label: 'RMD window opening' }],
+        segment: 'High net worth',
+        referredBy: 'Client referral · long-tenured',
       },
       facets: [
         {
@@ -605,7 +651,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           recommendedReview: 'Show Portrait maturity “vivid” casually — they like knowing we know them.',
         },
       ],
-      maturity: maturity(96, 88, 92, 90, 'This morning · Review Agent', [
+      maturity: maturity(96, 88, 92, 90, 'This morning · Cadence', [
         'Annual prep portal',
         'Meeting history',
         'Custodian',
@@ -740,6 +786,8 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         address: 'Chicago, IL',
         sentiment: 'Historical. The relationship now belongs to Amara',
         lifeEvents: [{ when: '2026-08-02', label: 'Death — estate path opened' }],
+        segment: 'In transition',
+        referredBy: 'Legacy household · estate settlement',
       },
       facets: [
         {
@@ -824,7 +872,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           recommendedReview: 'Lead with care; agent drafts, you deliver.',
         },
       ],
-      maturity: maturity(90, 40, 80, 85, 'Yesterday · Estate Agent', [
+      maturity: maturity(90, 40, 80, 85, 'Yesterday · Legacy', [
         'Historical CRM',
         'Vault docs',
         'Custodian freeze',
@@ -932,7 +980,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           recommendedReview: 'Open with care and process map; agent talk track is ready.',
         },
       ],
-      maturity: maturity(28, 55, 35, 40, 'Relationship Agent draft', [
+      maturity: maturity(28, 55, 35, 40, 'Concierge draft', [
         'Estate memo',
         'Counsel notes',
         'Meeting invite',

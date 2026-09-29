@@ -188,7 +188,6 @@ function buildMetrics(households: Household[], exceptions: ExceptionItem[]): Boo
     })
     .sort((a, b) => a.when.localeCompare(b.when))
   const agentTotal = households.reduce((n, h) => n + h.activeAgents.length, 0)
-  const busiest = Math.max(...households.map((h) => h.activeAgents.length), 1)
   const blocked = households.flatMap((h) =>
     h.stages.filter((s) => s.status === 'blocked').map((s) => ({ household: h.name, label: s.label, why: s.unblock?.whyBlocked })),
   )
@@ -293,17 +292,17 @@ function buildMetrics(households: Household[], exceptions: ExceptionItem[]): Boo
       value: String(agentTotal),
       glyph: 'agents',
       x: 42,
-      story: 'Named agents running on the book right now, counted by household.',
+      story: 'Every named agent running on the book right now — what it is doing and which client it is on.',
       visuals: [
         {
-          kind: 'bars',
+          kind: 'list',
           caption: 'Who Is Running',
-          bars: households.map((h) => ({
-            label: h.name.split(' ')[0],
-            note: h.activeAgents.map((a) => a.name.replace(' Agent', '')).join(', ') || 'None',
-            pct: Math.round((h.activeAgents.length / busiest) * 100),
-            tone: 'neutral',
-          })),
+          rows: households.flatMap((h) =>
+            h.activeAgents.map((a) => ({
+              title: `${a.name} · ${h.name.split(' ')[0]}`,
+              detail: a.doing,
+            })),
+          ),
         },
       ],
     },

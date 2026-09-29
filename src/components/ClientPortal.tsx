@@ -49,6 +49,41 @@ const MEETING_CHANNELS = [
   { id: 'in_person', label: 'In person', via: 'Mobile notetaker' },
 ] as const
 
+// Mock address book for the type-ahead. In production this would be a
+// geocoding / address-autocomplete provider (e.g. Google Places, Smarty).
+const ADDRESS_SUGGESTIONS = [
+  '400 University Ave, Palo Alto, CA 94301',
+  '2100 Broadway, Oakland, CA 94612',
+  '88 Folsom St, San Francisco, CA 94105',
+  '1 Market St, San Francisco, CA 94105',
+  '350 Mission St, San Francisco, CA 94105',
+  '12 Gramercy Park, New York, NY 10003',
+  '1600 Amphitheatre Pkwy, Mountain View, CA 94043',
+  '500 Terry A Francois Blvd, San Francisco, CA 94158',
+  '233 S Wacker Dr, Chicago, IL 60606',
+  '1101 Pennsylvania Ave NW, Washington, DC 20004',
+]
+
+type BeneficiaryRow = {
+  name: string
+  addressPhone: string
+  birthDate: string
+  ssn: string
+  relationship: string
+  percent: string
+  type: 'primary' | 'contingent'
+}
+
+const EMPTY_BENEFICIARY: BeneficiaryRow = {
+  name: '',
+  addressPhone: '',
+  birthDate: '',
+  ssn: '',
+  relationship: '',
+  percent: '',
+  type: 'primary',
+}
+
 function clientName(householdId: string, fallback: string) {
   const people = personsForHousehold(householdId)
   const client = people.find((person) => !person.profile.deceased) ?? people[0]
@@ -95,6 +130,12 @@ export function ClientPortal({
   const household = households.find((item) => item.id === householdId) ?? households[0]
   const plan = plans[household.id]
   const record = records[household.id]
+  const currentAddress =
+    record?.sections
+      .find((section) => section.id === 'client_details')
+      ?.fields.find((field) => field.key === 'address')?.value ||
+    personsForHousehold(household.id).find((person) => !person.profile.deceased)?.profile.address ||
+    'Not on file'
   const mine = accounts.filter((account) => account.householdId === household.id)
   const totals = accountTotals(mine)
   const [view, setView] = useState<PortalView>('home')
@@ -119,6 +160,9 @@ export function ClientPortal({
   const [requestFiles, setRequestFiles] = useState<UploadedFile[]>([])
   const [vaultFiles, setVaultFiles] = useState<UploadedFile[]>([])
   const [vaultUploaded, setVaultUploaded] = useState('')
+  const [addressQuery, setAddressQuery] = useState('')
+  const [addressPicked, setAddressPicked] = useState('')
+  const [beneficiaries, setBeneficiaries] = useState<BeneficiaryRow[]>([{ ...EMPTY_BENEFICIARY }])
 
   useEffect(() => {
     setSigningId(null)
@@ -131,6 +175,9 @@ export function ClientPortal({
     setRequestFiles([])
     setVaultFiles([])
     setVaultUploaded('')
+    setAddressQuery('')
+    setAddressPicked('')
+    setBeneficiaries([{ ...EMPTY_BENEFICIARY }])
   }, [household.id])
 
   const fileFields =
@@ -592,6 +639,38 @@ export function ClientPortal({
                       setRequestFiles([])
                       return
                     }
+                    if (kind.id === 'address') {
+                      const next = (addressPicked || addressQuery).trim()
+                      if (!next) return
+                      const detail = `Change of address. From: ${currentAddress}. To: ${next}. Client request via the portal — nothing was changed at the custodian yet.${attachSuffix}`
+                      onServiceRequest(household.id, kind.label, detail, kind.action)
+                      setRequestSent(`Sent. Your advisor will update your address to ${next}.${attachSent}`)
+                      setAddressQuery('')
+                      setAddressPicked('')
+                      setRequestFiles([])
+                      return
+                    }
+                    if (kind.id === 'beneficiary') {
+                      const filled = beneficiaries.filter((row) => row.name.trim())
+                      if (filled.length === 0) return
+                      const lines = filled
+                        .map(
+                          (row, index) =>
+                            `${index + 1}. ${row.name} (${row.type === 'primary' ? 'Primary' : 'Contingent'})` +
+                            `${row.relationship ? ` · ${row.relationship}` : ''}` +
+                            `${row.percent ? ` · ${row.percent}%` : ''}` +
+                            `${row.birthDate ? ` · DOB ${row.birthDate}` : ''}` +
+                            `${row.ssn ? ` · SSN/TIN ${row.ssn}` : ''}` +
+                            `${row.addressPhone ? ` · ${row.addressPhone}` : ''}`,
+                        )
+                        .join(' | ')
+                      const detail = `Beneficiary designation change. ${filled.length} beneficiar${filled.length === 1 ? 'y' : 'ies'}: ${lines}. Client request via the portal — advisor to prepare the ReliaStar 7384w and route for signature. Nothing was filed yet.${attachSuffix}`
+                      onServiceRequest(household.id, kind.label, detail, kind.action)
+                      setRequestSent(`Sent. Your advisor will prepare the beneficiary change for ${filled.map((row) => row.name).join(', ')}.${attachSent}`)
+                      setBeneficiaries([{ ...EMPTY_BENEFICIARY }])
+                      setRequestFiles([])
+                      return
+                    }
                     const detail = requestDetail.trim()
                     if (!detail && requestFiles.length === 0) return
                     const fullDetail = `${detail || 'See attached document(s).'}${attachSuffix}`
@@ -683,6 +762,153 @@ export function ClientPortal({
                         </ul>
                       </div>
                     </>
+                  ) : requestKind === 'address' ? (
+                    <>
+                      <div className="portal-address-current">
+                        <span className="portal-address-label">Current address on file</span>
+                        <strong>{currentAddress}</strong>
+                      </div>
+                      <label className="portal-typeahead">
+                        New address
+                        <input
+                          value={addressQuery}
+                          onChange={(event) => {
+                            setAddressQuery(event.target.value)
+                            setAddressPicked('')
+                          }}
+                          placeholder="Start typing your new address"
+                          autoComplete="off"
+                        />
+                        {addressQuery.trim().length >= 2 && !addressPicked && (
+                          <ul className="portal-typeahead-list">
+                            {ADDRESS_SUGGESTIONS.filter((item) =>
+                              item.toLowerCase().includes(addressQuery.trim().toLowerCase()),
+                            )
+                              .slice(0, 5)
+                              .map((item) => (
+                                <li key={item}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAddressPicked(item)
+                                      setAddressQuery(item)
+                                    }}
+                                  >
+                                    {item}
+                                  </button>
+                                </li>
+                              ))}
+                            {ADDRESS_SUGGESTIONS.filter((item) =>
+                              item.toLowerCase().includes(addressQuery.trim().toLowerCase()),
+                            ).length === 0 && (
+                              <li className="portal-typeahead-empty">
+                                No match — your advisor will verify “{addressQuery.trim()}”.
+                              </li>
+                            )}
+                          </ul>
+                        )}
+                      </label>
+                      <p className="muted">Pick a suggestion or type the full address. Your advisor confirms it before anything changes at the custodian.</p>
+                    </>
+                  ) : requestKind === 'beneficiary' ? (
+                    <div className="portal-beneficiaries">
+                      <p className="muted">
+                        Add each beneficiary as it appears on the policy. Percentages across primary beneficiaries should total 100%.
+                      </p>
+                      {beneficiaries.map((row, index) => (
+                        <fieldset key={index} className="portal-beneficiary-row">
+                          <legend>Beneficiary {index + 1}</legend>
+                          <label>
+                            Full name (First, MI, Last)
+                            <input
+                              value={row.name}
+                              onChange={(event) =>
+                                setBeneficiaries((prev) => prev.map((r, i) => (i === index ? { ...r, name: event.target.value } : r)))
+                              }
+                            />
+                          </label>
+                          <label>
+                            Address &amp; phone
+                            <input
+                              value={row.addressPhone}
+                              onChange={(event) =>
+                                setBeneficiaries((prev) => prev.map((r, i) => (i === index ? { ...r, addressPhone: event.target.value } : r)))
+                              }
+                              placeholder="Street, city, state, ZIP · phone"
+                            />
+                          </label>
+                          <div className="portal-beneficiary-grid">
+                            <label>
+                              Birth date
+                              <input
+                                type="date"
+                                value={row.birthDate}
+                                onChange={(event) =>
+                                  setBeneficiaries((prev) => prev.map((r, i) => (i === index ? { ...r, birthDate: event.target.value } : r)))
+                                }
+                              />
+                            </label>
+                            <label>
+                              SSN / TIN
+                              <input
+                                value={row.ssn}
+                                onChange={(event) =>
+                                  setBeneficiaries((prev) => prev.map((r, i) => (i === index ? { ...r, ssn: event.target.value } : r)))
+                                }
+                                placeholder="•••-••-••••"
+                              />
+                            </label>
+                            <label>
+                              Relationship
+                              <input
+                                value={row.relationship}
+                                onChange={(event) =>
+                                  setBeneficiaries((prev) => prev.map((r, i) => (i === index ? { ...r, relationship: event.target.value } : r)))
+                                }
+                                placeholder="Spouse, child…"
+                              />
+                            </label>
+                            <label>
+                              %
+                              <input
+                                value={row.percent}
+                                inputMode="numeric"
+                                onChange={(event) =>
+                                  setBeneficiaries((prev) => prev.map((r, i) => (i === index ? { ...r, percent: event.target.value.replace(/[^0-9]/g, '') } : r)))
+                                }
+                                placeholder="100"
+                              />
+                            </label>
+                            <label>
+                              Beneficiary type
+                              <select
+                                value={row.type}
+                                onChange={(event) =>
+                                  setBeneficiaries((prev) => prev.map((r, i) => (i === index ? { ...r, type: event.target.value as BeneficiaryRow['type'] } : r)))
+                                }
+                              >
+                                <option value="primary">Primary</option>
+                                <option value="contingent">Contingent</option>
+                              </select>
+                            </label>
+                          </div>
+                          {beneficiaries.length > 1 && (
+                            <button
+                              type="button"
+                              className="link-btn"
+                              onClick={() => setBeneficiaries((prev) => prev.filter((_, i) => i !== index))}
+                            >
+                              Remove beneficiary {index + 1}
+                            </button>
+                          )}
+                        </fieldset>
+                      ))}
+                      {beneficiaries.length < 3 && (
+                        <button type="button" className="btn" onClick={() => setBeneficiaries((prev) => [...prev, { ...EMPTY_BENEFICIARY }])}>
+                          Add another beneficiary
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <label>
                       Details

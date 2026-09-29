@@ -38,7 +38,13 @@ import { MeetingPrepBrief, type PrepSignal } from './components/MeetingPrepBrief
 import { ScheduleMeeting } from './components/ScheduleMeeting'
 import { DocumentPreview } from './components/DocumentPreview'
 import type { ComplianceDocument } from './data/onboardingFramework'
-import { MATURITY_LABELS, personsForHousehold, type ContactChannel } from './data/portraits'
+import {
+  MATURITY_LABELS,
+  personsForHousehold,
+  type ContactChannel,
+  type ExtraMember,
+  type RelatedParty,
+} from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
 import { BookPulse } from './components/BookPulse'
 import { ClientDossier } from './components/ClientDossier'
@@ -540,7 +546,19 @@ export default function App() {
   // rendered (the Record-page "Checklist and goals" panel was removed).
   const [, setDeskChecklist] = useState(() => structuredClone(collectItems))
   const [profileEdits, setProfileEdits] = useState<
-    Record<string, { sentiment?: string; preferredContact?: ContactChannel[] }>
+    Record<
+      string,
+      {
+        sentiment?: string
+        preferredContact?: ContactChannel[]
+        interests?: string[]
+        segment?: string
+        referredBy?: string
+      }
+    >
+  >({})
+  const [householdExtras, setHouseholdExtras] = useState<
+    Record<string, { name?: string; members: ExtraMember[]; relatedParties: RelatedParty[]; log: string[] }>
   >({})
   const [clientNotices, setClientNotices] = useState<ClientNotice[]>([])
 
@@ -2813,10 +2831,25 @@ export default function App() {
             address: onboarding?.sections.find((section) => section.id === 'client_details')?.fields.find((field) => field.key === 'address')?.value,
           }}
           edits={profileEdits}
+          householdExtra={householdExtras[household.id]}
           onContact={(key, value) => {
             if (onboarding) updateRecordField(household.id, 'client_details', key, value)
           }}
           onProfile={(personId, patch) => setProfileEdits((prev) => ({ ...prev, [personId]: { ...prev[personId], ...patch } }))}
+          onHousehold={(patch) =>
+            setHouseholdExtras((prev) => {
+              const current = prev[household.id] ?? { members: [], relatedParties: [], log: [] }
+              return {
+                ...prev,
+                [household.id]: {
+                  name: patch.name ?? current.name,
+                  members: patch.members ?? current.members,
+                  relatedParties: patch.relatedParties ?? current.relatedParties,
+                  log: patch.logEntry ? [patch.logEntry, ...current.log] : current.log,
+                },
+              }
+            })
+          }
           onClose={() => setProfileOpen(false)}
         />
       )}
