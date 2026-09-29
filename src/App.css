@@ -7328,24 +7328,132 @@ button.stage-card.selected {
 }
 
 /* E1 — advisor-led planning experience */
-.advice-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.preview-banner {
+/* Planning workspace bar — houses the Advisor | Client view switch */
+.advice-desk-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 16px;
+  flex-wrap: wrap;
   margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--sf-gray-5);
   border-radius: 10px;
-  background: var(--sf-blue-dark);
-  color: white;
+  background: linear-gradient(180deg, var(--sf-white) 0%, var(--sf-gray-6) 100%);
+}
+
+.advice-desk-bar-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.advice-desk-kicker {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--sf-gray-1);
+}
+
+.advice-desk-bar-text .muted {
+  font-size: 12px;
+}
+
+/* Segmented control: Advisor | Client — the app's native view-switch idiom */
+.view-switch {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--sf-gray-6);
+  border: 1px solid var(--sf-gray-5);
+  border-radius: 999px;
+}
+
+.view-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: var(--sf-gray-3);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.view-switch button:hover {
+  color: var(--sf-blue-dark);
+}
+
+.view-switch button.active {
+  background: var(--sf-white);
+  color: var(--sf-blue-dark);
+  box-shadow: var(--shadow);
+}
+
+.view-switch-icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* Presentation bar — shown while an advisor previews the client experience */
+.present-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: linear-gradient(120deg, var(--sf-blue-dark) 0%, var(--sf-blue) 100%);
+  color: white;
+  box-shadow: var(--shadow);
+}
+
+.present-bar-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #7ee2a8;
+  box-shadow: 0 0 0 4px rgba(126, 226, 168, 0.28);
+  flex-shrink: 0;
+}
+
+.present-bar-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.present-bar-text strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.present-bar-text span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.present-bar-exit {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: white;
+  white-space: nowrap;
+}
+
+.present-bar-exit:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.present-icon {
+  width: 15px;
+  height: 15px;
 }
 
 .advice-desk.client-view .advice-card {

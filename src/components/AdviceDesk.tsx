@@ -174,10 +174,17 @@ export function AdviceDesk({
     return (
       <div className="advice-desk client-view">
         {audience === 'advisor' && (
-          <div className="preview-banner">
-            <span>Presentation mode — this is exactly what your client sees.</span>
-            <button type="button" className="btn" onClick={() => setPreviewClient(false)}>
-              Exit preview
+          <div className="present-bar">
+            <span className="present-bar-dot" aria-hidden />
+            <div className="present-bar-text">
+              <strong>Presenting to your client</strong>
+              <span>This is exactly what they see in their portal — nothing here is editable.</span>
+            </div>
+            <button type="button" className="btn present-bar-exit" onClick={() => setPreviewClient(false)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="present-icon">
+                <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Back to editing
             </button>
           </div>
         )}
@@ -259,10 +266,37 @@ export function AdviceDesk({
   // ---------- Advisor full-edit view ----------
   return (
     <div className="advice-desk">
-      <div className="advice-toolbar">
-        <button type="button" className="btn ghost" onClick={() => setPreviewClient(true)}>
-          Preview client view
-        </button>
+      <div className="advice-desk-bar">
+        <div className="advice-desk-bar-text">
+          <span className="advice-desk-kicker">Planning workspace</span>
+          <span className="muted">Edit the plan, then present it to your client.</span>
+        </div>
+        <div className="view-switch" role="tablist" aria-label="Plan view">
+          <button
+            type="button"
+            role="tab"
+            aria-selected="true"
+            className="active"
+            onClick={() => setPreviewClient(false)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="view-switch-icon">
+              <path d="M4 6h11M4 12h16M4 18h11" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+            Advisor
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected="false"
+            onClick={() => setPreviewClient(true)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" className="view-switch-icon">
+              <circle cx="12" cy="9" r="3" fill="none" stroke="currentColor" strokeWidth="1.7" />
+              <path d="M6 19c1-3 3.2-4.5 6-4.5s5 1.5 6 4.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+            Client
+          </button>
+        </div>
       </div>
       {showPlan && (
         <section className="advice-card">
