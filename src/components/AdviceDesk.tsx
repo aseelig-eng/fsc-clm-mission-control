@@ -5,13 +5,17 @@ import {
   fundedTotal,
   GOAL_OPTIONS,
   goalProgress,
+  planActivityFor,
+  proposedPortfolio,
   rankedStrategy,
   RISK_LEVELS,
+  SCENARIOS,
   successOdds,
   type PlanGoal,
   type PlanState,
   type PortfolioState,
   type RiskLevel,
+  type ScenarioId,
 } from '../data/advice'
 import { GoalMark } from './GoalMark'
 
@@ -32,6 +36,13 @@ function parseYears(raw: string) {
   return Number.isFinite(n) ? n : null
 }
 
+const ACTIVITY_LABEL: Record<string, string> = {
+  plan: 'Plan update',
+  task: 'Action needed',
+  milestone: 'Milestone',
+  market: 'Market',
+}
+
 export function AdviceDesk({
   plan,
   portfolio,
@@ -39,6 +50,8 @@ export function AdviceDesk({
   showPortfolio,
   onPlan,
   onPortfolio,
+  audience = 'advisor',
+  householdId,
 }: {
   plan: PlanState
   portfolio: PortfolioState
@@ -46,6 +59,8 @@ export function AdviceDesk({
   showPortfolio: boolean
   onPlan: (patch: Partial<PlanState>) => void
   onPortfolio: (patch: Partial<PortfolioState>) => void
+  audience?: 'advisor' | 'investor'
+  householdId?: string
 }) {
   const flags = adviceFlags(plan, portfolio).filter((flag) => {
     if (showPlan && showPortfolio) return true
@@ -55,9 +70,26 @@ export function AdviceDesk({
   const sum = portfolio.equity + portfolio.fixed + portfolio.cash + portfolio.alts
   const [openGoalId, setOpenGoalId] = useState<string | null>(plan.goals[0]?.id ?? null)
   const [extraAnnual, setExtraAnnual] = useState(0)
+  const [scenarios, setScenarios] = useState<ScenarioId[]>([])
   const [proposed, setProposed] = useState(false)
+  // Advisor can preview exactly what the investor sees.
+  const [previewClient, setPreviewClient] = useState(false)
   const openGoal = plan.goals.find((goal) => goal.id === openGoalId) ?? null
-  const odds = successOdds(plan, portfolio, extraAnnual)
+
+  // The "client participation zone" is a sandbox: the investor (or the advisor
+  // in preview) adjusts a bounded set of assumptions and sees the impact, but
+  // the advisor's plan is never overwritten.
+  const clientView = audience === 'investor' || previewClient
+  const whatIf = { extraAnnual, scenarios }
+  const baseOdds = successOdds(plan, portfolio)
+  const odds = successOdds(plan, portfolio, whatIf)
+
+  const proposedBook = proposedPortfolio(portfolio)
+  const funded = fundedTotal(plan)
+  const currentOdds = successOdds(plan, portfolio)
+  const proposedOdds = successOdds(plan, proposedBook)
+  const hasProposal =
+    portfolio.targetEquity != null && proposedBook.equity !== portfolio.equity
 
   function updateGoal(id: string, patch: Partial<PlanGoal>) {
     onPlan({
@@ -65,8 +97,173 @@ export function AdviceDesk({
     })
   }
 
+  function toggleScenario(id: ScenarioId) {
+    setScenarios((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]))
+  }
+
+  const activity = householdId ? planActivityFor(householdId) : []
+
+  // ---------- Bounded what-if / participation zone (shared) ----------
+  const participationZone = (
+    <div className={`participation-zone ${clientView ? 'client' : ''}`}>
+      <div className="pz-head">
+        <strong>What-if — your participation zone</strong>
+        {clientView && (
+          <span className="pz-badge">Sandbox · does not change your advisor's plan</span>
+        )}
+      </div>
+      {odds != null ? (
+        <div className="advice-progress">
+          <span>
+            Probability of success {odds}%
+            {baseOdds != null && odds !== baseOdds && (
+              <span className={`pz-delta ${odds >= baseOdds ? 'up' : 'down'}`}>
+                {odds >= baseOdds ? '▲' : '▼'} {Math.abs(odds - baseOdds)} vs plan
+              </span>
+            )}
+          </span>
+          <div className="book-meter-track">
+            <div
+              className={`book-meter-fill ${odds >= 70 ? 'tone-ok' : odds >= 45 ? 'tone-neutral' : 'tone-warn'}`}
+              style={{ width: `${odds}%` }}
+            />
+          </div>
+          <p className="muted">Straight-line funding with a light stress. Adjust the levers below to see the plan move.</p>
+        </div>
+      ) : (
+        <p className="muted">Add a goal target and a risk score to see the probability of success.</p>
+      )}
+      <label>
+        Extra savings per year · ${extraAnnual.toLocaleString()}
+        <input
+          type="range"
+          min={0}
+          max={50000}
+          step={1000}
+          value={extraAnnual}
+          onChange={(event) => setExtraAnnual(Number(event.target.value))}
+        />
+      </label>
+      <div className="scenario-row">
+        <span className="scenario-label">Stress scenarios</span>
+        <div className="scenario-chips">
+          {SCENARIOS.map((scenario) => (
+            <button
+              key={scenario.id}
+              type="button"
+              className={`scenario-chip ${scenarios.includes(scenario.id) ? 'active' : ''}`}
+              aria-pressed={scenarios.includes(scenario.id)}
+              title={scenario.blurb}
+              onClick={() => toggleScenario(scenario.id)}
+            >
+              {scenario.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {(extraAnnual > 0 || scenarios.length > 0) && (
+        <button type="button" className="btn ghost pz-reset" onClick={() => { setExtraAnnual(0); setScenarios([]) }}>
+          Reset to advisor's plan
+        </button>
+      )}
+    </div>
+  )
+
+  // ---------- Investor / presentation client view ----------
+  if (clientView) {
+    return (
+      <div className="advice-desk client-view">
+        {audience === 'advisor' && (
+          <div className="preview-banner">
+            <span>Presentation mode — this is exactly what your client sees.</span>
+            <button type="button" className="btn" onClick={() => setPreviewClient(false)}>
+              Exit preview
+            </button>
+          </div>
+        )}
+        <section className="advice-card">
+          <header>
+            <h3>Your plan at a glance</h3>
+            <p>Where each goal stands, and how choices change your odds.</p>
+          </header>
+          <div className="goal-progress-grid">
+            {plan.goals.length === 0 && <p className="muted">Your advisor is still building your goals.</p>}
+            {plan.goals.map((goal) => {
+              const progress = goalProgress(goal)
+              return (
+                <div key={goal.id} className="goal-progress-card">
+                  <div className="goal-progress-head">
+                    <GoalMark name={goal.name} />
+                    <span>{goal.name}</span>
+                  </div>
+                  {progress != null ? (
+                    <>
+                      <div className="book-meter-track">
+                        <div
+                          className="book-meter-fill tone-ok"
+                          style={{ width: `${Math.min(progress, 100)}%` }}
+                        />
+                      </div>
+                      <span className="goal-progress-pct">{progress}% funded</span>
+                    </>
+                  ) : (
+                    <span className="muted">Tracking — no target set yet.</span>
+                  )}
+                  {goal.horizonYears != null && (
+                    <span className="muted goal-progress-horizon">{goal.horizonYears}-year horizon</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {participationZone}
+        </section>
+
+        {showPortfolio && hasProposal && (
+          <section className="advice-card">
+            <header>
+              <h3>Current vs. proposed</h3>
+              <p>Your advisor's proposed model, side by side with today.</p>
+            </header>
+            <div className="compare-grid">
+              <CompareColumn title="Current" book={portfolio} odds={currentOdds} />
+              <CompareColumn title="Proposed" book={proposedBook} odds={proposedOdds} highlight />
+            </div>
+          </section>
+        )}
+
+        {activity.length > 0 && (
+          <section className="advice-card">
+            <header>
+              <h3>Recent activity</h3>
+              <p>Plan updates, tasks, and milestones.</p>
+            </header>
+            <ul className="activity-feed">
+              {activity.map((item) => (
+                <li key={item.id} className={`activity-item kind-${item.kind}`}>
+                  <span className="activity-tag">{ACTIVITY_LABEL[item.kind] ?? item.kind}</span>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span className="muted">{item.detail}</span>
+                  </div>
+                  <span className="muted activity-date">{item.date}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    )
+  }
+
+  // ---------- Advisor full-edit view ----------
   return (
     <div className="advice-desk">
+      <div className="advice-toolbar">
+        <button type="button" className="btn ghost" onClick={() => setPreviewClient(true)}>
+          Preview client view
+        </button>
+      </div>
       {showPlan && (
         <section className="advice-card">
           <header>
@@ -208,26 +405,7 @@ export function AdviceDesk({
               </select>
             </label>
           </div>
-          {odds != null && (
-            <div className="advice-progress">
-              <span>Probability of success {odds}%</span>
-              <div className="book-meter-track">
-                <div className="book-meter-fill tone-neutral" style={{ width: `${odds}%` }} />
-              </div>
-              <p className="muted">Straight-line funding with a light stress. Move savings to see the plan change.</p>
-            </div>
-          )}
-          <label>
-            What-if savings per year · ${extraAnnual.toLocaleString()}
-            <input
-              type="range"
-              min={0}
-              max={50000}
-              step={1000}
-              value={extraAnnual}
-              onChange={(event) => setExtraAnnual(Number(event.target.value))}
-            />
-          </label>
+          {participationZone}
           <p className="strategy-line">
             <strong>Next strategy.</strong> {rankedStrategy(plan, portfolio)}
           </p>
@@ -277,14 +455,18 @@ export function AdviceDesk({
             ))}
           </div>
           <p className={sum === 100 ? 'muted' : 'advice-sum'}>Sleeves sum to {sum}%.</p>
+          {hasProposal && (
+            <div className="compare-grid">
+              <CompareColumn title="Current" book={portfolio} odds={currentOdds} />
+              <CompareColumn title="Proposed (IPS model)" book={proposedBook} odds={proposedOdds} highlight />
+            </div>
+          )}
           {portfolio.targetEquity != null && (
             <button
               type="button"
               className="btn"
               onClick={() => {
-                const equity = portfolio.targetEquity ?? portfolio.equity
-                const rest = equity + portfolio.fixed + portfolio.alts
-                onPortfolio({ equity, cash: Math.max(0, 100 - rest) })
+                onPortfolio({ equity: proposedBook.equity, cash: proposedBook.cash })
                 setProposed(true)
               }}
             >
@@ -297,7 +479,7 @@ export function AdviceDesk({
             </p>
           )}
           <ul className="holding-list">
-            {buildHoldings(portfolio, fundedTotal(plan)).map((line) => (
+            {buildHoldings(portfolio, funded).map((line) => (
               <li key={line.name}>
                 <span>{line.name}</span>
                 <span className="muted">{line.assetClass}</span>
@@ -305,7 +487,7 @@ export function AdviceDesk({
               </li>
             ))}
           </ul>
-          {buildHoldings(portfolio, fundedTotal(plan)).length === 0 && (
+          {buildHoldings(portfolio, funded).length === 0 && (
             <p className="muted">No funded holdings yet. The model is a proposal until money arrives.</p>
           )}
         </section>
@@ -323,6 +505,42 @@ export function AdviceDesk({
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+function CompareColumn({
+  title,
+  book,
+  odds,
+  highlight,
+}: {
+  title: string
+  book: PortfolioState
+  odds: number | null
+  highlight?: boolean
+}) {
+  const rows = [
+    ['Equity', book.equity],
+    ['Fixed income', book.fixed],
+    ['Cash', book.cash],
+    ['Alternatives', book.alts],
+  ] as const
+  return (
+    <div className={`compare-col ${highlight ? 'proposed' : ''}`}>
+      <div className="compare-title">{title}</div>
+      <ul className="compare-sleeves">
+        {rows.map(([label, value]) => (
+          <li key={label}>
+            <span>{label}</span>
+            <span className="compare-bar-track">
+              <span className="compare-bar-fill" style={{ width: `${value}%` }} />
+            </span>
+            <strong>{value}%</strong>
+          </li>
+        ))}
+      </ul>
+      {odds != null && <div className="compare-odds">Success {odds}%</div>}
     </div>
   )
 }

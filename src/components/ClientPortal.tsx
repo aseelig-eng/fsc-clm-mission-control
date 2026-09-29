@@ -1,10 +1,20 @@
 import { useEffect, useState } from 'react'
 import { personsForHousehold } from '../data/portraits'
 import type { Household } from '../data/types'
-import type { PlanState } from '../data/advice'
+import type { PlanState, PortfolioState } from '../data/advice'
 import { goalProgress } from '../data/advice'
+import { AdviceDesk } from './AdviceDesk'
 import type { ClientOnboardingRecord, ComplianceDocument, FormSection } from '../data/onboardingFramework'
-import { DOC_TYPE_LABEL, docStatusLabel, recordCompleteness, PHASE_LABELS } from '../data/onboardingFramework'
+import {
+  DOC_TYPE_LABEL,
+  docStatusLabel,
+  documentsByStage,
+  docProvenance,
+  fieldUpdate,
+  recordCompleteness,
+  PHASE_LABELS,
+  UPDATED_BY_LABEL,
+} from '../data/onboardingFramework'
 import {
   accountBalance,
   accountTotals,
@@ -23,7 +33,7 @@ import { AccountBook } from './AccountBook'
 import { CoworkerPanel } from './CoworkerPanel'
 import { FileDrop, type UploadedFile } from './FileDrop'
 
-type PortalView = 'home' | 'portfolio' | 'request' | 'vault' | 'facts' | 'ask'
+type PortalView = 'home' | 'plan' | 'portfolio' | 'request' | 'vault' | 'facts' | 'ask'
 type RangeId = '1D' | '1W' | '1M' | '1Y' | 'All'
 type ActivityFilter = 'all' | 'transfer' | 'trade' | 'income'
 
@@ -131,6 +141,7 @@ export function ClientPortal({
   households,
   householdId,
   plans,
+  portfolios,
   records,
   accounts,
   coworker,
@@ -145,6 +156,7 @@ export function ClientPortal({
   households: Household[]
   householdId: string
   plans: Record<string, PlanState>
+  portfolios: Record<string, PortfolioState>
   records: Record<string, ClientOnboardingRecord>
   accounts: FinancialAccount[]
   coworker: CoworkerContext
@@ -159,6 +171,7 @@ export function ClientPortal({
 }) {
   const household = households.find((item) => item.id === householdId) ?? households[0]
   const plan = plans[household.id]
+  const portfolio = portfolios[household.id]
   const record = records[household.id]
   const mine = accounts.filter((account) => account.householdId === household.id)
   const totals = accountTotals(mine)
@@ -206,15 +219,20 @@ export function ClientPortal({
     record?.sections.flatMap((section) =>
       section.fields
         .filter((field) => field.status !== 'n/a')
-        .map((field) => ({
-          id: `${section.id}-${field.key}`,
-          sectionId: section.id,
-          fieldKey: field.key,
-          label: field.label,
-          status: field.status,
-          section: section.label,
-          value: field.value,
-        })),
+        .map((field) => {
+          const update = fieldUpdate(field, household.id)
+          return {
+            id: `${section.id}-${field.key}`,
+            sectionId: section.id,
+            fieldKey: field.key,
+            label: field.label,
+            status: field.status,
+            section: section.label,
+            value: field.value,
+            updatedOn: update.on,
+            updatedBy: update.by,
+          }
+        }),
     ) ?? []
 
   const gaps = fileFields.filter((field) => field.status === 'missing' || field.status === 'partial' || field.status === 'blocked')
@@ -431,6 +449,7 @@ export function ClientPortal({
           {(
             [
               ['home', 'Home'],
+              ['plan', 'Plan'],
               ['portfolio', 'Portfolio Overview'],
               ['request', 'Service'],
               ['vault', 'Documents'],
@@ -802,6 +821,27 @@ export function ClientPortal({
               </div>
             </div>
           )}
+          {view === 'plan' && (
+            <div className="portal-home">
+              <div className="portal-section-head">
+                <h3>Your plan</h3>
+              </div>
+              {plan && portfolio ? (
+                <AdviceDesk
+                  audience="investor"
+                  householdId={household.id}
+                  plan={plan}
+                  portfolio={portfolio}
+                  showPlan
+                  showPortfolio
+                  onPlan={() => {}}
+                  onPortfolio={() => {}}
+                />
+              ) : (
+                <p className="muted">Your advisor is still preparing your plan.</p>
+              )}
+            </div>
+          )}
           {view === 'request' && (
             <div className="portal-home">
               <section className="portal-section">
@@ -1071,46 +1111,58 @@ export function ClientPortal({
                   ))}
                 </ul>
               )}
-              <table className="portal-doc-table">
-                <thead>
-                  <tr>
-                    <th>Document</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(record?.documents ?? []).map((doc) => (
-                    <tr key={doc.id}>
-                      <td>
-                        <strong>{doc.name}</strong>
-                        {doc.notes && <span>{doc.notes}</span>}
-                      </td>
-                      <td>{DOC_TYPE_LABEL[doc.category]}</td>
-                      <td>
-                        <span className={`doc-status status-${doc.status}`}>{docStatusLabel(doc.status)}</span>
-                      </td>
-                      <td>
-                        {doc.status === 'needs_signature' ? (
-                          <button type="button" className="btn primary" onClick={() => setSigningId(doc.id)}>
-                            Sign
-                          </button>
-                        ) : (
-                          <button type="button" className="btn" disabled={doc.status !== 'filed'}>
-                            {doc.status === 'filed' ? 'Open' : 'Waiting'}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {documentsByStage(record?.documents ?? []).map((group) => (
+                <div key={group.stage} className="portal-doc-stage">
+                  <div className="portal-doc-stage-head">
+                    <h4>{group.label}</h4>
+                    <span className="muted">{group.documents.length} item{group.documents.length === 1 ? '' : 's'}</span>
+                  </div>
+                  <table className="portal-doc-table">
+                    <thead>
+                      <tr>
+                        <th>Document</th>
+                        <th>Type</th>
+                        <th>Source</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.documents.map((doc) => (
+                        <tr key={doc.id}>
+                          <td>
+                            <strong>{doc.name}</strong>
+                            {doc.notes && <span>{doc.notes}</span>}
+                          </td>
+                          <td>{DOC_TYPE_LABEL[doc.category]}</td>
+                          <td>
+                            <span className="doc-source">{docProvenance(doc.id).source}</span>
+                          </td>
+                          <td>
+                            <span className={`doc-status status-${doc.status}`}>{docStatusLabel(doc.status)}</span>
+                          </td>
+                          <td>
+                            {doc.status === 'needs_signature' ? (
+                              <button type="button" className="btn primary" onClick={() => setSigningId(doc.id)}>
+                                Sign
+                              </button>
+                            ) : (
+                              <button type="button" className="btn" disabled={doc.status !== 'filed'}>
+                                {doc.status === 'filed' ? 'Open' : 'Waiting'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
             </div>
           )}
           {view === 'facts' && (
             <div>
-              <p>Update any field on your file. What you send is flagged for your advisor and written onto your profile. It does not clear a compliance hold by itself.</p>
+              <p>Update any field on your file. What you send is flagged for your advisor and written onto your profile. It does not clear a compliance hold by itself. Each field shows when it was last updated and by whom.</p>
               <ul className="portal-facts">
                 {fileFields.map((field) => (
                   <li key={field.id}>
@@ -1118,6 +1170,9 @@ export function ClientPortal({
                       <strong>{field.label}</strong>
                       <span className="muted">
                         {field.section} · {field.status}
+                      </span>
+                      <span className={`facts-updated by-${field.updatedBy}`}>
+                        Last updated {field.updatedOn} · {UPDATED_BY_LABEL[field.updatedBy]}
                       </span>
                     </div>
                     <form

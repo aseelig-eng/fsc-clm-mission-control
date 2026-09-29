@@ -3,11 +3,23 @@ import type { LifecycleStageId } from './types'
 export type FieldStatus = 'complete' | 'partial' | 'missing' | 'blocked' | 'n/a'
 export type DocStatus = 'filed' | 'pending' | 'nigo' | 'not_started' | 'needs_signature'
 
+/** Who last touched an attribute or document. Powers the profile "last updated" column. */
+export type UpdatedBy = 'advisor' | 'client' | 'system'
+
 export interface FormField {
   key: string
   label: string
   value: string
   status: FieldStatus
+  /** Attribute-level change tracking (audit metadata). */
+  updatedOn?: string
+  updatedBy?: UpdatedBy
+}
+
+export const UPDATED_BY_LABEL: Record<UpdatedBy, string> = {
+  advisor: 'Advisor',
+  client: 'Client',
+  system: 'System',
 }
 
 export interface FormSection {
@@ -27,6 +39,76 @@ export interface ComplianceDocument {
   notes?: string
   signerName?: string
   packet?: string[]
+}
+
+/** Lifecycle stage a document/data item belongs to, in logical order. */
+export type DocStage =
+  | 'onboarding'
+  | 'kyc'
+  | 'planning'
+  | 'account_opening'
+  | 'funding'
+  | 'servicing'
+  | 'review'
+
+/** Canonical order in which stages are shown. */
+export const DOC_STAGE_ORDER: DocStage[] = [
+  'onboarding',
+  'kyc',
+  'planning',
+  'account_opening',
+  'funding',
+  'servicing',
+  'review',
+]
+
+export const DOC_STAGE_LABEL: Record<DocStage, string> = {
+  onboarding: 'Onboarding & Legal',
+  kyc: 'KYC & Verification',
+  planning: 'Planning & Suitability',
+  account_opening: 'Account Opening',
+  funding: 'Funding & Transfer',
+  servicing: 'Servicing',
+  review: 'Review & Audit',
+}
+
+/** Where a document/data item is generated — the originating system or process. */
+export interface DocProvenance {
+  stage: DocStage
+  /** Originating system / process, e.g. the tool that produces the form. */
+  source: string
+}
+
+/**
+ * Per-document lifecycle stage + originating source. Today the vault shows no
+ * indicator of where a form comes from; this map is the provenance metadata.
+ */
+export const DOC_PROVENANCE: Record<string, DocProvenance> = {
+  iaa: { stage: 'onboarding', source: 'Agreement engine · DocuSign' },
+  crs: { stage: 'onboarding', source: 'Compliance library (ADV/CRS)' },
+  adv2a: { stage: 'onboarding', source: 'Compliance library (ADV/CRS)' },
+  adv2b: { stage: 'onboarding', source: 'Compliance library (ADV/CRS)' },
+  ips: { stage: 'planning', source: 'Paraplanner Workbench · IPS template' },
+  fee: { stage: 'planning', source: 'Billing engine · Fee Schedule A' },
+  custodial: { stage: 'account_opening', source: 'Custodian portal (Schwab/Altruist)' },
+  tod: { stage: 'account_opening', source: 'Custodian portal · TOD addendum' },
+  acatForm: { stage: 'funding', source: 'Custodian portal · ACAT (DTCC)' },
+  ach: { stage: 'funding', source: 'Bank link · Plaid / ACH' },
+  tax: { stage: 'kyc', source: 'Tax vendor · W-9 / W-8BEN' },
+  esign: { stage: 'review', source: 'DocuSign audit trail' },
+}
+
+export function docProvenance(id: string): DocProvenance {
+  return DOC_PROVENANCE[id] ?? { stage: 'servicing', source: 'Salesforce FSC' }
+}
+
+/** Group documents by lifecycle stage, in canonical order, dropping empty stages. */
+export function documentsByStage(documents: ComplianceDocument[]) {
+  return DOC_STAGE_ORDER.map((stage) => ({
+    stage,
+    label: DOC_STAGE_LABEL[stage],
+    documents: documents.filter((doc) => docProvenance(doc.id).stage === stage),
+  })).filter((group) => group.documents.length > 0)
 }
 
 export interface LifecycleMonitor {
@@ -122,6 +204,61 @@ export const DOC_TYPE_LABEL: Record<ComplianceDocument['category'], string> = {
   movement: 'Money movement',
   tax: 'Tax',
   audit: 'E-sign',
+}
+
+/**
+ * Who typically maintains a given attribute, by field key. Used as the fallback
+ * for the profile "last updated" column when a field has no explicit edit stamp.
+ */
+const FIELD_OWNER: Record<string, UpdatedBy> = {
+  // client-maintained personal details
+  firstName: 'client',
+  lastName: 'client',
+  dob: 'client',
+  email: 'client',
+  phone: 'client',
+  address: 'client',
+  employer: 'client',
+  title: 'client',
+  citizenship: 'client',
+  // system-verified compliance screens
+  cip: 'system',
+  ofac: 'system',
+  pep: 'system',
+  adverse: 'system',
+  fatca: 'system',
+  usPerson: 'system',
+  crsAck: 'system',
+  advAck: 'system',
+  portal: 'system',
+  welcome: 'system',
+  billing: 'system',
+}
+
+/** Deterministic fallback date so seed attributes show a realistic "last updated". */
+function fallbackUpdatedOn(householdId: string, fieldKey: string) {
+  const anchor: Record<string, string> = {
+    h0: '2026-09-22',
+    h1: '2026-09-18',
+    h2: '2026-09-20',
+    h3: '2025-10-28',
+    h4: '2026-08-14',
+  }
+  const base = anchor[householdId] ?? '2026-09-15'
+  // nudge the day by a stable hash of the field key, staying in-month
+  let hash = 0
+  for (let i = 0; i < fieldKey.length; i += 1) hash = (hash * 31 + fieldKey.charCodeAt(i)) % 9
+  const [y, m, d] = base.split('-').map(Number)
+  const day = Math.min(28, Math.max(1, d - 4 + hash))
+  return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+/** Last-updated metadata for a field: explicit stamp if present, else a stable fallback. */
+export function fieldUpdate(field: FormField, householdId: string): { on: string; by: UpdatedBy } {
+  return {
+    on: field.updatedOn ?? fallbackUpdatedOn(householdId, field.key),
+    by: field.updatedBy ?? FIELD_OWNER[field.key] ?? 'advisor',
+  }
 }
 
 export function docStatusLabel(status: DocStatus) {

@@ -13,9 +13,12 @@ import {
   PHASE_LABELS,
   onboardingByHousehold,
   recordCompleteness,
+  documentsByStage,
+  docProvenance,
   type ClientOnboardingRecord,
   type FieldStatus,
   type FormSection,
+  type UpdatedBy,
 } from './data/onboardingFramework'
 import { buildDrillItems, type DrillItem } from './data/drilldown'
 import {
@@ -49,6 +52,9 @@ import { handoffFor } from './data/generational'
 import { stageMetrics } from './data/stageFacts'
 import { recordFieldMap } from './data/documentTemplates'
 import { ClientPortal } from './components/ClientPortal'
+import { PortalSetup } from './components/PortalSetup'
+import { FirmBusiness } from './components/FirmBusiness'
+import { DEFAULT_FIRM_BUSINESS_CONFIG, type FirmBusinessConfig } from './data/firmBusiness'
 import {
   caseSteps,
   collectItems,
@@ -107,6 +113,10 @@ function dayPart() {
   if (hour < 12) return 'Good morning'
   if (hour < 17) return 'Good afternoon'
   return 'Good evening'
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10)
 }
 
 function chipStage(household: Household) {
@@ -521,6 +531,10 @@ export default function App() {
   const [handoffOpen, setHandoffOpen] = useState(false)
   const [coworkerOpen, setCoworkerOpen] = useState(false)
   const [portalOpen, setPortalOpen] = useState(false)
+  const [portalSetupOpen, setPortalSetupOpen] = useState(false)
+  const [firmBusinessConfig, setFirmBusinessConfig] = useState<FirmBusinessConfig>(
+    () => DEFAULT_FIRM_BUSINESS_CONFIG,
+  )
   const [playbookMeeting, setPlaybookMeeting] = useState<Meeting | null>(null)
   const [prepBriefMeeting, setPrepBriefMeeting] = useState<Meeting | null>(null)
   const [meetingList, setMeetingList] = useState<Meeting[]>(() => structuredClone(meetingSeed))
@@ -730,6 +744,7 @@ export default function App() {
     fieldKey: string,
     value: string,
     status?: FieldStatus,
+    updatedBy: UpdatedBy = 'advisor',
   ) {
     setRecords((prev) => {
       const next = structuredClone(prev)
@@ -739,6 +754,8 @@ export default function App() {
       field.value = value
       if (status) field.status = status
       else if (field.status === 'missing' && value.trim()) field.status = 'partial'
+      field.updatedOn = todayISO()
+      field.updatedBy = updatedBy
       if (fieldKey === 'goal') record.primaryGoal = value
       if (fieldKey === 'horizon') {
         const years = Number(value.replace(/[^0-9.]/g, ''))
@@ -1005,7 +1022,11 @@ export default function App() {
     const record = next[notice.householdId]
     for (const touch of notice.touched) {
       const field = record?.sections.find((section) => section.id === touch.sectionId)?.fields.find((item) => item.key === touch.fieldKey)
-      if (field?.status === 'partial') field.status = 'complete'
+      if (field?.status === 'partial') {
+        field.status = 'complete'
+        field.updatedOn = todayISO()
+        field.updatedBy = 'advisor'
+      }
     }
     setRecords(next)
     setClientNotices((prev) => prev.map((item) => (item.id === notice.id ? { ...item, reviewed: true } : item)))
@@ -1037,6 +1058,8 @@ export default function App() {
         field.status = 'partial'
         touched.push({ sectionId, fieldKey })
       }
+      field.updatedOn = todayISO()
+      field.updatedBy = 'client'
     }
     if (record && fieldKey === 'goal') record.primaryGoal = value
     if (record && fieldKey === 'horizon') {
@@ -1172,6 +1195,8 @@ export default function App() {
       if (!field || field.status === 'n/a') return
       field.value = value
       field.status = status
+      field.updatedOn = '2026-09-24'
+      field.updatedBy = 'client'
       touched.push({ sectionId, fieldKey })
     }
     if (documentId === 'tod') {
@@ -1275,7 +1300,12 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="global-header">
-        <div className="version-stamp">Version: Project Mars - Initial Concept</div>
+        <div className="header-top">
+          <div className="version-stamp">Version: Project Mars - Initial Concept</div>
+          <button type="button" className={`header-persona ${role === 'value' ? 'active' : ''}`} onClick={() => setRole('value')}>
+            Persona Value &amp; Comps
+          </button>
+        </div>
         <div className="header-main">
         <div className="brand">
           <img
@@ -1325,9 +1355,6 @@ export default function App() {
           Ask
         </button>
         </div>
-        <button type="button" className={`header-pill header-corner ${role === 'value' ? 'active' : ''}`} onClick={() => setRole('value')}>
-          Persona Value &amp; Comps
-        </button>
         </div>
       </header>
 
@@ -1705,6 +1732,16 @@ export default function App() {
                   />
                 )}
 
+                <FirmBusiness
+                  householdId={household.id}
+                  householdName={household.name}
+                  config={firmBusinessConfig}
+                  role={role}
+                  onToggleEnabled={(enabled) =>
+                    setFirmBusinessConfig((prev) => ({ ...prev, enabled }))
+                  }
+                />
+
                 <div className="lifecycle-block">
                   <div className="lifecycle-block-title">{household.name} — Lifecycle Stage</div>
                 <div className="lifecycle-rail">
@@ -1785,6 +1822,7 @@ export default function App() {
                 {PLAN_STAGES.includes(selectedStage?.id ?? '') && (
                   <AdviceDesk
                     key={household.id}
+                    householdId={household.id}
                     plan={plans[household.id]}
                     portfolio={portfolios[household.id]}
                     showPlan
@@ -1818,6 +1856,7 @@ export default function App() {
               </div>
               <AdviceDesk
                 key={`${household.id}-record`}
+                householdId={household.id}
                 plan={plans[household.id]}
                 portfolio={portfolios[household.id]}
                 showPlan
@@ -1929,8 +1968,17 @@ export default function App() {
                 <div className="panel">
                   <div className="panel-header">
                     <span>Compliance Document Vault</span>
-                    <span className="muted">
-                      {completeness.docsFiled}/{completeness.docsTotal} filed
+                    <span className="panel-header-tail">
+                      <span className="muted">
+                        {completeness.docsFiled}/{completeness.docsTotal} filed
+                      </span>
+                      <button
+                        type="button"
+                        className="btn ghost sm inline-setup-btn"
+                        onClick={() => setPortalSetupOpen(true)}
+                      >
+                        One-click portal setup
+                      </button>
                     </span>
                   </div>
                   <div className="panel-body">
@@ -1945,35 +1993,46 @@ export default function App() {
                           : progressTone(completeness.docsPct)
                       }
                     />
-                    <ul className="doc-list">
-                      {onboarding.documents.map((d) => (
-                        <li key={d.id}>
-                          <button
-                            type="button"
-                            className="doc-btn"
-                            onClick={() => {
-                              setPreviewDoc(d)
-                              openDrill(`doc-${d.id}`)
-                            }}
-                          >
-                            <div className="doc-name">
-                              {d.name}
-                              <span className="doc-preview-hint">
-                                {d.status === 'filed' ? 'View filed copy' : 'Preview draft'} →
-                              </span>
-                            </div>
-                            <div className="doc-meta">
-                              <span className={`badge ${docStatusClass(d.status)}`}>{d.status}</span>
-                              {d.filedOn && <span className="muted">Filed {d.filedOn}</span>}
-                              {d.notes && <span className="muted">{d.notes}</span>}
-                            </div>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
+                    {documentsByStage(onboarding.documents).map((group) => (
+                      <div key={group.stage} className="doc-stage-group">
+                        <div className="doc-stage-label">
+                          <span>{group.label}</span>
+                          <span className="muted">{group.documents.length}</span>
+                        </div>
+                        <ul className="doc-list">
+                          {group.documents.map((d) => {
+                            const prov = docProvenance(d.id)
+                            return (
+                              <li key={d.id}>
+                                <button
+                                  type="button"
+                                  className="doc-btn"
+                                  onClick={() => {
+                                    setPreviewDoc(d)
+                                    openDrill(`doc-${d.id}`)
+                                  }}
+                                >
+                                  <div className="doc-name">
+                                    {d.name}
+                                    <span className="doc-preview-hint">
+                                      {d.status === 'filed' ? 'View filed copy' : 'Preview draft'} →
+                                    </span>
+                                  </div>
+                                  <div className="doc-meta">
+                                    <span className={`badge ${docStatusClass(d.status)}`}>{d.status}</span>
+                                    <span className="doc-source-tag">Source · {prov.source}</span>
+                                    {d.filedOn && <span className="muted">Filed {d.filedOn}</span>}
+                                    {d.notes && <span className="muted">{d.notes}</span>}
+                                  </div>
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    ))}
                   </div>
                 </div>
-
               </div>
               </>
             )}
@@ -2879,6 +2938,7 @@ export default function App() {
           households={households}
           householdId={portalHouseholdId}
           plans={plans}
+          portfolios={portfolios}
           records={records}
           accounts={accounts}
           coworker={{
@@ -2900,6 +2960,7 @@ export default function App() {
           serviceRequests={deskCases.filter((item) => item.householdId === portalHouseholdId && item.type === 'Service request')}
         />
       )}
+      {portalSetupOpen && <PortalSetup household={household} onClose={() => setPortalSetupOpen(false)} />}
     </div>
   )
 }

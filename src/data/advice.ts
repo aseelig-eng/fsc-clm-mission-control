@@ -76,8 +76,45 @@ export function fundedTotal(plan: PlanState) {
   return plan.goals.reduce((sum, goal) => sum + (goal.fundedUsd ?? 0), 0)
 }
 
+// -------- What-if scenario modeling (E1) --------
+
+export type ScenarioId = 'bear' | 'inflation' | 'disability' | 'early_retire'
+
+export interface Scenario {
+  id: ScenarioId
+  label: string
+  blurb: string
+  /** Flat penalty applied to the probability of success. */
+  oddsPenalty: number
+}
+
+export const SCENARIOS: Scenario[] = [
+  { id: 'bear', label: 'Bear market', blurb: 'A sustained −20% equity drawdown early in the horizon.', oddsPenalty: 14 },
+  { id: 'inflation', label: 'High inflation', blurb: 'Spending needs grow faster than assumed for a decade.', oddsPenalty: 10 },
+  { id: 'disability', label: 'Disability', blurb: 'An earner is out; contributions pause and needs rise.', oddsPenalty: 16 },
+  { id: 'early_retire', label: 'Retire 3 yrs early', blurb: 'Fewer accumulation years, longer drawdown.', oddsPenalty: 12 },
+]
+
+export interface WhatIf {
+  /** Extra annual savings the client/advisor is testing. */
+  extraAnnual?: number
+  /** Active stress scenarios (combine to stack penalties). */
+  scenarios?: ScenarioId[]
+}
+
 /** Straight-line funding plus a light stress. A MoneyGuide-style meter, not a full Monte Carlo. */
-export function successOdds(plan: PlanState, portfolio: PortfolioState, extraAnnual = 0) {
+export function successOdds(
+  plan: PlanState,
+  portfolio: PortfolioState,
+  extraAnnualOrWhatIf: number | WhatIf = 0,
+) {
+  const whatIf: WhatIf =
+    typeof extraAnnualOrWhatIf === 'number'
+      ? { extraAnnual: extraAnnualOrWhatIf }
+      : extraAnnualOrWhatIf
+  const extraAnnual = whatIf.extraAnnual ?? 0
+  const scenarios = whatIf.scenarios ?? []
+
   const scored = plan.goals.filter((goal) => goal.targetUsd && goal.targetUsd > 0)
   if (!scored.length || !plan.riskTolerance) return null
   const scores = scored.map((goal) => {
@@ -90,7 +127,59 @@ export function successOdds(plan: PlanState, portfolio: PortfolioState, extraAnn
   let odds = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
   const short = scored.some((goal) => (goal.horizonYears ?? 99) <= 7)
   if (short && portfolio.equity > 65) odds -= 10
-  return Math.max(8, Math.min(94, odds))
+  // A bear market bites harder on an equity-heavy book.
+  const scenarioHit = scenarios.reduce((sum, id) => {
+    const scenario = SCENARIOS.find((s) => s.id === id)
+    if (!scenario) return sum
+    let penalty = scenario.oddsPenalty
+    if (id === 'bear') penalty += Math.max(0, portfolio.equity - 60) * 0.2
+    return sum + penalty
+  }, 0)
+  odds -= Math.round(scenarioHit)
+  return Math.max(4, Math.min(94, odds))
+}
+
+/** The proposed book: equity snapped to the IPS target, cash absorbing the rest. */
+export function proposedPortfolio(portfolio: PortfolioState): PortfolioState {
+  if (portfolio.targetEquity == null) return portfolio
+  const equity = portfolio.targetEquity
+  const rest = equity + portfolio.fixed + portfolio.alts
+  return { ...portfolio, equity, cash: Math.max(0, 100 - rest) }
+}
+
+// -------- Lightweight plan activity feed (E1) --------
+
+export interface PlanActivity {
+  id: string
+  date: string
+  kind: 'plan' | 'task' | 'milestone' | 'market'
+  title: string
+  detail: string
+}
+
+const PLAN_ACTIVITY: Record<string, PlanActivity[]> = {
+  h1: [
+    { id: 'a1', date: '2026-09-24', kind: 'plan', title: 'Advisor updated your growth plan', detail: 'Raised the long-term growth target after your raise.' },
+    { id: 'a2', date: '2026-09-18', kind: 'task', title: 'Action needed: Fidelity transfer', detail: 'One transfer is still outstanding to fully fund the plan.' },
+    { id: 'a3', date: '2026-08-30', kind: 'milestone', title: 'Roth IRA on track', detail: 'Funding crossed 10% of the long-term target.' },
+  ],
+  h2: [
+    { id: 'a1', date: '2026-09-22', kind: 'plan', title: 'Advisor set a conservative stance', detail: 'The book stays defensive until the ACAT arrives.' },
+    { id: 'a2', date: '2026-09-10', kind: 'task', title: 'Introduce the next generation', detail: 'Counsel knows the children; the firm would like to meet them.' },
+  ],
+  h3: [
+    { id: 'a1', date: '2026-09-20', kind: 'plan', title: 'Income plan reviewed', detail: 'Retirement income and the tax window were refreshed.' },
+    { id: 'a2', date: '2026-09-05', kind: 'milestone', title: 'Portfolio fully funded', detail: 'The income goal is funded to target.' },
+    { id: 'a3', date: '2026-08-14', kind: 'market', title: 'Rebalanced after drift', detail: 'Equity was trimmed back toward the IPS model.' },
+  ],
+  h4: [
+    { id: 'a1', date: '2026-08-14', kind: 'task', title: 'Estate retitling open', detail: 'Retitle and the estate tax ID are still in progress.' },
+    { id: 'a2', date: '2026-08-01', kind: 'plan', title: 'Spouse income plan drafted', detail: 'Awaiting a confirmed risk score from Amara.' },
+  ],
+}
+
+export function planActivityFor(householdId: string): PlanActivity[] {
+  return PLAN_ACTIVITY[householdId] ?? []
 }
 
 export interface HoldingLine {
