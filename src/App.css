@@ -5991,6 +5991,10 @@ button.stage-card.selected {
 }
 
 .connect-block h4 {
+  margin: 0;
+  font-size: 15px;
+}
+
 /* E4 — one-click portal setup */
 .inline-setup-btn {
   margin-left: 10px;
@@ -6381,6 +6385,14 @@ button.stage-card.selected {
 }
 
 .ask-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .setup-hint {
   margin: 0 0 10px;
   font-size: 12px;
@@ -6879,6 +6891,10 @@ button.stage-card.selected {
 @media (max-width: 720px) {
   .book-agenda,
   .schedule-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .setup-email input,
 .setup-party-add input,
 .setup-party-add select {
