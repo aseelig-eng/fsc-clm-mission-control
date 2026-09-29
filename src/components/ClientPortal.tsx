@@ -7,7 +7,6 @@ import { AdviceDesk } from './AdviceDesk'
 import type { ClientOnboardingRecord, ComplianceDocument, FormSection } from '../data/onboardingFramework'
 import {
   DOC_TYPE_LABEL,
-  docStatusLabel,
   documentsByStage,
   docProvenance,
   fieldUpdate,
@@ -36,6 +35,50 @@ import { FileDrop, type UploadedFile } from './FileDrop'
 type PortalView = 'home' | 'plan' | 'portfolio' | 'request' | 'vault' | 'facts' | 'ask'
 type RangeId = '1D' | '1W' | '1M' | '1Y' | 'All'
 type ActivityFilter = 'all' | 'transfer' | 'trade' | 'income'
+
+// ── Client-facing language (portal-local; never touches advisor views) ──────
+// Warm, plain-language phase names. The internal `ongoing` phase is intentionally
+// omitted — the client's onboarding never surfaces it.
+const PORTAL_PHASE_LABEL: Partial<Record<FormSection['phase'], string>> = {
+  '1_intake': 'Welcome & agreements',
+  '2_kyc': 'Verifying your details',
+  '3_custody': 'Opening & funding',
+  '4_orientation': "You're all set",
+}
+
+// Fields the client can actually provide themselves. Everything else (compliance
+// screens, principal approval, custodian/back-office, billing) is internal and is
+// hidden from the "what we still need from you" list.
+const CLIENT_ACTIONABLE_FIELDS = new Set<string>([
+  // personal details
+  'firstName', 'lastName', 'dob', 'ssn', 'email', 'phone', 'address',
+  'employer', 'title', 'citizenship',
+  // financial picture the client answers
+  'goal', 'horizon', 'netWorth', 'income', 'liquidity', 'investable',
+  'riskTol', 'experience', 'objective',
+  // beneficiaries & trusted contact
+  'beneficiary', 'benShare', 'contingent', 'tod', 'trusted',
+  // funding / bank details the client supplies
+  'fundMethod', 'fundAmt', 'bankName', 'routing', 'bankTitle',
+  // orientation scheduling
+  'orientDate',
+])
+
+// Warm status chips for profile fields — no raw enum text like "missing"/"blocked".
+function clientFieldChip(status: string): { label: string; tone: string } {
+  if (status === 'missing') return { label: 'Needs your info', tone: 'needs' }
+  if (status === 'partial') return { label: 'Almost there', tone: 'progress' }
+  if (status === 'blocked') return { label: 'With your advisor', tone: 'advisor' }
+  return { label: 'Done', tone: 'done' }
+}
+
+// Warm status chips for documents — mirrors the field chips, client-friendly.
+function clientDocChip(status: ComplianceDocument['status']): { label: string; tone: string } {
+  if (status === 'needs_signature') return { label: 'Ready to sign', tone: 'sign' }
+  if (status === 'pending' || status === 'nigo') return { label: 'In review', tone: 'progress' }
+  if (status === 'filed') return { label: 'Done', tone: 'done' }
+  return { label: 'Coming soon', tone: 'upcoming' }
+}
 
 const SERVICE_KINDS = [
   { id: 'move', label: 'Move money', action: 'Review the money movement request' },
@@ -236,6 +279,9 @@ export function ClientPortal({
     ) ?? []
 
   const gaps = fileFields.filter((field) => field.status === 'missing' || field.status === 'partial' || field.status === 'blocked')
+  // Only the gaps the client can act on — internal compliance/back-office items
+  // (EDD, principal approval, CIP/OFAC, custodian ops, billing) are hidden.
+  const clientGaps = gaps.filter((field) => CLIENT_ACTIONABLE_FIELDS.has(field.fieldKey))
 
   const toSign = (record?.documents ?? []).filter((doc) => doc.status === 'needs_signature').length
   const signing = record?.documents.find((doc) => doc.id === signingId) ?? null
@@ -243,7 +289,9 @@ export function ClientPortal({
   // ── Onboarding progress (client-facing view of where they are) ──────────
   const completeness = record ? recordCompleteness(record) : null
   const onboardingActive = !!(record && completeness && completeness.pct < 100)
-  const phaseOrder: FormSection['phase'][] = ['1_intake', '2_kyc', '3_custody', '4_orientation', 'ongoing']
+  // Client tracker shows only the four onboarding phases in plain language; the
+  // internal `ongoing` phase is never surfaced to the client.
+  const phaseOrder: FormSection['phase'][] = ['1_intake', '2_kyc', '3_custody', '4_orientation']
   const onboardingPhases = record
     ? phaseOrder
         .map((phase) => {
@@ -251,7 +299,7 @@ export function ClientPortal({
           if (sections.length === 0) return null
           const stats = (completeness?.sectionStats ?? []).filter((s) => s.phase === phase)
           const avg = stats.length ? Math.round(stats.reduce((sum, s) => sum + s.pct, 0) / stats.length) : 100
-          return { phase, label: PHASE_LABELS[phase], sections, pct: avg }
+          return { phase, label: PORTAL_PHASE_LABEL[phase] ?? PHASE_LABELS[phase], sections, pct: avg }
         })
         .filter((entry): entry is { phase: FormSection['phase']; label: string; sections: FormSection[]; pct: number } => entry != null)
     : []
@@ -268,11 +316,14 @@ export function ClientPortal({
     onboardingPhases.find((entry) => entry.pct < 100) ??
     onboardingPhases[onboardingPhases.length - 1] ??
     null
-  const outstandingDocs = (record?.documents ?? []).filter((doc) => doc.status !== 'filed')
+  // Outstanding docs the client can see, signature-required first.
+  const outstandingDocs = (record?.documents ?? [])
+    .filter((doc) => doc.status !== 'filed')
+    .sort((a, b) => (a.status === 'needs_signature' ? 0 : 1) - (b.status === 'needs_signature' ? 0 : 1))
   const nextSteps: { id: string; label: string; go: () => void }[] = []
   if (record) {
     if (toSign > 0) nextSteps.push({ id: 'sign', label: `Sign ${toSign} document${toSign === 1 ? '' : 's'} waiting on you`, go: () => setView('vault') })
-    if (gaps.length > 0) nextSteps.push({ id: 'facts', label: `Confirm ${gaps.length} profile detail${gaps.length === 1 ? '' : 's'} your advisor needs`, go: () => setView('facts') })
+    if (clientGaps.length > 0) nextSteps.push({ id: 'facts', label: `Confirm ${clientGaps.length} detail${clientGaps.length === 1 ? '' : 's'} your advisor needs`, go: () => setView('facts') })
     if (mine.length === 0) nextSteps.push({ id: 'fund', label: 'Connect or fund an account to get invested', go: () => setView('home') })
     if (nextSteps.length === 0) nextSteps.push({ id: 'wait', label: 'Nothing needed right now — your advisor is preparing the next step', go: () => setView('ask') })
   }
@@ -459,7 +510,7 @@ export function ClientPortal({
           ).map(([id, label]) => (
             <button key={id} type="button" className={view === id ? 'active' : ''} onClick={() => setView(id)}>
               {label}
-              {id === 'facts' && gaps.length > 0 ? ` (${gaps.length})` : ''}
+              {id === 'facts' && clientGaps.length > 0 ? ` (${clientGaps.length})` : ''}
               {id === 'vault' && toSign > 0 ? ` (${toSign})` : ''}
               {id === 'request' && serviceRequests.some((item) => item.status !== 'Closed')
                 ? ` (${serviceRequests.filter((item) => item.status !== 'Closed').length})`
@@ -560,7 +611,7 @@ export function ClientPortal({
                   <div className="portal-section-head">
                     <div>
                       <div className="portal-kicker">Getting you set up</div>
-                      <h3>Your onboarding · {record?.currentStageLabel}</h3>
+                      <h3>Let's finish setting up your accounts</h3>
                     </div>
                     <span className="portal-onboard-pct">{completeness.pct}% complete</span>
                   </div>
@@ -575,7 +626,6 @@ export function ClientPortal({
                           <span className="portal-onboard-dot" aria-hidden="true">{state === 'done' ? '✓' : ''}</span>
                           <span className="portal-onboard-phase-body">
                             <strong>{entry.label}</strong>
-                            <em>{entry.pct}% · {entry.sections.length} section{entry.sections.length === 1 ? '' : 's'}</em>
                           </span>
                         </li>
                       )
@@ -584,21 +634,23 @@ export function ClientPortal({
                   <div className="portal-onboard-grid">
                     <div className="portal-onboard-col">
                       <h4>What we still need from you</h4>
-                      {completeness.gaps.length === 0 ? (
-                        <p className="muted">Your profile is complete. Nothing outstanding.</p>
+                      {clientGaps.length === 0 ? (
+                        <p className="muted">You're all caught up — nothing needed from you right now.</p>
                       ) : (
                         <ul className="portal-onboard-list">
-                          {completeness.gaps.slice(0, 6).map((gap) => (
-                            <li key={`${gap.section}-${gap.field}`}>
-                              <span className={`portal-onboard-flag flag-${gap.status}`}>{gap.status}</span>
-                              <span className="portal-onboard-need">
-                                <strong>{gap.field}</strong>
-                                <em>{gap.section}</em>
-                              </span>
-                            </li>
-                          ))}
-                          {completeness.gaps.length > 6 && (
-                            <li className="muted">+{completeness.gaps.length - 6} more on your Profile tab</li>
+                          {clientGaps.slice(0, 6).map((gap) => {
+                            const chip = clientFieldChip(gap.status)
+                            return (
+                              <li key={gap.id}>
+                                <span className={`portal-onboard-flag flag-${chip.tone}`}>{chip.label}</span>
+                                <span className="portal-onboard-need">
+                                  <strong>{gap.label}</strong>
+                                </span>
+                              </li>
+                            )
+                          })}
+                          {clientGaps.length > 6 && (
+                            <li className="muted">+{clientGaps.length - 6} more on your Profile tab</li>
                           )}
                         </ul>
                       )}
@@ -607,20 +659,22 @@ export function ClientPortal({
                       </button>
                     </div>
                     <div className="portal-onboard-col">
-                      <h4>Documents · {completeness.docsFiled}/{completeness.docsTotal} filed</h4>
+                      <h4>Your documents</h4>
                       {outstandingDocs.length === 0 ? (
-                        <p className="muted">Every document is filed. Nothing to sign.</p>
+                        <p className="muted">Nothing to sign right now.</p>
                       ) : (
                         <ul className="portal-onboard-list">
-                          {outstandingDocs.slice(0, 6).map((doc) => (
-                            <li key={doc.id}>
-                              <span className={`doc-status status-${doc.status}`}>{docStatusLabel(doc.status)}</span>
-                              <span className="portal-onboard-need">
-                                <strong>{doc.name}</strong>
-                                <em>{DOC_TYPE_LABEL[doc.category]}</em>
-                              </span>
-                            </li>
-                          ))}
+                          {outstandingDocs.slice(0, 6).map((doc) => {
+                            const chip = clientDocChip(doc.status)
+                            return (
+                              <li key={doc.id}>
+                                <span className={`doc-status chip-${chip.tone}`}>{chip.label}</span>
+                                <span className="portal-onboard-need">
+                                  <strong>{doc.name}</strong>
+                                </span>
+                              </li>
+                            )
+                          })}
                           {outstandingDocs.length > 6 && (
                             <li className="muted">+{outstandingDocs.length - 6} more in Documents</li>
                           )}
@@ -1139,7 +1193,10 @@ export function ClientPortal({
                             <span className="doc-source">{docProvenance(doc.id).source}</span>
                           </td>
                           <td>
-                            <span className={`doc-status status-${doc.status}`}>{docStatusLabel(doc.status)}</span>
+                            {(() => {
+                              const chip = clientDocChip(doc.status)
+                              return <span className={`doc-status chip-${chip.tone}`}>{chip.label}</span>
+                            })()}
                           </td>
                           <td>
                             {doc.status === 'needs_signature' ? (
@@ -1168,9 +1225,11 @@ export function ClientPortal({
                   <li key={field.id}>
                     <div>
                       <strong>{field.label}</strong>
-                      <span className="muted">
-                        {field.section} · {field.status}
-                      </span>
+                      <span className="muted">{field.section}</span>
+                      {(() => {
+                        const chip = clientFieldChip(field.status)
+                        return <span className={`portal-onboard-flag flag-${chip.tone}`}>{chip.label}</span>
+                      })()}
                       <span className={`facts-updated by-${field.updatedBy}`}>
                         Last updated {field.updatedOn} · {UPDATED_BY_LABEL[field.updatedBy]}
                       </span>

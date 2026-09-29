@@ -3838,6 +3838,11 @@ button.stage-card.selected {
   display: block;
 }
 
+.portal-facts li > div .portal-onboard-flag {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
 .portal-facts em {
   grid-column: 2;
 }
@@ -4114,6 +4119,27 @@ button.stage-card.selected {
 .doc-status.status-pending {
   background: #fff4d6;
   color: #8a5a00;
+}
+
+/* Warm, plain-language client document chips. */
+.doc-status.chip-done {
+  background: #e3f5e1;
+  color: #1b6b32;
+}
+
+.doc-status.chip-sign {
+  background: #fde8e4;
+  color: #8c2f1b;
+}
+
+.doc-status.chip-progress {
+  background: #fff4d6;
+  color: #8a5a00;
+}
+
+.doc-status.chip-upcoming {
+  background: var(--sf-gray-6);
+  color: var(--sf-gray-2);
 }
 
 .esign-packet {
@@ -5498,25 +5524,36 @@ button.stage-card.selected {
 
 .portal-onboard-flag {
   flex: none;
-  font-size: 10.5px;
+  align-self: center;
+  font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: 2px 7px;
+  letter-spacing: 0.01em;
+  padding: 3px 9px;
   border-radius: 999px;
-  color: #fff;
+  white-space: nowrap;
+  background: var(--sf-gray-6);
+  color: var(--sf-gray-2);
 }
 
-.portal-onboard-flag.flag-missing {
-  background: #c0392b;
+/* Warm, plain-language client chips (also used on the Profile tab). */
+.portal-onboard-flag.flag-needs {
+  background: #eef4ff;
+  color: #0176d3;
 }
 
-.portal-onboard-flag.flag-blocked {
-  background: #8a3ffc;
+.portal-onboard-flag.flag-progress {
+  background: #fff4d6;
+  color: #8a5a00;
 }
 
-.portal-onboard-flag.flag-partial {
-  background: #b45309;
+.portal-onboard-flag.flag-advisor {
+  background: #f3ecff;
+  color: #6929c4;
+}
+
+.portal-onboard-flag.flag-done {
+  background: #e3f5e1;
+  color: #1b6b32;
 }
 
 .portal-onboard-next {
