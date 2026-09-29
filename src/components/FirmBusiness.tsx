@@ -1,24 +1,12 @@
 import { useState } from 'react'
-import {
-  canViewDetail,
-  canViewWidget,
-  firmBusinessFor,
-  visibleLinesFor,
-  type FirmBusinessConfig,
-  type FirmRole,
-  type LineOfBusinessId,
-} from '../data/firmBusiness'
+import { firmBusinessFor, type LineOfBusinessId } from '../data/firmBusiness'
 
 type Props = {
   householdId: string
   householdName: string
-  config: FirmBusinessConfig
-  role: FirmRole
-  /** Advisor-facing toggle to flip the firm/tenant switch in the demo. */
-  onToggleEnabled?: (enabled: boolean) => void
 }
 
-// Compact glyphs per line of business, keyed so each pill reads at a glance.
+// Compact glyphs per line of business, keyed so each tile reads at a glance.
 const LOB_GLYPH: Record<LineOfBusinessId, string> = {
   banking: '🏦',
   insurance: '🛡',
@@ -27,96 +15,61 @@ const LOB_GLYPH: Record<LineOfBusinessId, string> = {
   trust: '⚖',
 }
 
-export function FirmBusiness({
-  householdId,
-  householdName,
-  config,
-  role,
-  onToggleEnabled,
-}: Props) {
+// One-line headline shown on an engaged tile — the first detail value, or the
+// relationship owner if there is no dollar figure.
+function headline(relationshipOwner: string | undefined, details: { value: string }[]): string {
+  return details[0]?.value ?? relationshipOwner ?? 'Engaged'
+}
+
+export function FirmBusiness({ householdId, householdName }: Props) {
   const [openLine, setOpenLine] = useState<LineOfBusinessId | null>(null)
 
-  // Firm/tenant switch is OFF — a single slim opt-in line, not a bulky card.
-  if (!canViewWidget(config, role)) {
-    return (
-      <div className="firm-strip firm-strip-off">
-        <span className="firm-strip-lock" aria-hidden>
-          🔒
-        </span>
-        <span className="firm-strip-off-text">
-          <strong>Business across the firm</strong>
-          <span className="muted"> · gated by information-barrier policy (opt-in)</span>
-        </span>
-        {onToggleEnabled && role === 'advisor' && (
-          <button type="button" className="firm-strip-link" onClick={() => onToggleEnabled(true)}>
-            Enable
-          </button>
-        )}
-      </div>
-    )
-  }
-
   const profile = firmBusinessFor(householdId)
-  const lines = visibleLinesFor(profile, config)
-  const detailAllowed = canViewDetail(config, role)
+  const lines = profile.lines
   const active = openLine ? lines.find((l) => l.id === openLine) ?? null : null
   const engagedCount = lines.filter((l) => l.hasBusiness).length
 
   return (
-    <div className="firm-strip">
-      <div className="firm-strip-head">
-        <span className="firm-strip-title">Business across the firm</span>
-        <span className="firm-strip-count">
-          {engagedCount}/{lines.length} engaged
+    <div className="firm-map">
+      <div className="firm-map-head">
+        <span className="firm-map-kicker">Across the firm</span>
+        <span className="firm-map-count">
+          <strong>{engagedCount}</strong> of {lines.length} lines engaged
         </span>
-        {onToggleEnabled && role === 'advisor' && (
-          <button
-            type="button"
-            className="firm-strip-link subtle"
-            title="Firm/tenant visibility switch"
-            onClick={() => onToggleEnabled(false)}
-          >
-            Disable
-          </button>
-        )}
       </div>
 
-      <div className="firm-pills" role="list">
+      <div className="firm-map-grid" role="list">
         {lines.map((lob) => {
-          const clickable = detailAllowed && lob.hasBusiness
+          const clickable = lob.hasBusiness
           const isOpen = openLine === lob.id
           return (
             <button
               key={lob.id}
               type="button"
               role="listitem"
-              className={`firm-pill ${lob.hasBusiness ? 'has' : 'none'} ${isOpen ? 'open' : ''}`}
+              className={`firm-tile ${lob.hasBusiness ? 'has' : 'none'} ${isOpen ? 'open' : ''}`}
               aria-pressed={isOpen}
               disabled={!clickable}
               title={
                 lob.hasBusiness
-                  ? clickable
-                    ? `View ${lob.label} detail`
-                    : `${lob.label} — has business`
-                  : `${lob.label} — no business`
+                  ? `View ${lob.label} relationship`
+                  : `${lob.label} — no business on file`
               }
               onClick={() => clickable && setOpenLine(isOpen ? null : lob.id)}
             >
-              <span className="firm-pill-glyph" aria-hidden>
+              <span className="firm-tile-glyph" aria-hidden>
                 {LOB_GLYPH[lob.id]}
               </span>
-              <span className="firm-pill-label">{lob.label}</span>
-              <span className={`firm-pill-flag ${lob.hasBusiness ? 'has' : 'none'}`} aria-hidden />
+              <span className="firm-tile-label">{lob.label}</span>
+              <span className="firm-tile-state">
+                {lob.hasBusiness ? headline(lob.relationshipOwner, lob.details) : 'No business'}
+              </span>
             </button>
           )
         })}
       </div>
 
-      {!detailAllowed && (
-        <p className="firm-strip-note muted">Indicator only — detail restricted by policy for your role.</p>
-      )}
-
-      {detailAllowed && active && active.hasBusiness && (
+      {active && active.hasBusiness && (
         <div className="firm-detail">
           <div className="firm-detail-head">
             <span className="firm-detail-glyph" aria-hidden>
@@ -124,11 +77,9 @@ export function FirmBusiness({
             </span>
             <div>
               <strong>{active.label}</strong>
-              {active.relationshipOwner && (
-                <span className="muted"> · {active.relationshipOwner}</span>
-              )}
+              {active.relationshipOwner && <span className="muted"> · {active.relationshipOwner}</span>}
             </div>
-            <button type="button" className="firm-strip-link subtle" onClick={() => setOpenLine(null)}>
+            <button type="button" className="firm-detail-close" onClick={() => setOpenLine(null)}>
               Close
             </button>
           </div>
@@ -143,7 +94,7 @@ export function FirmBusiness({
           </ul>
         </div>
       )}
-      <span className="sr-only">{householdName} cross-firm business summary</span>
+      <span className="sr-only">{householdName} business across the firm</span>
     </div>
   )
 }

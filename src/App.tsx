@@ -54,7 +54,6 @@ import { recordFieldMap } from './data/documentTemplates'
 import { ClientPortal } from './components/ClientPortal'
 import { PortalSetup } from './components/PortalSetup'
 import { FirmBusiness } from './components/FirmBusiness'
-import { DEFAULT_FIRM_BUSINESS_CONFIG, type FirmBusinessConfig } from './data/firmBusiness'
 import {
   caseSteps,
   collectItems,
@@ -532,9 +531,6 @@ export default function App() {
   const [coworkerOpen, setCoworkerOpen] = useState(false)
   const [portalOpen, setPortalOpen] = useState(false)
   const [portalSetupOpen, setPortalSetupOpen] = useState(false)
-  const [firmBusinessConfig, setFirmBusinessConfig] = useState<FirmBusinessConfig>(
-    () => DEFAULT_FIRM_BUSINESS_CONFIG,
-  )
   const [playbookMeeting, setPlaybookMeeting] = useState<Meeting | null>(null)
   const [prepBriefMeeting, setPrepBriefMeeting] = useState<Meeting | null>(null)
   const [meetingList, setMeetingList] = useState<Meeting[]>(() => structuredClone(meetingSeed))
@@ -1730,15 +1726,7 @@ export default function App() {
                     }}
                     plan={plans[household.id]}
                     firmBusiness={
-                      <FirmBusiness
-                        householdId={household.id}
-                        householdName={household.name}
-                        config={firmBusinessConfig}
-                        role={role}
-                        onToggleEnabled={(enabled) =>
-                          setFirmBusinessConfig((prev) => ({ ...prev, enabled }))
-                        }
-                      />
+                      <FirmBusiness householdId={household.id} householdName={household.name} />
                     }
                   />
                 )}
@@ -1882,23 +1870,55 @@ export default function App() {
                       tone={completeness.gaps.some((g) => g.status === 'blocked') ? 'blocked' : progressTone(completeness.pct)}
                     />
                     <div className="section-list">
-                      {onboarding.sections.map((s) => {
-                        const stat = completeness.sectionStats.find((x) => x.id === s.id)
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            className={`section-row ${openSectionId === s.id ? 'active' : ''}`}
-                            onClick={() => {
-                              setOpenSectionId(s.id === openSectionId ? null : s.id)
-                              openDrill(`section-${s.id}`)
-                            }}
-                          >
-                            <span className="section-name">{s.label}</span>
-                            <span className="section-pct">{stat?.pct ?? 0}%</span>
-                          </button>
-                        )
-                      })}
+                      {(
+                        [
+                          '1_intake',
+                          '2_kyc',
+                          '3_custody',
+                          '4_orientation',
+                          'ongoing',
+                        ] as const
+                      )
+                        .map((phase) => ({
+                          phase,
+                          sections: onboarding.sections.filter((s) => s.phase === phase),
+                        }))
+                        .filter((group) => group.sections.length > 0)
+                        .map((group) => {
+                          const phaseSections = group.sections
+                          const avgPct = Math.round(
+                            phaseSections.reduce(
+                              (sum, s) =>
+                                sum + (completeness.sectionStats.find((x) => x.id === s.id)?.pct ?? 0),
+                              0,
+                            ) / phaseSections.length,
+                          )
+                          return (
+                            <div key={group.phase} className="section-phase">
+                              <div className="section-phase-head">
+                                <span>{PHASE_LABELS[group.phase]}</span>
+                                <span className="section-phase-pct">{avgPct}%</span>
+                              </div>
+                              {phaseSections.map((s) => {
+                                const stat = completeness.sectionStats.find((x) => x.id === s.id)
+                                return (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    className={`section-row ${openSectionId === s.id ? 'active' : ''}`}
+                                    onClick={() => {
+                                      setOpenSectionId(s.id === openSectionId ? null : s.id)
+                                      openDrill(`section-${s.id}`)
+                                    }}
+                                  >
+                                    <span className="section-name">{s.label}</span>
+                                    <span className="section-pct">{stat?.pct ?? 0}%</span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )
+                        })}
                     </div>
                     {openSection && (
                       <div className="field-panel">
@@ -1975,10 +1995,10 @@ export default function App() {
                       </span>
                       <button
                         type="button"
-                        className="btn ghost sm inline-setup-btn"
+                        className="btn primary sm inline-setup-btn"
                         onClick={() => setPortalSetupOpen(true)}
                       >
-                        One-click portal setup
+                        ⚡ One-click portal setup
                       </button>
                     </span>
                   </div>
