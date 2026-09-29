@@ -57,8 +57,11 @@ export function FirmBusiness({ householdId, householdName }: Props) {
               }
               onClick={() => clickable && setOpenLine(isOpen ? null : lob.id)}
             >
-              <span className="firm-tile-glyph" aria-hidden>
-                {LOB_GLYPH[lob.id]}
+              <span className="firm-tile-top">
+                <span className="firm-tile-glyph" aria-hidden>
+                  {LOB_GLYPH[lob.id]}
+                </span>
+                <span className={`firm-tile-dot ${lob.hasBusiness ? 'has' : 'none'}`} aria-hidden />
               </span>
               <span className="firm-tile-label">{lob.label}</span>
               <span className="firm-tile-state">
