@@ -1583,6 +1583,13 @@ export default function App() {
             <button type="button" className="profile-entry" onClick={() => setProfileOpen(true)}>
               Relationship File
             </button>
+            <button type="button" className="portal-launch" onClick={() => setPortalSetupOpen(true)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                <path d="M3 9h18M8 14h5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Launch client portal
+            </button>
             </div>
             )}
 
