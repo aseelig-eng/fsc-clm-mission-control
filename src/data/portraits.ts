@@ -28,7 +28,13 @@ export interface MaturityBreakdown {
   recency: number
   sourceDiversity: number
   advisorConfirmed: number
-  /** Composite 0–100 */
+  /**
+   * Composite 0–100. This is a CONFIDENCE score, not a knowledge score: how
+   * fresh, multi-sourced, and advisor-confirmed the profile is. It is
+   * deliberately independent of `likenessScore()` below, which measures how
+   * much we know (topic depth), not how sure we are that what we know is
+   * current and verified.
+   */
   score: number
   tier: MaturityTier
   lastTouched: string
@@ -73,17 +79,55 @@ export interface PersonLikeness {
   maturity: MaturityBreakdown
 }
 
+// The Likeness Compass (radar chart) shows only the topics that describe
+// "what do we know about this person" — their goals, risk posture, household
+// structure, tax/estate picture, heir readiness, and where their money sits.
+// Engagement, Channel preference, and Trust are relationship/behavioral
+// signals, not knowledge-depth topics, so they're intentionally excluded from
+// this chart (they still exist as facets and are used elsewhere — e.g. the
+// "Engage" node on Household Pulse).
+export const LIKENESS_FACET_IDS: FacetId[] = [
+  'risk',
+  'goals',
+  'complexity',
+  'wallet',
+  'tax_estate',
+  'heir_readiness',
+]
+
+// One-line, plain-language definition for each facet — shown in tooltips so
+// nobody has to guess what a spoke means or why "Complexity" and "Wallet"
+// count as "likeness."
+export const FACET_DEFINITIONS: Record<FacetId, string> = {
+  risk: 'Risk tolerance and capacity — how much volatility they can take on, emotionally and financially.',
+  engagement: 'How much interaction history exists — meetings held, emails, portal and e-sign activity.',
+  channel: 'Preference for digital/self-serve vs. human/high-touch contact.',
+  goals: 'Whether financial goals and time horizon are named and funded.',
+  complexity: 'Structural complexity of the household — trusts, entities, UBOs, joint accounts.',
+  wallet: 'Share of their investable assets actually held at the firm vs. held away.',
+  tax_estate: 'How central tax and estate planning concerns are to this relationship.',
+  heir_readiness: 'Whether heirs/next-gen are known, engaged, and prepared for a future wealth transfer.',
+  trust: 'Depth and warmth of the personal relationship — referral quality, sentiment, tenure.',
+}
+
 export const FACET_META: { id: FacetId; short: string; angle: number }[] = [
   { id: 'risk', short: 'Risk', angle: -90 },
-  { id: 'engagement', short: 'Engage', angle: -50 },
-  { id: 'channel', short: 'Channel', angle: -10 },
-  { id: 'goals', short: 'Goals', angle: 30 },
-  { id: 'complexity', short: 'Life', angle: 70 },
-  { id: 'wallet', short: 'Wallet', angle: 110 },
+  { id: 'goals', short: 'Goals', angle: -30 },
+  { id: 'complexity', short: 'Complexity', angle: 30 },
+  { id: 'wallet', short: 'Wallet', angle: 90 },
   { id: 'tax_estate', short: 'Tax/Est', angle: 150 },
-  { id: 'heir_readiness', short: 'Heirs', angle: 190 },
-  { id: 'trust', short: 'Trust', angle: 230 },
+  { id: 'heir_readiness', short: 'Heirs', angle: 210 },
 ]
+
+// Likeness = how much we know about this person, averaged across the 6
+// knowledge-depth topics above. This is deliberately separate from
+// `maturity.score` (confidence in the profile: freshness, sourcing,
+// advisor confirmation) — two different questions that used to be shown as
+// the same number.
+export function likenessScore(person: PersonLikeness): number {
+  const scores = LIKENESS_FACET_IDS.map((id) => person.facets.find((f) => f.id === id)?.score ?? 0)
+  return Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length)
+}
 
 export const MATURITY_LABELS: Record<MaturityTier, { title: string; hint: string }> = {
   emerging: { title: 'Emerging', hint: 'Thin picture — mostly first impressions' },

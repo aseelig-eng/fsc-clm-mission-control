@@ -1,4 +1,4 @@
-import { MATURITY_LABELS, type BehavioralFacet, type PersonLikeness } from '../data/portraits'
+import { MATURITY_LABELS, likenessScore, type BehavioralFacet, type PersonLikeness } from '../data/portraits'
 import { compositeScore, handoffFor, readinessBand } from '../data/generational'
 import { goalProgress, type PlanGoal, type PlanState } from '../data/advice'
 import type { ExceptionItem, Household, LifecycleStage } from '../data/types'
@@ -70,6 +70,7 @@ export function HouseholdPulse({
   const heirScore = compositeScore(handoffFor(household.id))
   const maturity = person.maturity
   const tier = MATURITY_LABELS[maturity.tier]
+  const likeness = likenessScore(person)
 
   const activeStage =
     household.stages.find((s) => s.status === 'blocked') ||
@@ -121,10 +122,10 @@ export function HouseholdPulse({
     },
     {
       id: 'likeness',
-      tone: maturity.score < 45 ? 'warn' : 'ok',
+      tone: likeness < 45 ? 'warn' : 'ok',
       k: 'Likeness',
-      v: `${maturity.score}%`,
-      s: tier.title,
+      v: `${likeness}%`,
+      s: `Confidence: ${tier.title}`,
     },
     {
       id: 'heirs',
@@ -170,8 +171,11 @@ export function HouseholdPulse({
                 <span>
                   <strong>{p.name}</strong>
                   <span className="muted person-role">{p.role}</span>
-                  <span className="person-mat">
-                    {MATURITY_LABELS[p.maturity.tier].title} · {p.maturity.score}
+                  <span
+                    className="person-mat"
+                    title={`Likeness ${likenessScore(p)} (how much we know) · Confidence ${MATURITY_LABELS[p.maturity.tier].title} ${p.maturity.score} (how fresh/verified)`}
+                  >
+                    Likeness {likenessScore(p)} · {MATURITY_LABELS[p.maturity.tier].title} {p.maturity.score}
                   </span>
                 </span>
               </button>
@@ -188,7 +192,7 @@ export function HouseholdPulse({
             <line x1="200" y1="188" x2="200" y2="48" stroke="var(--sf-blue)" strokeWidth="2" strokeDasharray="5 4" />
             <line x1="248" y1="230" x2="332" y2="168" stroke={needsResolution ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
             <line x1="236" y1="286" x2="312" y2="292" stroke={heirScore < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
-            <line x1="152" y1="236" x2="86" y2="252" stroke={maturity.score < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
+            <line x1="152" y1="236" x2="86" y2="252" stroke={likeness < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
             <line x1="188" y1="292" x2="168" y2="348" stroke={topEx ? 'var(--sf-red)' : 'var(--sf-green)'} strokeWidth="2.5" />
             <HouseholdFigures persons={persons} />
           </svg>

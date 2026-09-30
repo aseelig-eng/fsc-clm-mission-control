@@ -2843,6 +2843,12 @@ h4 {
   line-height: 1.45;
 }
 
+.facet-pop-def {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-style: italic;
+}
+
 .likeness-maturity-pill {
   margin-top: 4px;
   border: 1px solid var(--sf-gray-5);

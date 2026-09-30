@@ -41,7 +41,7 @@ import { MeetingPrepBrief, type PrepSignal } from './components/MeetingPrepBrief
 import { ScheduleMeeting } from './components/ScheduleMeeting'
 import { DocumentPreview } from './components/DocumentPreview'
 import type { ComplianceDocument } from './data/onboardingFramework'
-import { MATURITY_LABELS, personsForHousehold, type ContactChannel } from './data/portraits'
+import { LIKENESS_FACET_IDS, MATURITY_LABELS, likenessScore, personsForHousehold, type ContactChannel } from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
 import { BookPulse } from './components/BookPulse'
 import { ClientDossier } from './components/ClientDossier'
@@ -834,7 +834,9 @@ export default function App() {
     setPulseNodeId(nodeId)
     if (!selectedPerson) return
     const engageFacet = selectedPerson.facets.find((f) => f.id === 'engagement')
-    const weakest = [...selectedPerson.facets].sort((a, b) => a.score - b.score)[0]
+    const weakest = [...selectedPerson.facets]
+      .filter((f) => LIKENESS_FACET_IDS.includes(f.id))
+      .sort((a, b) => a.score - b.score)[0]
     const stage =
       household.stages.find((s) => s.status === 'blocked') ||
       household.stages.find((s) => s.status === 'active' || s.status === 'agent-running') ||
@@ -863,11 +865,12 @@ export default function App() {
     }
     if (nodeId === 'likeness') {
       const m = selectedPerson.maturity
+      const likeness = likenessScore(selectedPerson)
       setPulseDialog({
         kicker: 'Likeness',
-        title: `${MATURITY_LABELS[m.tier].title} · ${m.score}`,
-        why: MATURITY_LABELS[m.tier].hint,
-        agentDid: `Completeness ${m.dataCompleteness} · Recency ${m.recency} · Sources ${m.sourceDiversity} · Advisor-confirmed ${m.advisorConfirmed}. Last touched ${m.lastTouched}.`,
+        title: `Likeness ${likeness} · Confidence ${MATURITY_LABELS[m.tier].title} ${m.score}`,
+        why: `Likeness (${likeness}) is how much we know about ${selectedPerson.name.split(' ')[0]} — the average across ${LIKENESS_FACET_IDS.length} topics (risk, goals, household complexity, tax/estate, heir readiness, share-of-wallet). Confidence (${MATURITY_LABELS[m.tier].title} · ${m.score}) is a separate measure of how fresh and verified that picture is. ${MATURITY_LABELS[m.tier].hint}`,
+        agentDid: `Confidence breakdown — completeness ${m.dataCompleteness} · recency ${m.recency} · source diversity ${m.sourceDiversity} · advisor-confirmed ${m.advisorConfirmed}. Last touched ${m.lastTouched}.`,
         actionsTitle: 'Actions to Take',
         actions: [
           {
@@ -878,7 +881,7 @@ export default function App() {
           {
             type: 'schedule',
             label: 'Schedule a confirmation touch',
-            detail: 'Do not treat a thin likeness as exam-ready.',
+            detail: 'Do not treat a thin or unconfirmed likeness as exam-ready.',
           },
         ],
       })
@@ -2429,7 +2432,9 @@ export default function App() {
                         }
                         onAct={(label) => {
                           if (label === 'Open weakest facet' && selectedPerson) {
-                            const weakest = [...selectedPerson.facets].sort((a, b) => a.score - b.score)[0]
+                            const weakest = [...selectedPerson.facets]
+                              .filter((f) => LIKENESS_FACET_IDS.includes(f.id))
+                              .sort((a, b) => a.score - b.score)[0]
                             openDrill(`likeness-${selectedPerson.id}-${weakest.id}`)
                             return
                           }

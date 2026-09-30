@@ -1,5 +1,17 @@
 import { useEffect, useState } from 'react'
-import { FACET_META, MATURITY_LABELS, type BehavioralFacet, type PersonLikeness } from '../data/portraits'
+import {
+  FACET_DEFINITIONS,
+  FACET_META,
+  LIKENESS_FACET_IDS,
+  MATURITY_LABELS,
+  likenessScore,
+  type BehavioralFacet,
+  type PersonLikeness,
+} from '../data/portraits'
+
+function likenessFacets(person: PersonLikeness) {
+  return LIKENESS_FACET_IDS.map((id) => person.facets.find((f) => f.id === id)!).filter(Boolean)
+}
 
 function facetSummary(facet: BehavioralFacet) {
   const band =
@@ -14,11 +26,10 @@ function facetSummary(facet: BehavioralFacet) {
   return `${band}. ${facet.blurb}${proof}`
 }
 
-function likenessSummary(person: PersonLikeness) {
-  const weakest = [...person.facets].sort((a, b) => a.score - b.score)[0]
-  const tier = MATURITY_LABELS[person.maturity.tier]
+function likenessSummary(person: PersonLikeness, score: number) {
+  const weakest = [...likenessFacets(person)].sort((a, b) => a.score - b.score)[0]
   const first = person.name.split(' ')[0]
-  return `${first}'s likeness is ${tier.title.toLowerCase()} at ${person.maturity.score}. The thinnest spoke is ${weakest.label.toLowerCase()} at ${weakest.score}. ${weakest.blurb}`
+  return `${first}'s likeness — how much we know about them — averages ${score} across ${LIKENESS_FACET_IDS.length} topics. The thinnest is ${weakest.label.toLowerCase()} at ${weakest.score}. ${weakest.blurb}`
 }
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
@@ -40,6 +51,7 @@ export function LikenessCompass({
   const cy = size / 2
   const maxR = 96
   const tier = MATURITY_LABELS[person.maturity.tier]
+  const likeness = likenessScore(person)
   const [summaryId, setSummaryId] = useState<string | null>(null)
   const summary = person.facets.find((facet) => facet.id === summaryId) ?? null
 
@@ -59,6 +71,10 @@ export function LikenessCompass({
   return (
     <div className="likeness-compass">
       <svg viewBox={`0 0 ${size} ${size}`} width="100%" role="img" aria-label={`${person.name} likeness compass`}>
+        <title>
+          Likeness {likeness} (how much we know across {LIKENESS_FACET_IDS.length} topics) · Confidence{' '}
+          {tier.title} {person.maturity.score} (how fresh/verified that picture is)
+        </title>
         {[0.25, 0.5, 0.75, 1].map((t) => (
           <circle key={t} cx={cx} cy={cy} r={maxR * t} fill="none" stroke="var(--sf-gray-5)" strokeWidth="1" />
         ))}
@@ -72,7 +88,11 @@ export function LikenessCompass({
           strokeOpacity={0.2 + person.maturity.score / 200}
           strokeDasharray={`${(person.maturity.score / 100) * 2 * Math.PI * (maxR + 8)} 999`}
           transform={`rotate(-90 ${cx} ${cy})`}
-        />
+        >
+          <title>
+            Confidence ring — {tier.title} · {person.maturity.score}. {tier.hint}
+          </title>
+        </circle>
         <polygon points={polygon} fill={person.accent} fillOpacity="0.18" stroke={person.accent} strokeWidth="2" />
         {points.map(({ meta, facet, x, y }) => {
           const labelPos = polar(cx, cy, maxR + 34, meta.angle)
@@ -97,14 +117,17 @@ export function LikenessCompass({
               />
               <g
                 role="button"
-                aria-label={`${meta.short} ${facet.score}. ${facet.label}`}
+                aria-label={`${meta.short} ${facet.score}. ${facet.label}. ${FACET_DEFINITIONS[facet.id]}`}
                 style={{ cursor: 'pointer' }}
                 onClick={(event) => {
                   event.stopPropagation()
                   setSummaryId((current) => (current === facet.id ? null : facet.id))
                 }}
               >
-                <rect x={labelPos.x - 42} y={labelPos.y - 12} width="84" height="22" fill="transparent" />
+                <title>
+                  {facet.label} — {FACET_DEFINITIONS[facet.id]}
+                </title>
+                <rect x={labelPos.x - 48} y={labelPos.y - 12} width="96" height="22" fill="transparent" />
                 <text
                   x={labelPos.x}
                   y={labelPos.y}
@@ -120,12 +143,17 @@ export function LikenessCompass({
             </g>
           )
         })}
-        <circle cx={cx} cy={cy} r="32" fill="#fff" stroke={person.accent} strokeWidth="2" />
+        <circle cx={cx} cy={cy} r="32" fill="#fff" stroke={person.accent} strokeWidth="2">
+          <title>
+            Likeness {likeness} — average depth of knowledge across {LIKENESS_FACET_IDS.length} topics (the spokes).
+            Not the same as confidence (below).
+          </title>
+        </circle>
         <text x={cx} y={cy - 4} textAnchor="middle" fontSize="13" fontWeight="700" fill={person.accent}>
           {person.initials}
         </text>
         <text x={cx} y={cy + 12} textAnchor="middle" fontSize="11" fill="var(--sf-gray-3)">
-          {person.maturity.score}%
+          {likeness}%
         </text>
       </svg>
       <div className="facet-pop" role="note" aria-label={summary ? `${summary.label} summary` : 'Likeness summary'}>
@@ -138,15 +166,20 @@ export function LikenessCompass({
             </button>
           </div>
         ) : (
-          <div className="facet-pop-head">
+          <div className="facet-pop-head" title="Average of the 6 topic scores in the chart above — how much we know about this person.">
             <strong>Likeness</strong>
-            <span>{person.maturity.score}</span>
+            <span>{likeness}</span>
           </div>
         )}
-        <p>{summary ? facetSummary(summary) : likenessSummary(person)}</p>
+        {summary && <p className="facet-pop-def muted">{FACET_DEFINITIONS[summary.id]}</p>}
+        <p>{summary ? facetSummary(summary) : likenessSummary(person, likeness)}</p>
       </div>
-      <div className="likeness-maturity-pill" style={{ borderColor: person.accent }}>
-        <span className="muted">Maturity</span>
+      <div
+        className="likeness-maturity-pill"
+        style={{ borderColor: person.accent }}
+        title="Confidence in this profile: how complete, recent, multi-sourced, and advisor-confirmed it is — separate from Likeness above."
+      >
+        <span className="muted">Confidence (freshness &amp; sourcing)</span>
         <strong style={{ color: person.accent }}>
           {tier.title} · {person.maturity.score}
         </strong>

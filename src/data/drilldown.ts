@@ -1,7 +1,7 @@
 import { exceptions } from './content'
 import { onboardingByHousehold, recordCompleteness } from './onboardingFramework'
 import { openMeetingActions, meetingsForHousehold } from './meetings'
-import { personsForHousehold } from './portraits'
+import { LIKENESS_FACET_IDS, likenessScore, personsForHousehold } from './portraits'
 import type { LifecycleStage, Household } from './types'
 import type { ComplianceDocument, FormField, FormSection } from './onboardingFramework'
 import type { Meeting, MeetingActionItem } from './meetings'
@@ -337,21 +337,22 @@ export function buildDrillItems(household: Household): DrillItem[] {
 
   for (const person of personsForHousehold(household.id)) {
     const m = person.maturity
+    const likeness = likenessScore(person)
     items.push({
       id: `likeness-mat-${person.id}`,
       kind: 'likeness_maturity',
-      title: `${person.name} — likeness maturity`,
-      subtitle: `${m.tier.replace('_', ' ')} · ${m.score}`,
-      priority: m.score < 45 ? 'high' : 'info',
+      title: `${person.name} — likeness ${likeness}, confidence ${m.tier.replace('_', ' ')}`,
+      subtitle: `Likeness ${likeness} · Confidence ${m.score}`,
+      priority: m.score < 45 || likeness < 45 ? 'high' : 'info',
       householdId: household.id,
       person,
       recommended: {
-        headline: `How sharp is our picture of ${person.name}?`,
-        why: `Maturity blends data completeness (${m.dataCompleteness}), recency (${m.recency}), source diversity (${m.sourceDiversity}), and advisor-confirmed share (${m.advisorConfirmed}). Last touched: ${m.lastTouched}.`,
-        agentAlreadyDid: `Sources in the likeness: ${m.sources.join(', ')}.`,
+        headline: `How well do we know ${person.name}, and how sure are we?`,
+        why: `Likeness (${likeness}) is the average depth of knowledge across ${LIKENESS_FACET_IDS.length} topics — risk, goals, household complexity, tax/estate, heir readiness, share-of-wallet. Confidence (${m.score}) is a separate measure of how fresh and verified that picture is: data completeness (${m.dataCompleteness}), recency (${m.recency}), source diversity (${m.sourceDiversity}), advisor-confirmed share (${m.advisorConfirmed}). Last touched: ${m.lastTouched}.`,
+        agentAlreadyDid: `Sources behind the confidence score: ${m.sources.join(', ')}.`,
         reviewChecklist: [
-          m.score < 55
-            ? 'Prioritize a discovery or confirmation pass on weakest facets'
+          likeness < 55
+            ? 'Prioritize a discovery or confirmation pass on the thinnest likeness topics'
             : 'Maintain freshness — confirm any agent-inferred facets before high-stakes advice',
           (() => {
             const heirs = person.facets.find((f) => f.id === 'heir_readiness')
@@ -363,7 +364,7 @@ export function buildDrillItems(household: Household): DrillItem[] {
             return `Heir readiness looks solid (${heirs.score}) — keep next-gen touches on the calendar`
           })(),
           'Click Household Pulse nodes (Engage, Lifecycle, Likeness, Heirs, Custodian) for evidence',
-          'Do not treat low-maturity likenesses as exam-ready',
+          'Do not treat a thin likeness or low-confidence profile as exam-ready',
         ],
         primaryCta: 'Open weakest facet',
         secondaryCta: 'Schedule confirmation touch',
