@@ -1879,6 +1879,28 @@ h4 {
   box-shadow: 0 4px 16px rgba(1, 118, 211, 0.12);
 }
 
+/* Holographic HUD variant — Household Pulse header card, matching the
+   pulse-stage / likeness-compass / lifecycle-block theme. Scoped to this
+   modifier so Book Pulse (which reuses .pulse-panel) stays on the light theme. */
+.pulse-panel-hud {
+  border: 1px solid #335876;
+  background: linear-gradient(180deg, #1c3146 0%, #223b54 55%, #16293c 100%);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.25);
+}
+
+.pulse-panel-hud .likeness-kicker {
+  color: #8fe6ff;
+  text-shadow: 0 0 8px rgba(90, 215, 255, 0.4);
+}
+
+.pulse-panel-hud .likeness-title {
+  color: #eaf6ff;
+}
+
+.pulse-panel-hud .muted {
+  color: #9fb9cc;
+}
+
 .pulse-brief-head {
   display: flex;
   align-items: baseline;
@@ -1968,6 +1990,27 @@ h4 {
 .person-mat {
   font-weight: 700;
   color: var(--sf-gray-2);
+}
+
+.pulse-panel-hud .person-chip {
+  border: 1px solid rgba(90, 215, 255, 0.3);
+  background: linear-gradient(160deg, rgba(38, 60, 82, 0.92) 0%, rgba(28, 46, 64, 0.92) 100%);
+  color: #cfe8f7;
+}
+
+.pulse-panel-hud .person-chip.active {
+  border-color: #5ad7ff;
+  box-shadow: 0 0 0 1px #5ad7ff, 0 0 14px rgba(90, 215, 255, 0.3);
+  background: linear-gradient(160deg, rgba(42, 76, 102, 0.95) 0%, rgba(32, 58, 80, 0.95) 100%);
+}
+
+.pulse-panel-hud .person-chip strong {
+  color: #eaf6ff;
+}
+
+.pulse-panel-hud .person-mat {
+  color: #8fe6ff;
+  text-shadow: 0 0 6px rgba(90, 215, 255, 0.35);
 }
 
 .pulse-visual {
@@ -2987,6 +3030,43 @@ h4 {
   margin: 10px 0 0;
   font-size: 13px;
   line-height: 1.45;
+}
+
+/* Holographic HUD variant — status strip / metrics / tagline at the foot of
+   the Household Pulse panel. */
+.pulse-panel-hud .pulse-status.needs {
+  background: rgba(255, 179, 71, 0.12);
+  border: 1px solid rgba(255, 179, 71, 0.4);
+  color: #ffcf94;
+}
+
+.pulse-panel-hud .pulse-status.ok {
+  background: rgba(90, 215, 255, 0.1);
+  border: 1px solid rgba(90, 215, 255, 0.35);
+  color: #8fe6ff;
+}
+
+.pulse-panel-hud .pulse-metric {
+  border: 1px solid rgba(90, 215, 255, 0.3);
+  background: linear-gradient(160deg, rgba(38, 60, 82, 0.92) 0%, rgba(28, 46, 64, 0.92) 100%);
+}
+
+.pulse-panel-hud .pulse-metric .label {
+  color: #7fa8c2;
+}
+
+.pulse-panel-hud .pulse-metric .value {
+  color: #8fe6ff;
+  text-shadow: 0 0 6px rgba(90, 215, 255, 0.3);
+}
+
+.pulse-panel-hud .pulse-metric.warn .value {
+  color: #ffb347;
+  text-shadow: 0 0 6px rgba(255, 179, 71, 0.35);
+}
+
+.pulse-panel-hud .pulse-tagline {
+  color: #cfe8f7;
 }
 
 @media (max-width: 900px) {
@@ -7716,6 +7796,114 @@ button.stage-card.selected {
 .firm-detail-owner {
   text-align: right;
   font-size: 12px;
+}
+
+/* Holographic HUD variant — "Across the firm" grid inside the Household Pulse panel */
+.pulse-panel-hud .firm-map-kicker {
+  color: #7fa8c2;
+}
+
+.pulse-panel-hud .firm-map-count {
+  color: #9fb9cc;
+}
+
+.pulse-panel-hud .firm-map-count strong {
+  color: #8fe6ff;
+  text-shadow: 0 0 6px rgba(90, 215, 255, 0.35);
+}
+
+.pulse-panel-hud .firm-tile {
+  border: 1px solid rgba(90, 215, 255, 0.3);
+  background: linear-gradient(160deg, rgba(38, 60, 82, 0.92) 0%, rgba(28, 46, 64, 0.92) 100%);
+}
+
+.pulse-panel-hud .firm-tile.has:not(:disabled):hover {
+  border-color: #5ad7ff;
+  box-shadow: 0 0 14px rgba(90, 215, 255, 0.3);
+}
+
+.pulse-panel-hud .firm-tile.open {
+  border-color: #5ad7ff;
+  box-shadow: 0 0 0 2px rgba(90, 215, 255, 0.3), 0 0 14px rgba(90, 215, 255, 0.25);
+}
+
+.pulse-panel-hud .firm-tile.none {
+  background: rgba(22, 38, 52, 0.75);
+  border-style: dashed;
+  border-color: rgba(90, 215, 255, 0.2);
+}
+
+.pulse-panel-hud .firm-tile-glyph {
+  background: rgba(90, 215, 255, 0.15);
+  color: #8fe6ff;
+}
+
+.pulse-panel-hud .firm-tile.none .firm-tile-glyph {
+  background: rgba(255, 255, 255, 0.06);
+  color: #7fa8c2;
+}
+
+.pulse-panel-hud .firm-tile-dot.has {
+  background: #5ad7ff;
+  box-shadow: 0 0 0 3px rgba(90, 215, 255, 0.2);
+}
+
+.pulse-panel-hud .firm-tile-dot.none {
+  border: 1.5px solid rgba(159, 185, 204, 0.5);
+}
+
+.pulse-panel-hud .firm-tile-label {
+  color: #eaf6ff;
+}
+
+.pulse-panel-hud .firm-tile.none .firm-tile-label {
+  color: #7fa8c2;
+}
+
+.pulse-panel-hud .firm-tile-state {
+  color: #8fe6ff;
+  text-shadow: 0 0 6px rgba(90, 215, 255, 0.3);
+}
+
+.pulse-panel-hud .firm-tile.none .firm-tile-state {
+  color: #6b8aa0;
+}
+
+.pulse-panel-hud .firm-detail {
+  border: 1px solid rgba(90, 215, 255, 0.3);
+  background: linear-gradient(160deg, rgba(38, 60, 82, 0.92) 0%, rgba(28, 46, 64, 0.92) 100%);
+}
+
+.pulse-panel-hud .firm-detail-head strong {
+  color: #eaf6ff;
+}
+
+.pulse-panel-hud .firm-detail-glyph {
+  background: rgba(90, 215, 255, 0.15);
+  color: #8fe6ff;
+}
+
+.pulse-panel-hud .firm-detail-close {
+  border: 1px solid rgba(90, 215, 255, 0.3);
+  background: transparent;
+  color: #9fb9cc;
+}
+
+.pulse-panel-hud .firm-detail-close:hover {
+  border-color: #5ad7ff;
+  color: #8fe6ff;
+}
+
+.pulse-panel-hud .firm-detail-label {
+  color: #9fb9cc;
+}
+
+.pulse-panel-hud .firm-detail-list li {
+  border-top: 1px solid rgba(90, 215, 255, 0.18);
+}
+
+.pulse-panel-hud .firm-detail-value {
+  color: #eaf6ff;
 }
 
 /* E1 — advisor-led planning experience */

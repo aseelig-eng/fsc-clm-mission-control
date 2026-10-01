@@ -144,7 +144,7 @@ export function HouseholdPulse({
   ]
 
   return (
-    <div className="pulse-panel">
+    <div className="pulse-panel pulse-panel-hud">
       <div className="pulse-header">
         <div>
           <div className="likeness-kicker">Household Pulse</div>
