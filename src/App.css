@@ -749,6 +749,55 @@ h4 {
   color: var(--sf-gray-3);
 }
 
+/* HUD variant — used by the Lifecycle Stage progress bar to match the
+   holographic theme of the pulse/compass panels, without affecting the
+   other (light-themed) ProgressBar usages elsewhere in the record view. */
+.progress-block-hud {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #1c3146 0%, #223b54 55%, #16293c 100%);
+  border: 1px solid #335876;
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.25);
+}
+
+.progress-block-hud .progress-label {
+  color: #cfe8f7;
+}
+
+.progress-block-hud .progress-pct {
+  color: #8fe6ff;
+  text-shadow: 0 0 8px rgba(90, 215, 255, 0.5);
+}
+
+.progress-block-hud .progress-track {
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.4);
+}
+
+.progress-block-hud .progress-fill.tone-good {
+  background: linear-gradient(90deg, #2fb6c4, #5ad7ff);
+  box-shadow: 0 0 10px rgba(90, 215, 255, 0.5);
+}
+
+.progress-block-hud .progress-fill.tone-neutral {
+  background: linear-gradient(90deg, #2fa0d8, #5ad7ff);
+  box-shadow: 0 0 10px rgba(90, 215, 255, 0.5);
+}
+
+.progress-block-hud .progress-fill.tone-warn {
+  background: linear-gradient(90deg, #dd7a01, #ffb347);
+  box-shadow: 0 0 10px rgba(255, 179, 71, 0.45);
+}
+
+.progress-block-hud .progress-fill.tone-blocked {
+  background: linear-gradient(90deg, #ba0517, #ff4d5e);
+  box-shadow: 0 0 10px rgba(255, 77, 94, 0.45);
+}
+
+.progress-block-hud .progress-detail {
+  color: #9fb9cc;
+}
+
 .household-bar {
   display: flex;
   gap: 8px;
@@ -1248,14 +1297,15 @@ h4 {
 }
 
 .stage-card.needs-resolution {
-  box-shadow: inset 0 0 0 1px rgba(186, 5, 23, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 94, 0.4);
 }
 
 .stage-cta {
   margin-top: 6px;
   font-size: 10px;
   font-weight: 700;
-  color: var(--sf-red);
+  color: #ff6b78;
+  text-shadow: 0 0 8px rgba(255, 77, 94, 0.5);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -2961,7 +3011,8 @@ h4 {
 }
 
 .hh-summary div {
-  background: var(--sf-gray-6);
+  background: linear-gradient(160deg, rgba(38, 60, 82, 0.92) 0%, rgba(28, 46, 64, 0.92) 100%);
+  border: 1px solid rgba(90, 215, 255, 0.3);
   border-radius: var(--radius);
   padding: 8px 10px;
 }
@@ -2969,7 +3020,7 @@ h4 {
 .hh-summary .k {
   font-size: 10px;
   text-transform: uppercase;
-  color: var(--sf-gray-3);
+  color: #7fa8c2;
   letter-spacing: 0.04em;
 }
 
@@ -2977,17 +3028,25 @@ h4 {
   font-size: 13px;
   font-weight: 600;
   margin-top: 2px;
+  color: #8fe6ff;
+  text-shadow: 0 0 8px rgba(90, 215, 255, 0.35);
 }
 
-/* Lifecycle rail */
+/* Lifecycle rail — holographic HUD theme, matching .pulse-stage / .likeness-compass */
 .lifecycle-block {
   margin: 4px 0 16px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #1c3146 0%, #223b54 55%, #16293c 100%);
+  border: 1px solid #335876;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.25);
 }
 
 .lifecycle-block-title {
   font-size: 13px;
   font-weight: 700;
-  color: var(--sf-blue-dark);
+  color: #8fe6ff;
+  text-shadow: 0 0 8px rgba(90, 215, 255, 0.4);
   margin-bottom: 8px;
 }
 
@@ -2998,12 +3057,13 @@ h4 {
 }
 
 .stage-card {
-  border: 1px solid var(--sf-gray-5);
+  border: 1px solid rgba(90, 215, 255, 0.3);
   border-radius: var(--radius);
   padding: 8px;
   min-height: 78px;
-  background: white;
+  background: linear-gradient(160deg, rgba(38, 60, 82, 0.92) 0%, rgba(28, 46, 64, 0.92) 100%);
   font-size: 11px;
+  color: #cfe8f7;
 }
 
 button.stage-card {
@@ -3016,28 +3076,32 @@ button.stage-card {
 
 button.stage-card.clickable:hover,
 button.stage-card.selected {
-  outline: 2px solid var(--sf-blue);
+  outline: 2px solid #5ad7ff;
   outline-offset: 1px;
+  box-shadow: 0 0 14px rgba(90, 215, 255, 0.35);
 }
 
 .stage-card.complete {
-  border-left: 3px solid var(--sf-green);
-  background: #f7fbf8;
+  border-left: 3px solid #5ad7ff;
+  background: linear-gradient(160deg, rgba(38, 68, 86, 0.92) 0%, rgba(28, 50, 64, 0.92) 100%);
 }
 
 .stage-card.active {
-  border-left: 3px solid var(--sf-blue);
-  background: var(--sf-blue-light);
+  border-left: 3px solid #5ad7ff;
+  background: linear-gradient(160deg, rgba(42, 76, 102, 0.95) 0%, rgba(32, 58, 80, 0.95) 100%);
+  box-shadow: 0 0 14px rgba(90, 215, 255, 0.2);
 }
 
 .stage-card.blocked {
-  border-left: 3px solid var(--sf-red);
-  background: #fff8f9;
+  border-left: 3px solid #ff4d5e;
+  background: linear-gradient(160deg, rgba(72, 42, 48, 0.92) 0%, rgba(50, 30, 36, 0.92) 100%);
+  box-shadow: 0 0 14px rgba(255, 77, 94, 0.18);
 }
 
 .stage-card.agent-running {
-  border-left: 3px solid var(--sf-orange);
-  background: #fffaf3;
+  border-left: 3px solid #ffb347;
+  background: linear-gradient(160deg, rgba(70, 58, 40, 0.92) 0%, rgba(50, 42, 30, 0.92) 100%);
+  box-shadow: 0 0 14px rgba(255, 179, 71, 0.18);
 }
 
 .stage-card.upcoming {
@@ -3048,10 +3112,11 @@ button.stage-card.selected {
   font-weight: 700;
   font-size: 12px;
   margin-bottom: 4px;
+  color: #eaf6ff;
 }
 
 .stage-card .status {
-  color: var(--sf-gray-3);
+  color: #9fb9cc;
   margin-bottom: 4px;
   text-transform: capitalize;
 }
@@ -4564,15 +4629,19 @@ button.stage-card.selected {
 
 .next-talk {
   margin-top: 14px;
-  background: #f7f4ee;
-  border: 1px solid #e4d8c4;
+  background: linear-gradient(180deg, #1c3146 0%, #223b54 55%, #16293c 100%);
+  border: 1px solid #335876;
   border-radius: 12px;
   padding: 12px 14px;
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.25);
+  color: #cfe8f7;
 }
 
 .next-talk h3 {
   margin: 0 0 8px;
   font-size: var(--text-title);
+  color: #8fe6ff;
+  text-shadow: 0 0 8px rgba(90, 215, 255, 0.4);
 }
 
 .next-talk ul {

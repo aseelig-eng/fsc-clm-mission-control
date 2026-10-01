@@ -135,16 +135,18 @@ function ProgressBar({
   detail,
   size = 'md',
   tone,
+  className,
 }: {
   pct: number
   label: string
   detail?: string
   size?: 'sm' | 'md' | 'lg'
   tone?: 'good' | 'warn' | 'blocked' | 'neutral'
+  className?: string
 }) {
   const resolvedTone = tone ?? progressTone(pct)
   return (
-    <div className={`progress-block size-${size}`} role="group" aria-label={label}>
+    <div className={`progress-block size-${size} ${className ?? ''}`} role="group" aria-label={label}>
       <div className="progress-meta">
         <span className="progress-label">{label}</span>
         <span className="progress-pct">{pct}%</span>
@@ -1826,6 +1828,7 @@ export default function App() {
 
                 <ProgressBar
                   size="md"
+                  className="progress-block-hud"
                   pct={stageBar?.pct ?? clientProgress.pct}
                   label={`${selectedStage?.label ?? household.stageLabel} Stage Progress`}
                   detail={
