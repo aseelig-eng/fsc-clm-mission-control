@@ -989,6 +989,7 @@ export default function App() {
         }
         return {
           ...h,
+          stages,
           stage: current?.id ?? h.stage,
           stageLabel: current?.label ?? h.stageLabel,
           events: [event, ...h.events],
