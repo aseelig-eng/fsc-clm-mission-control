@@ -582,19 +582,6 @@ h4 {
   box-shadow: 0 0 0 1px var(--sf-blue);
 }
 
-.needs-you-review {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--sf-gray-5);
-}
-
-.needs-you-review-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--sf-blue-dark);
-  margin-bottom: 8px;
-}
-
 .work-split {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3479,6 +3466,16 @@ button.stage-card.selected {
 }
 
 /* Paraplanner */
+.para-needs-you {
+  margin-bottom: 16px;
+  border: 1px solid var(--sf-gray-5);
+  border-radius: 10px;
+}
+
+.para-needs-you .panel-header {
+  padding: 10px 14px;
+}
+
 .para-cases {
   border: 1px solid var(--sf-blue);
   border-radius: 10px;

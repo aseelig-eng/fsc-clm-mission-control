@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   advisors,
   competitors,
@@ -20,7 +20,7 @@ import {
   type FormSection,
   type UpdatedBy,
 } from './data/onboardingFramework'
-import { buildDrillItems, type DrillItem } from './data/drilldown'
+import { buildDrillItems } from './data/drilldown'
 import {
   meetings as meetingSeed,
   meetingsForHousehold,
@@ -329,11 +329,21 @@ function PulseNodeModal({
   )
 }
 
-function priorityClass(p: string) {
-  if (p === 'critical') return 'critical'
-  if (p === 'high') return 'high'
-  if (p === 'info') return 'done'
-  return 'medium'
+// Shared urgency ranking used everywhere work items are merged across types
+// (per-household Work queue, Book's Needs You board, Paraplanner's queue) so
+// "most urgent at top" means the same thing in every view.
+const PRIORITY_RANK: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  blocked: 1,
+  medium: 2,
+  normal: 2,
+  open: 2,
+  low: 3,
+}
+
+function priorityRank(priority: string) {
+  return PRIORITY_RANK[priority.toLowerCase()] ?? 3
 }
 
 function splitActions(actions: AdvisorAction[]) {
@@ -426,78 +436,6 @@ function NeedsYouCard({
   )
 }
 
-function ReviewPanel({
-  item,
-  advisorActions,
-  onAct,
-}: {
-  item: DrillItem | null
-  advisorActions?: AdvisorAction[]
-  onAct: (label: string) => void
-}) {
-  if (!item) {
-    return <p className="muted">Click any signal, stage, document, meeting, or action — recommended review appears here.</p>
-  }
-  const r = item.recommended
-  return (
-    <>
-      <div className="review-kicker">
-        <span className={`badge ${priorityClass(item.priority)}`}>{item.priority}</span>
-        <span className="muted">{item.kind.replace('_', ' ')} · One Click Down</span>
-      </div>
-      <div className="review-headline">{r.headline}</div>
-      <p className="muted" style={{ marginTop: 0 }}>
-        {item.subtitle}
-      </p>
-      <div className="callout" style={{ marginBottom: 10 }}>
-        <strong>Why This Needs You</strong>
-        {r.why}
-      </div>
-      <div className="callout" style={{ marginBottom: 10 }}>
-        <strong>Agent already did</strong>
-        {r.agentAlreadyDid}
-      </div>
-      <div className="callout">
-        <strong>Recommended for You to Review</strong>
-        <ul className="review-checklist">
-          {r.reviewChecklist.map((c) => (
-            <li key={c}>{c}</li>
-          ))}
-        </ul>
-      </div>
-      {advisorActions && advisorActions.length > 0 && (
-        <div className="callout" style={{ marginTop: 10 }}>
-          <strong>Advisor Actions</strong>
-          <ul className="advisor-action-list">
-            {advisorActions.map((a) => (
-              <li key={a.label}>
-                <button type="button" className="advisor-action-btn compact" onClick={() => onAct(a.label)}>
-                  <span className="action-type">{actionTypeLabel(a.type)}</span>
-                  <span className="action-label">{a.label}</span>
-                  <span className="action-detail">{a.detail}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <div className="actions">
-        <button type="button" className="btn success" onClick={() => onAct(r.primaryCta)}>
-          {r.primaryCta}
-        </button>
-        {r.secondaryCta && (
-          <button type="button" className="btn primary" onClick={() => onAct(r.secondaryCta!)}>
-            {r.secondaryCta}
-          </button>
-        )}
-        <button type="button" className="btn" onClick={() => onAct('Delegated with context')}>
-          Delegate
-        </button>
-      </div>
-    </>
-  )
-}
-
 export default function App() {
   const [role, setRole] = useState<Role>('advisor')
   const [cockpitView, setCockpitView] = useState<'status' | 'work' | 'record'>('status')
@@ -585,8 +523,6 @@ export default function App() {
         })),
     [meetingList],
   )
-  const drillItems = useMemo(() => buildDrillItems(household), [household])
-  const drillItem = drillItems.find((d) => d.id === drillId) ?? drillItems[0] ?? null
   const hhMeetings = useMemo(() => meetingsForHousehold(household.id, meetingList), [household, meetingList])
   const hhMeetingActions = useMemo(() => openMeetingActions(household.id, meetingList), [household, meetingList])
   const hhOpenCases = useMemo(
@@ -607,15 +543,18 @@ export default function App() {
 
   const openExceptions = exceptions.filter((e) => !resolved.has(e.id))
   const pendingNotices = clientNotices.filter((notice) => !notice.reviewed)
-  // Book-wide prioritized to-do list: open exceptions (signals) + open meeting
-  // actions, each carrying a recommended action, ranked by urgency then due date.
+  // Book-wide and Paraplanner-wide prioritized to-do list: every individual
+  // work queue (signals, portal cases, work tasks, meeting actions) merged
+  // across ALL households into one list, ranked by urgency then due date so
+  // the most urgent item — regardless of which client it belongs to — is
+  // always first.
   const prioritizedTasks = useMemo(() => {
-    const rank: Record<string, number> = { critical: 0, high: 1, blocked: 1, medium: 2, open: 2, low: 3 }
     const fromCases = deskCases
       .filter((item) => item.status !== 'Closed')
       .map((item) => ({
         id: `pt-case-${item.id}`,
         kind: 'case' as const,
+        householdId: item.householdId,
         priority: item.priority.toLowerCase(),
         title: item.subject,
         who: `${householdName(item.householdId)}${item.origin === 'Portal' ? ' · from client portal' : ` · ${item.origin}`}`,
@@ -629,27 +568,50 @@ export default function App() {
           setCockpitView('work')
         },
       }))
-    const fromExceptions = openExceptions.map((ex) => ({
-      id: `pt-ex-${ex.id}`,
-      kind: 'signal' as const,
-      priority: ex.priority,
-      title: ex.title,
-      who: ex.household,
-      recommended: ex.recommendedAction,
-      due: '',
-      actions: ex.advisorActions,
-      onOpen: () => {
-        const match = households.find(
-          (h) => ex.household.includes(h.name.split(' ')[0]) || h.name.includes(ex.household.split(' ')[0]),
-        )
-        if (match) selectHousehold(match.id)
-      },
-    }))
+    const fromTasks = deskTasks
+      .filter((item) => item.status !== 'Completed')
+      .map((item) => ({
+        id: `pt-task-${item.id}`,
+        kind: 'task' as const,
+        householdId: item.householdId,
+        priority: item.priority.toLowerCase(),
+        title: item.subject,
+        who: householdName(item.householdId),
+        recommended: taskSteps[item.id]?.label ?? `Work the task · due ${item.due}`,
+        due: item.due,
+        actions: (taskSteps[item.id]
+          ? [{ type: 'review_inputs', label: taskSteps[item.id].label, detail: taskSteps[item.id].result }]
+          : [{ type: 'review_inputs', label: 'Work the task', detail: `Open ${householdName(item.householdId)} in the work view.` }]) as AdvisorAction[],
+        onOpen: () => {
+          selectHousehold(item.householdId)
+          setCockpitView('work')
+        },
+      }))
+    const fromExceptions = openExceptions.map((ex) => {
+      const match = households.find(
+        (h) => ex.household.includes(h.name.split(' ')[0]) || h.name.includes(ex.household.split(' ')[0]),
+      )
+      return {
+        id: `pt-ex-${ex.id}`,
+        kind: 'signal' as const,
+        householdId: match?.id ?? '',
+        priority: ex.priority,
+        title: ex.title,
+        who: ex.household,
+        recommended: ex.recommendedAction,
+        due: '',
+        actions: ex.advisorActions,
+        onOpen: () => {
+          if (match) selectHousehold(match.id)
+        },
+      }
+    })
     const fromMeetings = households
       .flatMap((h) => openMeetingActions(h.id, meetingList))
       .map(({ meeting, action }) => ({
         id: `pt-ma-${action.id}`,
         kind: 'meeting' as const,
+        householdId: meeting.householdId,
         priority: action.status === 'blocked' ? 'blocked' : 'high',
         title: action.title,
         who: `${householdName(meeting.householdId)} · from “${meeting.title}”`,
@@ -658,10 +620,24 @@ export default function App() {
         actions: [{ type: 'schedule', label: action.title, detail: action.recommendedReview }] as AdvisorAction[],
         onOpen: () => setPlaybookMeeting(meeting),
       }))
-    return [...fromCases, ...fromExceptions, ...fromMeetings]
-      .sort((a, b) => (rank[a.priority] ?? 3) - (rank[b.priority] ?? 3) || a.due.localeCompare(b.due))
-      .slice(0, 10)
-  }, [households, openExceptions, meetingList, deskCases])
+    const fromNotices = pendingNotices.map((notice) => ({
+      id: `pt-notice-${notice.id}`,
+      kind: 'notice' as const,
+      householdId: notice.householdId,
+      priority: 'high',
+      title: notice.title,
+      who: `${notice.householdName} · Client portal`,
+      recommended: 'Confirm it on the client profile. This is client-reported, not advice.',
+      due: '',
+      actions: [
+        { type: 'review_inputs', label: 'Review and confirm', detail: notice.detail },
+      ] as AdvisorAction[],
+      onOpen: () => openNotice(notice, false),
+    }))
+    return [...fromCases, ...fromTasks, ...fromExceptions, ...fromMeetings, ...fromNotices].sort(
+      (a, b) => priorityRank(a.priority) - priorityRank(b.priority) || a.due.localeCompare(b.due),
+    )
+  }, [households, openExceptions, meetingList, deskCases, deskTasks, pendingNotices])
   const clientMatches = useMemo(() => {
     const query = clientQuery.trim().toLowerCase()
     const ranked = households
@@ -692,6 +668,199 @@ export default function App() {
     household.stages[0]
   const stageBar = selectedStage ? selectedStageProgress(household.stages, selectedStage) : null
   const selectedEx = openExceptions.find((e) => e.id === selectedExId) ?? openExceptions[0]
+  // Single, urgency-sorted work queue for this household: notices, signals,
+  // needs_you stage events, open cases, and open tasks all merged into one
+  // list (most urgent first) instead of five separately-stacked groups.
+  const hhWorkQueue = useMemo(() => {
+    type Row = { id: string; priority: string; due: string; node: ReactNode }
+    const rows: Row[] = []
+
+    hhNotices.forEach((notice) => {
+      rows.push({
+        id: `wq-notice-${notice.id}`,
+        priority: 'high',
+        due: '',
+        node: (
+          <NeedsYouCard
+            key={`wq-notice-${notice.id}`}
+            selected={false}
+            priority="high"
+            title={notice.title}
+            meta="Client portal"
+            recommended="Confirm it on the client profile. This is client-reported, not advice."
+            actions={[{ type: 'review_inputs', label: 'Review and confirm', detail: notice.detail }]}
+            onOpen={() => openNotice(notice, false)}
+            onAct={() => openNotice(notice, true)}
+          />
+        ),
+      })
+    })
+
+    hhExceptions.forEach((ex) => {
+      rows.push({
+        id: `wq-ex-${ex.id}`,
+        priority: ex.priority,
+        due: '',
+        node: (
+          <NeedsYouCard
+            key={`wq-ex-${ex.id}`}
+            selected={selectedEx?.id === ex.id}
+            priority={ex.priority}
+            title={ex.title}
+            meta={`Owner: ${ex.owner}`}
+            recommended={ex.recommendedAction}
+            actions={ex.advisorActions}
+            onOpen={() => focusException(ex, true)}
+            onAct={(a) => {
+              focusException(ex, true)
+              if (a.label.includes('Approve')) approveException(ex)
+              flash(`${actionTypeLabel(a.type)}: ${a.label}`)
+            }}
+          />
+        ),
+      })
+    })
+
+    household.events
+      .filter((ev) => ev.outcome === 'needs_you' && !hhExceptions.some((ex) => ex.stage === ev.stage))
+      .forEach((ev) => {
+        const stage = household.stages.find((s) => s.id === ev.stage)
+        const match = hhExceptions.find((ex) => ex.stage === ev.stage)
+        const actions = match?.advisorActions ?? stage?.unblock?.recommendedActions ?? [
+          { type: 'review_docs' as const, label: 'Review what the agent did', detail: ev.action },
+          { type: 'escalate' as const, label: 'Escalate if you cannot clear it', detail: 'Hand off with the agent lineage.' },
+        ]
+        rows.push({
+          id: `wq-ev-${ev.id}`,
+          priority: match?.priority ?? 'high',
+          due: '',
+          node: (
+            <NeedsYouCard
+              key={`wq-ev-${ev.id}`}
+              selected={match ? selectedEx?.id === match.id : drillId === `stage-${ev.stage}`}
+              priority={match?.priority ?? 'high'}
+              title={ev.action}
+              meta={`${ev.agent} · ${ev.time}`}
+              recommended={
+                match?.recommendedAction ?? stage?.humanAction ?? stage?.unblock?.title ?? 'Decide so the agent can continue'
+              }
+              actions={actions}
+              onOpen={() => {
+                if (match) focusException(match, true)
+                else {
+                  openDrill(`stage-${ev.stage}`)
+                  if (stage?.unblock) setStageModal(stage)
+                }
+              }}
+              onAct={(a) => {
+                if (match) focusException(match, true)
+                else {
+                  openDrill(`stage-${ev.stage}`)
+                  if (stage?.unblock) setStageModal(stage)
+                }
+                flash(`${actionTypeLabel(a.type)}: ${a.label}`)
+              }}
+            />
+          ),
+        })
+      })
+
+    hhOpenCases.forEach((item) => {
+      const step = item.step ?? caseSteps[item.id]
+      rows.push({
+        id: `wq-case-${item.id}`,
+        priority: item.priority.toLowerCase(),
+        due: '',
+        node: (
+          <li key={`wq-case-${item.id}`} className="queue-row">
+            <span className="queue-type">Case</span>
+            <span className="queue-title">{item.subject}</span>
+            <select
+              className="field-edit queue-edit"
+              aria-label={`${item.subject} status`}
+              value={item.status}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) =>
+                setDeskCases((prev) =>
+                  prev.map((row) => (row.id === item.id ? { ...row, status: event.target.value as CaseStatus } : row)),
+                )
+              }
+            >
+              <option>New</option>
+              <option>Working</option>
+              <option>Waiting on client</option>
+              <option>Escalated</option>
+              <option>Closed</option>
+            </select>
+            {step && (
+              <div className="queue-recommend">
+                <span className="signal-recommend-label">Agent recommends</span>
+                <button
+                  type="button"
+                  className="action-chip primary-action"
+                  onClick={() =>
+                    runAgenticStep(step, item.householdId, () =>
+                      setDeskCases((prev) => prev.map((row) => (row.id === item.id ? { ...row, status: 'Closed' } : row))),
+                    )
+                  }
+                >
+                  {step.label}
+                </button>
+              </div>
+            )}
+          </li>
+        ),
+      })
+    })
+
+    hhOpenTasks.forEach((item) => {
+      const step = taskSteps[item.id]
+      rows.push({
+        id: `wq-task-${item.id}`,
+        priority: item.priority.toLowerCase(),
+        due: item.due,
+        node: (
+          <li key={`wq-task-${item.id}`} className="queue-row">
+            <span className="queue-type">Task</span>
+            <span className="queue-title">{item.subject}</span>
+            <select
+              className="field-edit queue-edit"
+              aria-label={`${item.subject} status`}
+              value={item.status}
+              onChange={(event) =>
+                setDeskTasks((prev) =>
+                  prev.map((row) => (row.id === item.id ? { ...row, status: event.target.value as TaskStatus } : row)),
+                )
+              }
+            >
+              <option>Not Started</option>
+              <option>In Progress</option>
+              <option>On Hold</option>
+              <option>Completed</option>
+            </select>
+            {step && (
+              <div className="queue-recommend">
+                <span className="signal-recommend-label">Agent recommends</span>
+                <button
+                  type="button"
+                  className="action-chip primary-action"
+                  onClick={() =>
+                    runAgenticStep(step, item.householdId, () =>
+                      setDeskTasks((prev) => prev.map((row) => (row.id === item.id ? { ...row, status: 'Completed' } : row))),
+                    )
+                  }
+                >
+                  {step.label}
+                </button>
+              </div>
+            )}
+          </li>
+        ),
+      })
+    })
+
+    return rows.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || a.due.localeCompare(b.due))
+  }, [hhNotices, hhExceptions, household, hhOpenCases, hhOpenTasks, selectedEx, drillId])
   const filteredParaQueue =
     advisorFilter.size === 0
       ? paraplannerQueue
@@ -722,6 +891,17 @@ export default function App() {
   )
   const filteredParaCases =
     advisorFilter.size === 0 ? paraCases : paraCases.filter((c) => advisorFilter.has(c.advisorId))
+  // Every individual work queue (signals, portal cases, work tasks, meeting
+  // actions, notices) across ALL clients, urgency-sorted, same as the Book's
+  // Needs You board — filterable by the same advisor chips as the deliverable
+  // queue below so a paraplanner can see exactly what their advisor's book needs.
+  const paraWorkQueue = useMemo(
+    () =>
+      prioritizedTasks
+        .map((task) => ({ ...task, advisorId: advisorForHousehold(task.householdId) }))
+        .filter((task) => advisorFilter.size === 0 || advisorFilter.has(task.advisorId)),
+    [prioritizedTasks, advisorFilter],
+  )
   function toggleAdvisorFilter(id: string) {
     setAdvisorFilter((prev) => {
       const next = new Set(prev)
@@ -1714,34 +1894,24 @@ export default function App() {
                 <aside className="panel book-tasks">
                   <div className="panel-header">
                     <span>Needs You</span>
-                    <span className="muted">{prioritizedTasks.length + pendingNotices.length} to do</span>
+                    <span className="muted">{prioritizedTasks.length} to do</span>
                   </div>
                   <ul className="exception-list needs-you-board">
-                    {pendingNotices.map((notice) => (
-                      <NeedsYouCard
-                        key={notice.id}
-                        selected={false}
-                        queueType="Portal"
-                        priority="high"
-                        title={notice.title}
-                        meta={`${notice.householdName} · Client portal`}
-                        recommended="Confirm it on the client profile. This is client-reported, not advice."
-                        actions={[
-                          {
-                            type: 'review_inputs',
-                            label: 'Review and confirm',
-                            detail: notice.detail,
-                          },
-                        ]}
-                        onOpen={() => openNotice(notice, false)}
-                        onAct={() => openNotice(notice, true)}
-                      />
-                    ))}
                     {prioritizedTasks.map((task) => (
                       <NeedsYouCard
                         key={task.id}
                         selected={false}
-                        queueType={task.kind === 'signal' ? 'Signal' : task.kind === 'case' ? 'Case' : 'Meeting'}
+                        queueType={
+                          task.kind === 'signal'
+                            ? 'Signal'
+                            : task.kind === 'case'
+                              ? 'Case'
+                              : task.kind === 'task'
+                                ? 'Task'
+                                : task.kind === 'notice'
+                                  ? 'Portal'
+                                  : 'Meeting'
+                        }
                         priority={task.priority}
                         title={task.title}
                         meta={`${task.who}${task.due ? ` · due ${task.due}` : ''}`}
@@ -1754,7 +1924,7 @@ export default function App() {
                         }}
                       />
                     ))}
-                    {prioritizedTasks.length === 0 && pendingNotices.length === 0 && (
+                    {prioritizedTasks.length === 0 && (
                       <li className="panel-body muted">All clear — nothing needs you right now.</li>
                     )}
                   </ul>
@@ -2282,235 +2452,15 @@ export default function App() {
                 <div className="panel">
                   <div className="panel-header">
                     <span>Work queue</span>
-                    <span className="muted">
-                      {hhExceptions.length +
-                        hhNotices.length +
-                        household.events.filter(
-                          (ev) => ev.outcome === 'needs_you' && !hhExceptions.some((ex) => ex.stage === ev.stage),
-                        ).length +
-                        hhOpenCases.length +
-                        hhOpenTasks.length}{' '}
-                      open
-                    </span>
+                    <span className="muted">{hhWorkQueue.length} open</span>
                   </div>
                   <div className="panel-body">
                     <ul className="exception-list">
-                      {hhNotices.map((notice) => (
-                        <NeedsYouCard
-                          key={notice.id}
-                          selected={false}
-                          priority="high"
-                          title={notice.title}
-                          meta="Client portal"
-                          recommended="Confirm it on the client profile. This is client-reported, not advice."
-                          actions={[
-                            {
-                              type: 'review_inputs',
-                              label: 'Review and confirm',
-                              detail: notice.detail,
-                            },
-                          ]}
-                          onOpen={() => openNotice(notice, false)}
-                          onAct={() => openNotice(notice, true)}
-                        />
-                      ))}
-                      {hhExceptions.map((ex) => (
-                        <NeedsYouCard
-                          key={ex.id}
-                          selected={selectedEx?.id === ex.id}
-                          priority={ex.priority}
-                          title={ex.title}
-                          meta={`Owner: ${ex.owner}`}
-                          recommended={ex.recommendedAction}
-                          actions={ex.advisorActions}
-                          onOpen={() => focusException(ex, true)}
-                          onAct={(a) => {
-                            focusException(ex, true)
-                            flash(`${actionTypeLabel(a.type)}: ${a.label}`)
-                          }}
-                        />
-                      ))}
-                      {household.events
-                        .filter((ev) => ev.outcome === 'needs_you' && !hhExceptions.some((ex) => ex.stage === ev.stage))
-                        .map((ev) => {
-                          const stage = household.stages.find((s) => s.id === ev.stage)
-                          const match = hhExceptions.find((ex) => ex.stage === ev.stage)
-                          const actions = match?.advisorActions ?? stage?.unblock?.recommendedActions ?? [
-                            {
-                              type: 'review_docs' as const,
-                              label: 'Review what the agent did',
-                              detail: ev.action,
-                            },
-                            {
-                              type: 'escalate' as const,
-                              label: 'Escalate if you cannot clear it',
-                              detail: 'Hand off with the agent lineage.',
-                            },
-                          ]
-                          return (
-                            <NeedsYouCard
-                              key={ev.id}
-                              selected={match ? selectedEx?.id === match.id : drillId === `stage-${ev.stage}`}
-                              priority={match?.priority ?? 'high'}
-                              title={ev.action}
-                              meta={`${ev.agent} · ${ev.time}`}
-                              recommended={
-                                match?.recommendedAction ??
-                                stage?.humanAction ??
-                                stage?.unblock?.title ??
-                                'Decide so the agent can continue'
-                              }
-                              actions={actions}
-                              onOpen={() => {
-                                if (match) focusException(match, true)
-                                else {
-                                  openDrill(`stage-${ev.stage}`)
-                                  if (stage?.unblock) setStageModal(stage)
-                                }
-                              }}
-                              onAct={(a) => {
-                                if (match) focusException(match, true)
-                                else {
-                                  openDrill(`stage-${ev.stage}`)
-                                  if (stage?.unblock) setStageModal(stage)
-                                }
-                                flash(`${actionTypeLabel(a.type)}: ${a.label}`)
-                              }}
-                            />
-                          )
-                        })}
-                      {hhExceptions.length === 0 &&
-                        hhNotices.length === 0 &&
-                        household.events.every((ev) => ev.outcome !== 'needs_you') &&
-                        hhOpenCases.length === 0 &&
-                        hhOpenTasks.length === 0 && (
-                          <li className="panel-body muted">No open work for this household.</li>
-                        )}
-                      {hhOpenCases.map((item) => {
-                        const step = item.step ?? caseSteps[item.id]
-                        return (
-                          <li key={item.id} className="queue-row">
-                            <span className="queue-type">Case</span>
-                            <span className="queue-title">{item.subject}</span>
-                            <select
-                              className="field-edit queue-edit"
-                              aria-label={`${item.subject} status`}
-                              value={item.status}
-                              onClick={(event) => event.stopPropagation()}
-                              onChange={(event) =>
-                                setDeskCases((prev) =>
-                                  prev.map((row) =>
-                                    row.id === item.id ? { ...row, status: event.target.value as CaseStatus } : row,
-                                  ),
-                                )
-                              }
-                            >
-                              <option>New</option>
-                              <option>Working</option>
-                              <option>Waiting on client</option>
-                              <option>Escalated</option>
-                              <option>Closed</option>
-                            </select>
-                            {step && (
-                              <div className="queue-recommend">
-                                <span className="signal-recommend-label">Agent recommends</span>
-                                <button
-                                  type="button"
-                                  className="action-chip primary-action"
-                                  onClick={() =>
-                                    runAgenticStep(step, item.householdId, () =>
-                                      setDeskCases((prev) =>
-                                        prev.map((row) => (row.id === item.id ? { ...row, status: 'Closed' } : row)),
-                                      ),
-                                    )
-                                  }
-                                >
-                                  {step.label}
-                                </button>
-                              </div>
-                            )}
-                          </li>
-                        )
-                      })}
-                      {hhOpenTasks.map((item) => {
-                        const step = taskSteps[item.id]
-                        return (
-                          <li key={item.id} className="queue-row">
-                            <span className="queue-type">Task</span>
-                            <span className="queue-title">{item.subject}</span>
-                            <select
-                              className="field-edit queue-edit"
-                              aria-label={`${item.subject} status`}
-                              value={item.status}
-                              onChange={(event) =>
-                                setDeskTasks((prev) =>
-                                  prev.map((row) =>
-                                    row.id === item.id ? { ...row, status: event.target.value as TaskStatus } : row,
-                                  ),
-                                )
-                              }
-                            >
-                              <option>Not Started</option>
-                              <option>In Progress</option>
-                              <option>On Hold</option>
-                              <option>Completed</option>
-                            </select>
-                            {step && (
-                              <div className="queue-recommend">
-                                <span className="signal-recommend-label">Agent recommends</span>
-                                <button
-                                  type="button"
-                                  className="action-chip primary-action"
-                                  onClick={() =>
-                                    runAgenticStep(step, item.householdId, () =>
-                                      setDeskTasks((prev) =>
-                                        prev.map((row) => (row.id === item.id ? { ...row, status: 'Completed' } : row)),
-                                      ),
-                                    )
-                                  }
-                                >
-                                  {step.label}
-                                </button>
-                              </div>
-                            )}
-                          </li>
-                        )
-                      })}
+                      {hhWorkQueue.map((row) => row.node)}
+                      {hhWorkQueue.length === 0 && (
+                        <li className="panel-body muted">No open work for this household.</li>
+                      )}
                     </ul>
-                    <div className="needs-you-review">
-                      <div className="needs-you-review-title">Recommended Review</div>
-                      <ReviewPanel
-                        item={drillItem}
-                        advisorActions={
-                          drillItem?.kind === 'exception' && selectedEx ? selectedEx.advisorActions : undefined
-                        }
-                        onAct={(label) => {
-                          if (label === 'Open weakest facet' && selectedPerson) {
-                            const weakest = [...selectedPerson.facets]
-                              .filter((f) => LIKENESS_FACET_IDS.includes(f.id))
-                              .sort((a, b) => a.score - b.score)[0]
-                            openDrill(`likeness-${selectedPerson.id}-${weakest.id}`)
-                            return
-                          }
-                          if (selectedEx && drillItem?.kind === 'exception' && label.includes('Approve')) {
-                            approveException(selectedEx)
-                            return
-                          }
-                          if (
-                            drillItem?.kind === 'stage' &&
-                            drillItem.stage?.humanAction &&
-                            (drillItem.stage.status === 'blocked' ||
-                              drillItem.stage.status === 'active' ||
-                              drillItem.stage.status === 'agent-running') &&
-                            label === drillItem.stage.humanAction
-                          ) {
-                            advanceStage(household.id, drillItem.stage.id, label)
-                            return
-                          }
-                          flash(label)
-                        }}
-                      />
-                    </div>
                   </div>
                 </div>
               </div>
@@ -2582,6 +2532,45 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="panel book-tasks para-needs-you">
+                <div className="panel-header">
+                  <span>Needs You — All Clients</span>
+                  <span className="muted">{paraWorkQueue.length} to do · prioritized across the book</span>
+                </div>
+                <ul className="exception-list needs-you-board">
+                  {paraWorkQueue.map((task) => (
+                    <NeedsYouCard
+                      key={task.id}
+                      selected={false}
+                      queueType={
+                        task.kind === 'signal'
+                          ? 'Signal'
+                          : task.kind === 'case'
+                            ? 'Case'
+                            : task.kind === 'task'
+                              ? 'Task'
+                              : task.kind === 'notice'
+                                ? 'Portal'
+                                : 'Meeting'
+                      }
+                      priority={task.priority}
+                      title={task.title}
+                      meta={`${task.who}${task.due ? ` · due ${task.due}` : ''}`}
+                      recommended={task.recommended}
+                      actions={task.actions}
+                      onOpen={task.onOpen}
+                      onAct={(a) => {
+                        task.onOpen()
+                        flash(`${actionTypeLabel(a.type)}: ${a.label}`)
+                      }}
+                    />
+                  ))}
+                  {paraWorkQueue.length === 0 && (
+                    <li className="panel-body muted">All clear — nothing needs you right now.</li>
+                  )}
+                </ul>
               </div>
 
               {filteredParaCases.length > 0 && (

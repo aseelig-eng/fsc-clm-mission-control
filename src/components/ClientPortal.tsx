@@ -81,13 +81,13 @@ function clientDocChip(status: ComplianceDocument['status']): { label: string; t
 }
 
 const SERVICE_KINDS = [
-  { id: 'move', label: 'Move money', action: 'Review the money movement request' },
-  { id: 'address', label: 'Update my address', action: 'Update the address on the file' },
   { id: 'beneficiary', label: 'Change a beneficiary', action: 'Review the beneficiary change' },
-  { id: 'statement', label: 'Send a statement or tax form', action: 'Send the requested document' },
+  { id: 'move', label: 'Move money', action: 'Review the money movement request' },
   { id: 'transfer', label: 'Question about a transfer', action: 'Answer the transfer question' },
   { id: 'meeting', label: 'Schedule a meeting', action: 'Book the meeting' },
+  { id: 'statement', label: 'Send a statement or tax form', action: 'Send the requested document' },
   { id: 'other', label: 'Something else', action: 'Respond to the request' },
+  { id: 'address', label: 'Update my address', action: 'Update the address on the file' },
 ] as const
 
 // Client-facing meeting types, mirroring the advisor Meeting Concierge.
