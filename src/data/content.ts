@@ -276,6 +276,7 @@ export const households: Household[] = [
               type: 'approve_send',
               label: 'Approve DocuSign resend',
               detail: 'Release corrected envelope; agent restarts ACAT watch.',
+              resolves: true,
             },
             {
               type: 'update_account',
@@ -374,6 +375,7 @@ export const households: Household[] = [
               type: 'escalate',
               label: 'Send to principal for approval',
               detail: 'One-click escalate with audit-ready packet.',
+              resolves: true,
             },
             {
               type: 'call_client',
@@ -402,6 +404,7 @@ export const households: Household[] = [
               type: 'review_inputs',
               label: 'Confirm US person beneficiary facts',
               detail: 'Name, address, tax ID path — agent listed required fields.',
+              resolves: true,
             },
             {
               type: 'review_docs',
@@ -504,6 +507,7 @@ export const households: Household[] = [
               type: 'approve_send',
               label: 'Approve & send agenda',
               detail: 'Client prep already delivered — agenda is the remaining gate.',
+              resolves: true,
             },
           ],
         },
@@ -594,6 +598,7 @@ export const households: Household[] = [
               type: 'call_client',
               label: 'Run spouse intro meeting',
               detail: 'Use Meeting Concierge playbook; care-first talk track ready.',
+              resolves: true,
             },
             {
               type: 'update_account',

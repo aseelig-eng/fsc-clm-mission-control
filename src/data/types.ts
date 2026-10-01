@@ -50,6 +50,8 @@ export interface AdvisorAction {
   type: AdvisorActionType
   label: string
   detail: string
+  /** On a stage's unblock.recommendedActions: this is the click that clears the gate and lets the agent continue. */
+  resolves?: boolean
 }
 
 export interface AgentEvent {

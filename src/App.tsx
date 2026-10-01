@@ -3,7 +3,7 @@ import {
   advisors,
   competitors,
   exceptions,
-  households,
+  households as initialHouseholds,
   metrics,
   paraplannerQueue,
   personaValues,
@@ -75,7 +75,7 @@ import {
   progressTone,
   selectedStageProgress,
 } from './data/progress'
-import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, Role } from './data/types'
+import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, LifecycleStageId, Role } from './data/types'
 import './App.css'
 
 // Persist only each integration's connected/available status by id, keyed off the
@@ -212,7 +212,7 @@ function StageUnblockModal({
 }: {
   stage: LifecycleStage
   onClose: () => void
-  onAct: (label: string) => void
+  onAct: (action: AdvisorAction) => void
 }) {
   const unblock = stage.unblock
   if (!unblock) return null
@@ -249,7 +249,7 @@ function StageUnblockModal({
         <ul className="advisor-action-list modal">
           {unblock.recommendedActions.map((a) => (
             <li key={a.label}>
-              <button type="button" className="advisor-action-btn" onClick={() => onAct(a.label)}>
+              <button type="button" className="advisor-action-btn" onClick={() => onAct(a)}>
                 <span className="action-type">{actionTypeLabel(a.type)}</span>
                 <span className="action-label">{a.label}</span>
                 <span className="action-detail">{a.detail}</span>
@@ -501,7 +501,8 @@ export default function App() {
   const [cockpitView, setCockpitView] = useState<'status' | 'work' | 'record'>('status')
   const [recordTab, setRecordTab] = useState<'accounts' | 'planning' | 'data' | 'documents'>('accounts')
   const [showingBook, setShowingBook] = useState(true)
-  const [selectedHhId, setSelectedHhId] = useState(households[0].id)
+  const [households, setHouseholds] = useState<Household[]>(() => structuredClone(initialHouseholds))
+  const [selectedHhId, setSelectedHhId] = useState(initialHouseholds[0].id)
   const [openTabs, setOpenTabs] = useState<string[]>([])
   const [clientQuery, setClientQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -557,7 +558,7 @@ export default function App() {
 
   const household = useMemo(
     () => households.find((h) => h.id === selectedHhId) as Household,
-    [selectedHhId],
+    [households, selectedHhId],
   )
 
   const onboarding = records[household.id]
@@ -567,7 +568,7 @@ export default function App() {
   )
 
   const clientProgress = useMemo(() => householdProgress(household), [household])
-  const bookProgress = useMemo(() => overallProgress(households), [])
+  const bookProgress = useMemo(() => overallProgress(households), [households])
   const householdName = (id: string) => households.find((h) => h.id === id)?.name ?? 'Household'
   // Book-wide upcoming meetings, soonest first, each with its lead pre-meeting agent action.
   const upcomingMeetings = useMemo(
@@ -658,7 +659,7 @@ export default function App() {
     return [...fromCases, ...fromExceptions, ...fromMeetings]
       .sort((a, b) => (rank[a.priority] ?? 3) - (rank[b.priority] ?? 3) || a.due.localeCompare(b.due))
       .slice(0, 10)
-  }, [openExceptions, meetingList, deskCases])
+  }, [households, openExceptions, meetingList, deskCases])
   const clientMatches = useMemo(() => {
     const query = clientQuery.trim().toLowerCase()
     const ranked = households
@@ -672,7 +673,7 @@ export default function App() {
       .filter((item) => (query ? item.text.includes(query) : true))
       .sort((a, b) => Number(b.urgent) - Number(a.urgent) || a.household.name.localeCompare(b.household.name))
     return { shown: ranked.slice(0, 8), total: ranked.length }
-  }, [clientQuery, pendingNotices])
+  }, [households, clientQuery, pendingNotices])
   const activeSearchIndex = Math.min(searchIndex, Math.max(clientMatches.shown.length - 1, 0))
 
   useEffect(() => {
@@ -947,6 +948,54 @@ export default function App() {
       setSelectedExId(next.id)
       openDrill(`ex-${next.id}`)
     }
+  }
+
+  /**
+   * Advisor approval on a gated stage: clear this stage (complete), hand it off
+   * to the agent on the next stage (active, no unblock yet), and log an audit
+   * event — the human-in-the-loop release that lets the orchestrator continue.
+   */
+  function advanceStage(householdId: string, stageId: LifecycleStageId, approvalLabel: string) {
+    let clearedLabel = ''
+    let nextLabel: string | null = null
+    setHouseholds((prev) =>
+      prev.map((h) => {
+        if (h.id !== householdId) return h
+        const index = h.stages.findIndex((s) => s.id === stageId)
+        if (index === -1) return h
+        const stages = h.stages.map((s, i) => {
+          if (i === index) {
+            clearedLabel = s.label
+            const { unblock, ...cleared } = s
+            return { ...cleared, status: 'complete' as const, humanAction: undefined }
+          }
+          if (i === index + 1 && s.status === 'upcoming') {
+            nextLabel = s.label
+            return { ...s, status: 'active' as const }
+          }
+          return s
+        })
+        const current = stages.find((s) => s.status === 'active' || s.status === 'agent-running' || s.status === 'blocked')
+        const event = {
+          id: `adv-${h.id}-${stageId}-${stages.filter((s) => s.status === 'complete').length}`,
+          time: 'Just now',
+          agent: 'Orchestrator',
+          action: `${approvalLabel} — ${clearedLabel} cleared`,
+          detail: nextLabel
+            ? `You approved: ${approvalLabel}. ${clearedLabel} is marked complete and the agent moved the household into ${nextLabel}.`
+            : `You approved: ${approvalLabel}. ${clearedLabel} is marked complete.`,
+          outcome: 'done' as const,
+          stage: stageId,
+        }
+        return {
+          ...h,
+          stage: current?.id ?? h.stage,
+          stageLabel: current?.label ?? h.stageLabel,
+          events: [event, ...h.events],
+        }
+      }),
+    )
+    flash(nextLabel ? `${approvalLabel} — advanced to ${nextLabel}` : `${approvalLabel} — stage complete`)
   }
 
   function focusException(ex: ExceptionItem, stayOnClient = false) {
@@ -2441,9 +2490,20 @@ export default function App() {
                           }
                           if (selectedEx && drillItem?.kind === 'exception' && label.includes('Approve')) {
                             approveException(selectedEx)
-                          } else {
-                            flash(label)
+                            return
                           }
+                          if (
+                            drillItem?.kind === 'stage' &&
+                            drillItem.stage?.humanAction &&
+                            (drillItem.stage.status === 'blocked' ||
+                              drillItem.stage.status === 'active' ||
+                              drillItem.stage.status === 'agent-running') &&
+                            label === drillItem.stage.humanAction
+                          ) {
+                            advanceStage(household.id, drillItem.stage.id, label)
+                            return
+                          }
+                          flash(label)
                         }}
                       />
                     </div>
@@ -2911,8 +2971,9 @@ export default function App() {
         <StageUnblockModal
           stage={stageModal}
           onClose={() => setStageModal(null)}
-          onAct={(label) => {
-            flash(label)
+          onAct={(action) => {
+            if (action.resolves) advanceStage(household.id, stageModal.id, action.label)
+            else flash(action.label)
             setStageModal(null)
           }}
         />
