@@ -189,11 +189,11 @@ export function HouseholdPulse({
       <div className="pulse-visual">
         <div className="pulse-stage">
           <svg className="pulse-scene" viewBox="0 0 400 400" role="img" aria-label={`${household.name} pulse`}>
-            <line x1="200" y1="188" x2="200" y2="48" stroke="var(--sf-blue)" strokeWidth="2" strokeDasharray="5 4" />
-            <line x1="248" y1="230" x2="332" y2="168" stroke={needsResolution ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
-            <line x1="236" y1="286" x2="312" y2="292" stroke={heirScore < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
-            <line x1="152" y1="236" x2="86" y2="252" stroke={likeness < 45 ? 'var(--sf-orange)' : 'var(--sf-blue)'} strokeWidth="2" strokeDasharray="5 4" />
-            <line x1="188" y1="292" x2="168" y2="348" stroke={topEx ? 'var(--sf-red)' : 'var(--sf-green)'} strokeWidth="2.5" />
+            <line x1="200" y1="188" x2="200" y2="48" stroke="#5ad7ff" strokeOpacity="0.55" strokeWidth="1.5" strokeDasharray="5 4" />
+            <line x1="248" y1="230" x2="332" y2="168" stroke={needsResolution ? '#ffb347' : '#5ad7ff'} strokeOpacity="0.55" strokeWidth="1.5" strokeDasharray="5 4" />
+            <line x1="236" y1="286" x2="312" y2="292" stroke={heirScore < 45 ? '#ff4d5e' : '#5ad7ff'} strokeOpacity="0.55" strokeWidth="1.5" strokeDasharray="5 4" />
+            <line x1="152" y1="236" x2="86" y2="252" stroke={likeness < 45 ? '#ffb347' : '#5ad7ff'} strokeOpacity="0.55" strokeWidth="1.5" strokeDasharray="5 4" />
+            <line x1="188" y1="292" x2="168" y2="348" stroke={topEx ? '#ff4d5e' : '#5ad7ff'} strokeOpacity="0.7" strokeWidth="2" />
             <HouseholdFigures persons={persons} />
           </svg>
           {plan.goals.length > 0 && (
