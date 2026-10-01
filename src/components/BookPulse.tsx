@@ -595,7 +595,7 @@ export function BookPulse({
   const open = items.find((item) => item.id === openId) ?? null
 
   return (
-    <div className="pulse-panel">
+    <div className="pulse-panel pulse-panel-hud">
       <div className="pulse-brief-head">
         <div className="likeness-kicker">Book Pulse</div>
         <span className="pulse-brief-tag">Generated · this morning</span>

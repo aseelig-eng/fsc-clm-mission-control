@@ -1911,7 +1911,7 @@ h4 {
 .pulse-brief-tag {
   font-size: 10.5px;
   font-weight: 600;
-  color: var(--sf-gray-3);
+  color: #9fb9cc;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -1919,14 +1919,14 @@ h4 {
 .pulse-brief {
   margin: 6px 0 12px;
   padding-left: 12px;
-  border-left: 3px solid var(--sf-blue);
+  border-left: 3px solid #5ad7ff;
 }
 
 .pulse-brief p {
   margin: 0 0 6px;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--sf-gray-2);
+  color: #cfe8f7;
 }
 
 .pulse-brief p:last-child {
@@ -1935,7 +1935,8 @@ h4 {
 
 .pulse-brief-lead {
   font-weight: 600;
-  color: var(--sf-gray-1) !important;
+  color: #eaf6ff !important;
+  text-shadow: 0 0 6px rgba(90, 215, 255, 0.3);
 }
 
 .pulse-header {
@@ -3755,8 +3756,8 @@ button.stage-card.selected {
 }
 
 .book-column {
-  background: linear-gradient(180deg, #f7fbfe 0%, #eef4f8 100%);
-  border: 1px solid var(--sf-gray-5);
+  background: linear-gradient(180deg, rgba(38, 60, 82, 0.55) 0%, rgba(22, 38, 52, 0.55) 100%);
+  border: 1px solid rgba(90, 215, 255, 0.25);
   border-radius: 16px;
   padding: 12px;
 }
@@ -3766,7 +3767,7 @@ button.stage-card.selected {
   font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--sf-gray-3);
+  color: #7fa8c2;
 }
 
 .book-tiles {
@@ -3783,9 +3784,9 @@ button.stage-card.selected {
   position: relative;
   overflow: hidden;
   min-height: 108px;
-  border: 1px solid var(--sf-gray-5);
+  border: 1px solid rgba(90, 215, 255, 0.3);
   border-radius: 14px;
-  background: #fff;
+  background: linear-gradient(160deg, rgba(38, 60, 82, 0.92) 0%, rgba(28, 46, 64, 0.92) 100%);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -3795,24 +3796,39 @@ button.stage-card.selected {
   cursor: pointer;
   font-family: inherit;
   text-align: left;
-  color: var(--sf-blue-dark);
+  color: #8fe6ff;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.book-tile:hover,
+.book-tile:focus-visible {
+  border-color: #5ad7ff;
+  box-shadow: 0 0 14px rgba(90, 215, 255, 0.3);
+  outline: none;
 }
 
 .book-tile strong {
   position: relative;
   font-size: var(--text-page);
   line-height: 1;
+  color: #eaf6ff;
+  text-shadow: 0 0 8px rgba(90, 215, 255, 0.35);
 }
 
 .book-tile > span:last-child {
   position: relative;
   font-size: 11px;
   font-weight: 700;
+  color: #9fb9cc;
 }
 
 .book-tile .book-metric-icon {
   position: relative;
   margin-bottom: auto;
+  background: rgba(90, 215, 255, 0.12);
+  border-color: #5ad7ff;
+  color: #8fe6ff;
+  box-shadow: none;
 }
 
 .book-tile-fill {
@@ -3820,7 +3836,7 @@ button.stage-card.selected {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(1, 118, 211, 0.14);
+  background: rgba(90, 215, 255, 0.16);
   z-index: 0;
 }
 
