@@ -103,9 +103,9 @@ export function LikenessCompass({
         </title>
         <defs>
           <radialGradient id="compass-plate" cx="50%" cy="42%" r="65%">
-            <stop offset="0%" stopColor="#1a3246" />
-            <stop offset="70%" stopColor="#0d1b2b" />
-            <stop offset="100%" stopColor="#070e16" />
+            <stop offset="0%" stopColor="#2e4a62" />
+            <stop offset="70%" stopColor="#20384d" />
+            <stop offset="100%" stopColor="#162838" />
           </radialGradient>
           <filter id="compass-glow" x="-60%" y="-60%" width="220%" height="220%">
             <feGaussianBlur stdDeviation="4" />
@@ -121,13 +121,13 @@ export function LikenessCompass({
 
         <circle cx={cx} cy={cy} r={maxR + 24} fill="url(#compass-plate)" />
         {[0.33, 0.66, 1].map((t) => (
-          <circle key={t} cx={cx} cy={cy} r={maxR * t} fill="none" stroke="#2c4f6b" strokeWidth="1" opacity={0.6} />
+          <circle key={t} cx={cx} cy={cy} r={maxR * t} fill="none" stroke="#4a7291" strokeWidth="1" opacity={0.6} />
         ))}
         {/* triangulated plate lines, echoing the faceted metal disc in the reference art */}
-        <polygon points={hexOuter} fill="none" stroke="#2c4f6b" strokeWidth="1" opacity={0.55} />
-        <polygon points={hexMid} fill="none" stroke="#2c4f6b" strokeWidth="1" opacity={0.4} />
+        <polygon points={hexOuter} fill="none" stroke="#4a7291" strokeWidth="1" opacity={0.55} />
+        <polygon points={hexMid} fill="none" stroke="#4a7291" strokeWidth="1" opacity={0.4} />
         {points.map(({ meta, ringTip }) => (
-          <line key={meta.id} x1={cx} y1={cy} x2={ringTip.x} y2={ringTip.y} stroke="#2c4f6b" strokeWidth="1" opacity={0.55} />
+          <line key={meta.id} x1={cx} y1={cy} x2={ringTip.x} y2={ringTip.y} stroke="#4a7291" strokeWidth="1" opacity={0.55} />
         ))}
 
         <circle
@@ -184,7 +184,7 @@ export function LikenessCompass({
                   width="80"
                   height="22"
                   rx="7"
-                  fill="rgba(10,20,32,0.88)"
+                  fill="rgba(32,52,70,0.88)"
                   stroke={glow}
                   strokeOpacity={summaryId === facet.id ? 0.95 : 0.55}
                   strokeWidth={summaryId === facet.id ? 1.4 : 1}
@@ -205,8 +205,8 @@ export function LikenessCompass({
           )
         })}
 
-        <circle cx={cx} cy={cy} r="30" fill="#0b1522" stroke={likenessGlow} strokeWidth="2" filter="url(#compass-glow)" opacity="0.5" />
-        <circle cx={cx} cy={cy} r="30" fill="#0e1c2c" stroke={likenessGlow} strokeWidth="2">
+        <circle cx={cx} cy={cy} r="30" fill="#16293c" stroke={likenessGlow} strokeWidth="2" filter="url(#compass-glow)" opacity="0.5" />
+        <circle cx={cx} cy={cy} r="30" fill="#1c3246" stroke={likenessGlow} strokeWidth="2">
           <title>
             Likeness {likeness} — average depth of knowledge across {LIKENESS_FACET_IDS.length} topics (the spokes).
             Not the same as confidence (below).
