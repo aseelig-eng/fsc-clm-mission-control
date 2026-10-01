@@ -830,6 +830,63 @@ export const personaValues: PersonaValue[] = [
       { label: 'Household stays after transfer event', before: 'Coin-flip industry risk', after: 'Continuity by design' },
     ],
   },
+  {
+    persona: 'Integration Partner (ISV / Custodian)',
+    tagline: 'A governed connection, not a side door — your data earns a seat in the household record.',
+    pains: [
+      'Every mutual client integration gets rebuilt bespoke, point-to-point — same connector, built N times over',
+      'No visibility into what the CRM did with your data once it left — compliance teams balk at ungoverned pulls',
+      'Break/fix tickets pile up when API versions drift, with no shared contract or monitoring',
+      'Fighting for “system of record” status — the advisor just re-keys your insights elsewhere anyway',
+      'Slow mutual-customer onboarding — weeks of custom auth/field-mapping before first value lands',
+      'Hard to prove usage and ROI of the integration to your own product and partnership leadership',
+    ],
+    valueProps: [
+      'Integration Hub is a single governed surface — OAuth / MCP / API-key setup with scoped consent and an audit trail before any agent ever reads your system',
+      'One certified connector pattern instead of a bespoke build per advisor firm — certify once, activate across the install base',
+      'Two-way citizen, not a read-only feed: your data and writebacks surface directly on the advisor’s “Needs You” board and household rail, not buried in a sync log',
+      'Per-connection health and usage telemetry — prove adoption and value to your own leadership and theirs',
+      'Faster mutual-customer activation — hours–days of mapping instead of weeks of custom integration work',
+      'Joint go-to-market motion through Salesforce/FSC + AppExchange — a warm co-sell path instead of a cold intro every deal',
+    ],
+    metrics: [
+      { label: 'Integration build effort', before: 'Bespoke per client', after: 'Certify once, activate many' },
+      { label: 'Time-to-first-sync (new mutual client)', before: '2–6 weeks', after: 'Hours–days' },
+      { label: 'Break/fix tickets / quarter', before: 'Frequent, undocumented', after: 'Monitored, contract-governed' },
+      { label: 'Data-use visibility', before: 'Opaque after handoff', after: 'Scoped consent + audit trail per read/write' },
+      { label: 'Co-sell attach on mutual accounts', before: 'Ad hoc', after: 'Structured joint motion' },
+    ],
+  },
+  {
+    persona: 'Implementation Partner (SI)',
+    tagline: 'Configurable accelerator, not a rebuild every engagement — ship the rails, bill the judgment.',
+    pains: [
+      'Every engagement rebuilds similar CLM flows, screens, and automations from scratch — margin eaten by repetition',
+      'Custom Apex/triggers for things the platform should do declaratively — technical debt the SI inherits at hypercare',
+      'Thin or stale demo/sandbox orgs make it hard to sell the agentic story before the SOW is signed',
+      'Data migration from legacy wealth CRMs and planning tools is manual and error-prone, blowing discovery timelines',
+      'No reference architecture for “where agents stop and advisors start” — hard to scope and estimate agentic work',
+      'Keeping delivery teams current on fast-moving FSC / Agentforce release cadence',
+      'Post-go-live support tickets pile up when the build is bespoke rather than standard and governed',
+    ],
+    valueProps: [
+      'Prebuilt, configurable accelerator — stages, agents, Integration Hub, likeness/heir-readiness model — as the delivery starting point, not a blank org',
+      'Clicks-first delivery: Flow / OmniStudio / Agentforce configuration covers most of the lifecycle instead of custom Apex, lowering the technical debt handed to hypercare and managed services',
+      'Demo-ready org and narrative (agentic CLM, Meeting Concierge, unblock paths) shortens the pre-sale cycle for partners pitching FSC',
+      'Standard Integration Hub pattern for custodian / eMoney / Tamarac connections — no bespoke point-to-point build per client',
+      'Explicit human-in-the-loop gates and immutable lineage give SIs a defensible compliance story in enterprise RFPs and exam-readiness reviews',
+      'Templated migration mapping from legacy CRM/planning data into the household, likeness, and heir-readiness model',
+      'Opens recurring managed-services revenue — tuning agents, likeness scoring, and dashboards post-launch, not just break/fix',
+    ],
+    metrics: [
+      { label: 'Time-to-first-deployed-stage', before: '8–16 wks custom build', after: '2–4 wks configure' },
+      { label: 'Custom code vs. declarative config', before: 'Majority Apex/triggers', after: 'Majority clicks (Flow/OmniStudio/Agentforce)' },
+      { label: 'Pre-sale demo readiness', before: 'Build-from-scratch POC', after: 'Live accelerator, same day' },
+      { label: 'Legacy data migration effort', before: 'Manual mapping, high error rate', after: 'Templated mapping to household model' },
+      { label: 'Post-go-live support ticket volume', before: 'High (bespoke build)', after: 'Lower (standard, governed build)' },
+      { label: 'Managed-services attach', before: 'Break/fix only', after: 'Ongoing agent/likeness tuning retainer' },
+    ],
+  },
 ]
 
 export const competitors: Competitor[] = [
