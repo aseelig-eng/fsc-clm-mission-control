@@ -2804,11 +2804,12 @@ h4 {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: white;
-  border: 1px solid var(--sf-gray-5);
+  background: linear-gradient(180deg, #0a1420 0%, #0d1b2b 55%, #091018 100%);
+  border: 1px solid #1c3a52;
   border-radius: var(--radius);
   padding: 0 8px 12px;
   box-sizing: border-box;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.45);
 }
 
 .likeness-compass svg {
@@ -2821,18 +2822,20 @@ h4 {
 .facet-pop {
   margin: 0 4px 8px;
   padding: 8px 4px 0;
-  border-top: 1px solid var(--sf-gray-5);
+  border-top: 1px solid #1c3a52;
 }
 
 .facet-pop-head {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  color: #cfe8f7;
 }
 
 .facet-pop-head span {
   font-weight: 700;
-  color: var(--sf-blue-dark);
+  color: #8fe6ff;
+  text-shadow: 0 0 8px rgba(90, 215, 255, 0.5);
 }
 
 .facet-pop-head button {
@@ -2842,7 +2845,7 @@ h4 {
   font: inherit;
   font-size: 12px;
   font-weight: 700;
-  color: var(--sf-blue);
+  color: #5ad7ff;
   cursor: pointer;
 }
 
@@ -2850,23 +2853,32 @@ h4 {
   margin: 8px 0 0;
   font-size: 13px;
   line-height: 1.45;
+  color: #b9d4e6;
 }
 
 .facet-pop-def {
   margin: 4px 0 0;
   font-size: 12px;
   font-style: italic;
+  color: #9fb9cc;
 }
 
 .likeness-maturity-pill {
   margin-top: 4px;
-  border: 1px solid var(--sf-gray-5);
+  border: 1px solid #1c3a52;
+  background: rgba(16, 32, 48, 0.6);
   border-radius: var(--radius);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   font-size: 12px;
+  color: #9fb9cc;
+}
+
+.facet-pop-def.muted,
+.likeness-maturity-pill .muted {
+  color: #9fb9cc;
 }
 
 .pulse-status {

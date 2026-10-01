@@ -37,6 +37,19 @@ function polar(cx: number, cy: number, r: number, angleDeg: number) {
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
 }
 
+/** Same low/mid/high banding + glow palette used on the holographic household figures, so a thin facet reads as "at risk" consistently across the pulse. */
+function scoreTone(score: number): 'ok' | 'warn' | 'danger' {
+  if (score < 30) return 'danger'
+  if (score < 55) return 'warn'
+  return 'ok'
+}
+
+const TONE_GLOW: Record<'ok' | 'warn' | 'danger', string> = {
+  ok: '#5ad7ff',
+  warn: '#ffb347',
+  danger: '#ff4d5e',
+}
+
 export function LikenessCompass({
   person,
   selectedFacetId,
@@ -50,8 +63,10 @@ export function LikenessCompass({
   const cx = size / 2
   const cy = size / 2
   const maxR = 96
+  const barHalfWidth = 7
   const tier = MATURITY_LABELS[person.maturity.tier]
   const likeness = likenessScore(person)
+  const likenessGlow = TONE_GLOW[scoreTone(likeness)]
   const [summaryId, setSummaryId] = useState<string | null>(null)
   const summary = person.facets.find((facet) => facet.id === summaryId) ?? null
 
@@ -61,12 +76,23 @@ export function LikenessCompass({
 
   const points = FACET_META.map((meta) => {
     const facet = person.facets.find((f) => f.id === meta.id)!
-    const r = (facet.score / 100) * maxR
-    const p = polar(cx, cy, r, meta.angle)
-    return { meta, facet, ...p }
+    const r = Math.max((facet.score / 100) * maxR, 3)
+    const tone = scoreTone(facet.score)
+    const glow = TONE_GLOW[tone]
+    const tip = polar(cx, cy, r, meta.angle)
+    const ringTip = polar(cx, cy, maxR, meta.angle)
+    const labelPos = polar(cx, cy, maxR + 38, meta.angle)
+    // perpendicular offset so each radiating bar reads as a wedge, not a hairline
+    const perp = meta.angle + 90
+    const wOffset = polar(0, 0, barHalfWidth, perp)
+    return { meta, facet, r, tone, glow, tip, ringTip, labelPos, wOffset }
   })
 
-  const polygon = points.map((p) => `${p.x},${p.y}`).join(' ')
+  const hexOuter = points.map((p) => `${p.ringTip.x},${p.ringTip.y}`).join(' ')
+  const hexMid = FACET_META.map((meta) => {
+    const p = polar(cx, cy, maxR * 0.55, meta.angle)
+    return `${p.x},${p.y}`
+  }).join(' ')
 
   return (
     <div className="likeness-compass">
@@ -75,17 +101,43 @@ export function LikenessCompass({
           Likeness {likeness} (how much we know across {LIKENESS_FACET_IDS.length} topics) · Confidence{' '}
           {tier.title} {person.maturity.score} (how fresh/verified that picture is)
         </title>
-        {[0.25, 0.5, 0.75, 1].map((t) => (
-          <circle key={t} cx={cx} cy={cy} r={maxR * t} fill="none" stroke="var(--sf-gray-5)" strokeWidth="1" />
+        <defs>
+          <radialGradient id="compass-plate" cx="50%" cy="42%" r="65%">
+            <stop offset="0%" stopColor="#1a3246" />
+            <stop offset="70%" stopColor="#0d1b2b" />
+            <stop offset="100%" stopColor="#070e16" />
+          </radialGradient>
+          <filter id="compass-glow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="4" />
+          </filter>
+          {points.map(({ facet, glow }) => (
+            <linearGradient key={facet.id} id={`bar-${facet.id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+              <stop offset="35%" stopColor={glow} stopOpacity="0.85" />
+              <stop offset="100%" stopColor={glow} stopOpacity="0.25" />
+            </linearGradient>
+          ))}
+        </defs>
+
+        <circle cx={cx} cy={cy} r={maxR + 24} fill="url(#compass-plate)" />
+        {[0.33, 0.66, 1].map((t) => (
+          <circle key={t} cx={cx} cy={cy} r={maxR * t} fill="none" stroke="#2c4f6b" strokeWidth="1" opacity={0.6} />
         ))}
+        {/* triangulated plate lines, echoing the faceted metal disc in the reference art */}
+        <polygon points={hexOuter} fill="none" stroke="#2c4f6b" strokeWidth="1" opacity={0.55} />
+        <polygon points={hexMid} fill="none" stroke="#2c4f6b" strokeWidth="1" opacity={0.4} />
+        {points.map(({ meta, ringTip }) => (
+          <line key={meta.id} x1={cx} y1={cy} x2={ringTip.x} y2={ringTip.y} stroke="#2c4f6b" strokeWidth="1" opacity={0.55} />
+        ))}
+
         <circle
           cx={cx}
           cy={cy}
           r={maxR + 8}
           fill="none"
-          stroke={person.accent}
-          strokeWidth="6"
-          strokeOpacity={0.2 + person.maturity.score / 200}
+          stroke={likenessGlow}
+          strokeWidth="5"
+          strokeOpacity={0.25 + person.maturity.score / 220}
           strokeDasharray={`${(person.maturity.score / 100) * 2 * Math.PI * (maxR + 8)} 999`}
           transform={`rotate(-90 ${cx} ${cy})`}
         >
@@ -93,28 +145,27 @@ export function LikenessCompass({
             Confidence ring — {tier.title} · {person.maturity.score}. {tier.hint}
           </title>
         </circle>
-        <polygon points={polygon} fill={person.accent} fillOpacity="0.18" stroke={person.accent} strokeWidth="2" />
-        {points.map(({ meta, facet, x, y }) => {
-          const labelPos = polar(cx, cy, maxR + 34, meta.angle)
+
+        {/* radiating crystal bars — one per likeness facet, height = score, color = low/mid/high band */}
+        {points.map(({ meta, facet, tip, wOffset, glow, labelPos }) => {
+          const base1 = { x: cx + wOffset.x, y: cy + wOffset.y }
+          const base2 = { x: cx - wOffset.x, y: cy - wOffset.y }
+          const tip1 = { x: tip.x + wOffset.x * 0.3, y: tip.y + wOffset.y * 0.3 }
+          const tip2 = { x: tip.x - wOffset.x * 0.3, y: tip.y - wOffset.y * 0.3 }
           const selected = selectedFacetId === facet.id
+          const barPoints = `${base1.x},${base1.y} ${tip1.x},${tip1.y} ${tip2.x},${tip2.y} ${base2.x},${base2.y}`
           return (
-            <g key={facet.id} style={{ cursor: 'pointer' }} onClick={() => onSelectFacet(facet)}>
-              <line
-                x1={cx}
-                y1={cy}
-                x2={polar(cx, cy, maxR, meta.angle).x}
-                y2={polar(cx, cy, maxR, meta.angle).y}
-                stroke="var(--sf-gray-5)"
-                strokeWidth="1"
+            <g key={facet.id}>
+              <polygon points={barPoints} fill={glow} opacity={0.45} filter="url(#compass-glow)" />
+              <polygon
+                points={barPoints}
+                fill={`url(#bar-${facet.id})`}
+                stroke={glow}
+                strokeWidth={selected ? 1.6 : 1}
+                style={{ cursor: 'pointer' }}
+                onClick={() => onSelectFacet(facet)}
               />
-              <circle
-                cx={x}
-                cy={y}
-                r={selected ? 8 : 6}
-                fill={selected ? person.accent : '#fff'}
-                stroke={person.accent}
-                strokeWidth="2"
-              />
+              <circle cx={tip.x} cy={tip.y} r={selected ? 4.5 : 3} fill="#fff" stroke={glow} strokeWidth="1.4" />
               <g
                 role="button"
                 aria-label={`${meta.short} ${facet.score}. ${facet.label}. ${FACET_DEFINITIONS[facet.id]}`}
@@ -127,7 +178,17 @@ export function LikenessCompass({
                 <title>
                   {facet.label} — {FACET_DEFINITIONS[facet.id]}
                 </title>
-                <rect x={labelPos.x - 48} y={labelPos.y - 12} width="96" height="22" fill="transparent" />
+                <rect
+                  x={labelPos.x - 40}
+                  y={labelPos.y - 11}
+                  width="80"
+                  height="22"
+                  rx="7"
+                  fill="rgba(10,20,32,0.88)"
+                  stroke={glow}
+                  strokeOpacity={summaryId === facet.id ? 0.95 : 0.55}
+                  strokeWidth={summaryId === facet.id ? 1.4 : 1}
+                />
                 <text
                   x={labelPos.x}
                   y={labelPos.y}
@@ -135,7 +196,7 @@ export function LikenessCompass({
                   dominantBaseline="middle"
                   fontSize="10"
                   fontWeight={summaryId === facet.id ? 700 : 600}
-                  fill={summaryId === facet.id ? person.accent : 'var(--sf-gray-2)'}
+                  fill={summaryId === facet.id ? glow : '#cfe8f7'}
                 >
                   {meta.short} {facet.score}
                 </text>
@@ -143,16 +204,18 @@ export function LikenessCompass({
             </g>
           )
         })}
-        <circle cx={cx} cy={cy} r="32" fill="#fff" stroke={person.accent} strokeWidth="2">
+
+        <circle cx={cx} cy={cy} r="30" fill="#0b1522" stroke={likenessGlow} strokeWidth="2" filter="url(#compass-glow)" opacity="0.5" />
+        <circle cx={cx} cy={cy} r="30" fill="#0e1c2c" stroke={likenessGlow} strokeWidth="2">
           <title>
             Likeness {likeness} — average depth of knowledge across {LIKENESS_FACET_IDS.length} topics (the spokes).
             Not the same as confidence (below).
           </title>
         </circle>
-        <text x={cx} y={cy - 4} textAnchor="middle" fontSize="13" fontWeight="700" fill={person.accent}>
+        <text x={cx} y={cy - 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#eaf6ff">
           {person.initials}
         </text>
-        <text x={cx} y={cy + 12} textAnchor="middle" fontSize="11" fill="var(--sf-gray-3)">
+        <text x={cx} y={cy + 12} textAnchor="middle" fontSize="11" fill={likenessGlow}>
           {likeness}%
         </text>
       </svg>
@@ -160,7 +223,7 @@ export function LikenessCompass({
         {summary ? (
           <div className="facet-pop-head">
             <strong>{summary.label}</strong>
-            <span>{summary.score}</span>
+            <span style={{ color: TONE_GLOW[scoreTone(summary.score)] }}>{summary.score}</span>
             <button type="button" onClick={() => setSummaryId(null)}>
               Close
             </button>
@@ -168,7 +231,7 @@ export function LikenessCompass({
         ) : (
           <div className="facet-pop-head" title="Average of the 6 topic scores in the chart above — how much we know about this person.">
             <strong>Likeness</strong>
-            <span>{likeness}</span>
+            <span style={{ color: likenessGlow }}>{likeness}</span>
           </div>
         )}
         {summary && <p className="facet-pop-def muted">{FACET_DEFINITIONS[summary.id]}</p>}
