@@ -348,22 +348,22 @@ export function buildDrillItems(household: Household): DrillItem[] {
       person,
       recommended: {
         headline: `How well do we know ${person.name}, and how sure are we?`,
-        why: `Likeness (${likeness}) is the average depth of knowledge across ${LIKENESS_FACET_IDS.length} topics — risk, goals, household complexity, tax/estate, heir readiness, share-of-wallet. Confidence (${m.score}) is a separate measure of how fresh and verified that picture is: data completeness (${m.dataCompleteness}), recency (${m.recency}), source diversity (${m.sourceDiversity}), advisor-confirmed share (${m.advisorConfirmed}). Last touched: ${m.lastTouched}.`,
+        why: `Likeness (${likeness}) is the average depth of knowledge across ${LIKENESS_FACET_IDS.length} topics — risk, goals, household complexity, tax/estate, generational readiness, share-of-wallet. Confidence (${m.score}) is a separate measure of how fresh and verified that picture is: data completeness (${m.dataCompleteness}), recency (${m.recency}), source diversity (${m.sourceDiversity}), advisor-confirmed share (${m.advisorConfirmed}). Last touched: ${m.lastTouched}.`,
         agentAlreadyDid: `Sources behind the confidence score: ${m.sources.join(', ')}.`,
         reviewChecklist: [
           likeness < 55
             ? 'Prioritize a discovery or confirmation pass on the thinnest likeness topics'
             : 'Maintain freshness — confirm any agent-inferred facets before high-stakes advice',
           (() => {
-            const heirs = person.facets.find((f) => f.id === 'heir_readiness')
-            if (!heirs) return 'Review heir readiness for wealth-transfer retention'
-            if (heirs.score < 45)
-              return `Heir readiness is low (${heirs.score}) — plan next-gen intro before transfer events to keep the household`
-            if (heirs.score < 70)
-              return `Heir readiness is forming (${heirs.score}) — deepen next-gen engagement this quarter`
-            return `Heir readiness looks solid (${heirs.score}) — keep next-gen touches on the calendar`
+            const genReadiness = person.facets.find((f) => f.id === 'heir_readiness')
+            if (!genReadiness) return 'Review generational readiness for wealth-transfer retention'
+            if (genReadiness.score < 45)
+              return `Generational readiness is low (${genReadiness.score}) — plan next-gen intro before transfer events to keep the household`
+            if (genReadiness.score < 70)
+              return `Generational readiness is forming (${genReadiness.score}) — deepen next-gen engagement this quarter`
+            return `Generational readiness looks solid (${genReadiness.score}) — keep next-gen touches on the calendar`
           })(),
-          'Click Household Pulse nodes (Engage, Lifecycle, Likeness, Heirs, Custodian) for evidence',
+          'Click Household Pulse nodes (Engage, Lifecycle, Likeness, Gen. Readiness, Custodian) for evidence',
           'Do not treat a thin likeness or low-confidence profile as exam-ready',
         ],
         primaryCta: 'Open weakest facet',

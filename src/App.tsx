@@ -165,9 +165,10 @@ function ProgressBar({
 }
 
 function docStatusClass(status: string) {
-  if (status === 'filed') return 'done'
+  if (status === 'filed' || status === 'current') return 'done'
   if (status === 'nigo' || status === 'needs_signature') return 'critical'
-  if (status === 'pending') return 'needs'
+  if (status === 'pending' || status === 'stale') return 'needs'
+  if (status === 'missing') return 'medium'
   return 'medium'
 }
 
@@ -869,7 +870,7 @@ export default function App() {
       setPulseDialog({
         kicker: 'Likeness',
         title: `Likeness ${likeness} · Confidence ${MATURITY_LABELS[m.tier].title} ${m.score}`,
-        why: `Likeness (${likeness}) is how much we know about ${selectedPerson.name.split(' ')[0]} — the average across ${LIKENESS_FACET_IDS.length} topics (risk, goals, household complexity, tax/estate, heir readiness, share-of-wallet). Confidence (${MATURITY_LABELS[m.tier].title} · ${m.score}) is a separate measure of how fresh and verified that picture is. ${MATURITY_LABELS[m.tier].hint}`,
+        why: `Likeness (${likeness}) is how much we know about ${selectedPerson.name.split(' ')[0]} — the average across ${LIKENESS_FACET_IDS.length} topics (risk, goals, household complexity, tax/estate, generational readiness, share-of-wallet). Confidence (${MATURITY_LABELS[m.tier].title} · ${m.score}) is a separate measure of how fresh and verified that picture is. ${MATURITY_LABELS[m.tier].hint}`,
         agentDid: `Confidence breakdown — completeness ${m.dataCompleteness} · recency ${m.recency} · source diversity ${m.sourceDiversity} · advisor-confirmed ${m.advisorConfirmed}. Last touched ${m.lastTouched}.`,
         actionsTitle: 'Actions to Take',
         actions: [
@@ -2725,7 +2726,7 @@ export default function App() {
             <p>
               Agents orchestrate prospect → funded → annual review → life events → estate. Humans stay in a
               mission-control seat for judgment, relationships, and fiduciary polish — with household pulse
-              (including heir readiness), signal-only recommended actions, and unblock paths on blocked stages —
+              (including generational readiness), signal-only recommended actions, and unblock paths on blocked stages —
               not swivel-chair admin.
             </p>
           </div>

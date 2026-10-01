@@ -69,7 +69,10 @@ const profiles: GenerationalProfile[] = [
       { name: 'Estate plan', state: 'missing' },
       { name: 'Power of attorney', state: 'missing' },
       { name: 'Trust', state: 'missing' },
+      { name: 'Healthcare directive', state: 'missing' },
       { name: 'Digital assets', state: 'missing' },
+      { name: 'Letter of intent', state: 'missing' },
+      { name: 'Life insurance beneficiary audit', state: 'missing' },
     ],
     actions: [
       {
@@ -104,7 +107,10 @@ const profiles: GenerationalProfile[] = [
       { name: 'Estate plan', state: 'missing' },
       { name: 'Power of attorney', state: 'missing' },
       { name: 'Trust', state: 'missing' },
+      { name: 'Healthcare directive', state: 'missing' },
       { name: 'Digital assets', state: 'missing' },
+      { name: 'Letter of intent', state: 'missing' },
+      { name: 'Life insurance beneficiary audit', state: 'missing' },
     ],
     actions: [
       {
@@ -157,6 +163,8 @@ const profiles: GenerationalProfile[] = [
       { name: 'Trust', state: 'current', updated: 'This week' },
       { name: 'Healthcare directive', state: 'stale', updated: '2021' },
       { name: 'Digital assets', state: 'missing' },
+      { name: 'Letter of intent', state: 'missing' },
+      { name: 'Life insurance beneficiary audit', state: 'stale', updated: '2019' },
     ],
     actions: [
       {
@@ -198,7 +206,10 @@ const profiles: GenerationalProfile[] = [
       { name: 'Estate plan', state: 'stale', updated: 'Before this RMD year' },
       { name: 'Power of attorney', state: 'current', updated: '2023' },
       { name: 'Trust', state: 'current', updated: '2022' },
+      { name: 'Healthcare directive', state: 'stale', updated: '2018' },
       { name: 'Digital assets', state: 'missing' },
+      { name: 'Letter of intent', state: 'missing' },
+      { name: 'Life insurance beneficiary audit', state: 'current', updated: '2023' },
     ],
     actions: [
       {
@@ -243,6 +254,9 @@ const profiles: GenerationalProfile[] = [
       { name: 'Estate tax ID', state: 'missing' },
       { name: 'Successor W-9', state: 'stale', updated: 'Partial' },
       { name: 'Trust', state: 'missing' },
+      { name: 'Digital assets', state: 'missing' },
+      { name: 'Letter of intent', state: 'missing' },
+      { name: 'Life insurance beneficiary audit', state: 'current', updated: 'August 2026' },
     ],
     actions: [
       {

@@ -94,10 +94,10 @@ export function HouseholdPulse({
 
   const impactLine =
     heirScore < 45
-      ? `Heir readiness ${heirScore}% — retention risk if transfer nears`
+      ? `Generational readiness ${heirScore}% — retention risk if transfer nears`
       : heirScore < 80
-        ? `Heir readiness ${heirScore}% — deepen next-gen this quarter`
-        : `Heir readiness ${heirScore}% — next-gen path solid`
+        ? `Generational readiness ${heirScore}% — deepen next-gen this quarter`
+        : `Generational readiness ${heirScore}% — next-gen path solid`
 
   const nodes: {
     id: PulseNodeId
@@ -130,7 +130,7 @@ export function HouseholdPulse({
     {
       id: 'heirs',
       tone: heirScore < 45 ? 'danger' : heirScore < 80 ? 'warn' : 'ok',
-      k: 'Heirs',
+      k: 'Gen. Readiness',
       v: `${heirScore}%`,
       s: readinessBand(heirScore),
     },

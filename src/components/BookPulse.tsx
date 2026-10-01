@@ -422,7 +422,7 @@ function buildMetrics(households: Household[], exceptions: ExceptionItem[]): Boo
     },
     {
       id: 'heirs',
-      short: 'Heirs',
+      short: 'Gen. Readiness',
       label: heirs.label,
       value: heirs.value,
       glyph: 'heirs',

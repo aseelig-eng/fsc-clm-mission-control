@@ -29,7 +29,7 @@ Open the local URL Vite prints (usually `http://localhost:5173`).
 
 ### Household pulse
 
-Per household: status visual (Engage · Lifecycle · Likeness maturity · Heirs · Custodian) with attention usage, progress, and impact. Node clicks open the same one-click recommended review (or stage unblock popup) as Needs you signals.
+Per household: status visual (Engage · Lifecycle · Likeness maturity · Gen. Readiness · Custodian) with attention usage, progress, and impact. Node clicks open the same one-click recommended review (or stage unblock popup) as Needs you signals.
 
 ### One-click-down review
 

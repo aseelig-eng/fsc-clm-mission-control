@@ -81,7 +81,7 @@ export interface PersonLikeness {
 
 // The Likeness Compass (radar chart) shows only the topics that describe
 // "what do we know about this person" — their goals, risk posture, household
-// structure, tax/estate picture, heir readiness, and where their money sits.
+// structure, tax/estate picture, generational readiness, and where their money sits.
 // Engagement, Channel preference, and Trust are relationship/behavioral
 // signals, not knowledge-depth topics, so they're intentionally excluded from
 // this chart (they still exist as facets and are used elsewhere — e.g. the
@@ -106,7 +106,7 @@ export const FACET_DEFINITIONS: Record<FacetId, string> = {
   complexity: 'Structural complexity of the household — trusts, entities, UBOs, joint accounts.',
   wallet: 'Share of their investable assets actually held at the firm vs. held away.',
   tax_estate: 'How central tax and estate planning concerns are to this relationship.',
-  heir_readiness: 'Whether heirs/next-gen are known, engaged, and prepared for a future wealth transfer.',
+  heir_readiness: 'Whether the next generation is known, engaged, and prepared for a future wealth transfer.',
   trust: 'Depth and warmth of the personal relationship — referral quality, sentiment, tenure.',
 }
 
@@ -116,7 +116,7 @@ export const FACET_META: { id: FacetId; short: string; angle: number }[] = [
   { id: 'complexity', short: 'Complexity', angle: 30 },
   { id: 'wallet', short: 'Wallet', angle: 90 },
   { id: 'tax_estate', short: 'Tax/Est', angle: 150 },
-  { id: 'heir_readiness', short: 'Heirs', angle: 210 },
+  { id: 'heir_readiness', short: 'Gen. Readiness', angle: 210 },
 ]
 
 // Likeness = how much we know about this person, averaged across the 6
@@ -199,7 +199,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           ['complexity', 'Life complexity', 5, 'Household structure unknown.'],
           ['wallet', 'Share-of-wallet signal', 0, 'No assets mentioned.'],
           ['tax_estate', 'Tax & estate sensitivity', 0, 'No tax or estate facts.'],
-          ['heir_readiness', 'Heir readiness', 0, 'No family or beneficiary information.'],
+          ['heir_readiness', 'Generational readiness', 0, 'No family or beneficiary information.'],
           ['trust', 'Relationship trust', 10, 'No relationship yet — only a form.'],
         ] as const
       ).map(([id, label, score, blurb]) => ({
@@ -300,12 +300,12 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         },
         {
           id: 'heir_readiness',
-          label: 'Heir readiness',
+          label: 'Generational readiness',
           score: 18,
           blurb: 'Early-career — no next-gen cultivation yet; sibling TOD is paperwork, not a relationship.',
           evidence: ['No adult children', 'Sibling TOD only', 'No family meeting on file'],
           inferredBy: 'agent',
-          recommendedReview: 'Park heir work for now; revisit if household expands or TOD becomes multi-party.',
+          recommendedReview: 'Park next-gen work for now; revisit if household expands or TOD becomes multi-party.',
         },
         {
           id: 'trust',
@@ -412,7 +412,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         },
         {
           id: 'heir_readiness',
-          label: 'Heir readiness',
+          label: 'Generational readiness',
           score: 48,
           blurb: 'Docs point to transfer; next-gen barely knows the firm — retention risk at legacy event.',
           evidence: ['Trust primary beneficiary', 'No heir intro meeting', 'Counsel knows kids; we do not'],
@@ -522,7 +522,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         },
         {
           id: 'heir_readiness',
-          label: 'Heir readiness',
+          label: 'Generational readiness',
           score: 52,
           blurb: 'Family thread started (granddaughter trusted contact) but heirs are not yet firm clients.',
           evidence: ['Granddaughter as trusted contact', 'Asked about family continuity', 'No adult-child IPS'],
@@ -632,7 +632,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         },
         {
           id: 'heir_readiness',
-          label: 'Heir readiness',
+          label: 'Generational readiness',
           score: 51,
           blurb: 'Daughter is trusted contact only — not yet oriented to the firm or transfer plan.',
           evidence: ['Daughter trusted contact', 'No next-gen meeting', 'Estate docs stale vs AR depth'],
@@ -744,7 +744,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         },
         {
           id: 'heir_readiness',
-          label: 'Heir readiness',
+          label: 'Generational readiness',
           score: 55,
           blurb: 'Family milestones matter to her — natural bridge to introduce next-gen without “estate talk.”',
           evidence: ['Daughter trusted contact', 'Gift/travel goals', 'No heir education session'],
@@ -851,12 +851,12 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         },
         {
           id: 'heir_readiness',
-          label: 'Heir readiness',
+          label: 'Generational readiness',
           score: 43,
           blurb: 'Papers can transfer. The surviving spouse has not decided to stay.',
           evidence: ['Spouse intro pending', 'No successor IPS', 'Letters testamentary in flight'],
           inferredBy: 'agent',
-          recommendedReview: 'Treat Tuesday as heir-readiness work: care + path clarity, not portfolio.',
+          recommendedReview: 'Treat Tuesday as generational-readiness work: care + path clarity, not portfolio.',
         },
         {
           id: 'trust',
@@ -959,7 +959,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
         },
         {
           id: 'heir_readiness',
-          label: 'Heir readiness',
+          label: 'Generational readiness',
           score: 22,
           blurb: 'She is the heir, and the first meeting has not happened. The papers are ahead of the relationship.',
           evidence: ['First formal intro pending', 'No goals captured', 'Industry attrition spike at death'],

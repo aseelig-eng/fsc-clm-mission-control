@@ -1,7 +1,15 @@
 import type { LifecycleStageId } from './types'
 
 export type FieldStatus = 'complete' | 'partial' | 'missing' | 'blocked' | 'n/a'
-export type DocStatus = 'filed' | 'pending' | 'nigo' | 'not_started' | 'needs_signature'
+export type DocStatus =
+  | 'filed'
+  | 'pending'
+  | 'nigo'
+  | 'not_started'
+  | 'needs_signature'
+  | 'current'
+  | 'stale'
+  | 'missing'
 
 /** Who last touched an attribute or document. Powers the profile "last updated" column. */
 export type UpdatedBy = 'advisor' | 'client' | 'system'
@@ -33,7 +41,7 @@ export interface FormSection {
 export interface ComplianceDocument {
   id: string
   name: string
-  category: 'legal' | 'disclosure' | 'suitability' | 'custodial' | 'tax' | 'audit' | 'transfer' | 'movement'
+  category: 'legal' | 'disclosure' | 'suitability' | 'custodial' | 'tax' | 'audit' | 'transfer' | 'movement' | 'estate'
   status: DocStatus
   filedOn?: string
   notes?: string
@@ -49,6 +57,7 @@ export type DocStage =
   | 'account_opening'
   | 'funding'
   | 'servicing'
+  | 'estate'
   | 'review'
 
 /** Canonical order in which stages are shown. */
@@ -59,6 +68,7 @@ export const DOC_STAGE_ORDER: DocStage[] = [
   'account_opening',
   'funding',
   'servicing',
+  'estate',
   'review',
 ]
 
@@ -69,6 +79,7 @@ export const DOC_STAGE_LABEL: Record<DocStage, string> = {
   account_opening: 'Account Opening',
   funding: 'Funding & Transfer',
   servicing: 'Servicing',
+  estate: 'Estate & Generational Readiness',
   review: 'Review & Audit',
 }
 
@@ -96,6 +107,14 @@ export const DOC_PROVENANCE: Record<string, DocProvenance> = {
   ach: { stage: 'funding', source: 'Bank link · Plaid / ACH' },
   tax: { stage: 'kyc', source: 'Tax vendor · W-9 / W-8BEN' },
   esign: { stage: 'review', source: 'DocuSign audit trail' },
+  estateWill: { stage: 'estate', source: "Client-provided · counsel's office" },
+  estatePlan: { stage: 'estate', source: 'Estate counsel · plan summary' },
+  estatePoa: { stage: 'estate', source: 'Client-provided · state-specific POA form' },
+  estateTrust: { stage: 'estate', source: 'Estate counsel · trust instrument + funding schedule' },
+  estateHealthcare: { stage: 'estate', source: 'Client-provided · healthcare directive / living will' },
+  estateDigitalAssets: { stage: 'estate', source: 'Digital asset inventory · firm template' },
+  estateLetterOfIntent: { stage: 'estate', source: 'Advisor-drafted · letter of intent / instruction' },
+  estateLifeInsurance: { stage: 'estate', source: 'Carrier portal · beneficiary audit' },
 }
 
 export function docProvenance(id: string): DocProvenance {
@@ -163,8 +182,13 @@ export function recordCompleteness(record: ClientOnboardingRecord) {
     return s
   }, 0)
   const pct = fields.length ? Math.round((score / fields.length) * 100) : 0
-  const docsFiled = record.documents.filter((d) => d.status === 'filed').length
-  const docsTotal = record.documents.length
+  // Estate/generational docs (will, trust, POA, etc.) track currency (current/
+  // stale/missing), not the onboarding filed/pending pipeline — keep them out
+  // of the compliance Document Pack completeness math so the pack % still
+  // means "onboarding paperwork filed," not "estate plan is current."
+  const compliancePackDocs = record.documents.filter((d) => d.category !== 'estate')
+  const docsFiled = compliancePackDocs.filter((d) => d.status === 'filed').length
+  const docsTotal = compliancePackDocs.length
   const gaps = record.sections.flatMap((s) =>
     s.fields
       .filter((f) => f.status === 'missing' || f.status === 'blocked' || f.status === 'partial')
@@ -193,6 +217,14 @@ const STANDARD_DOCS: Omit<ComplianceDocument, 'status' | 'filedOn' | 'notes' | '
   { id: 'ach', name: 'ACH money-movement authorization', category: 'movement' },
   { id: 'tax', name: 'Tax form (W-9 / W-8BEN)', category: 'tax' },
   { id: 'esign', name: 'E-sign audit trail', category: 'audit' },
+  { id: 'estateWill', name: 'Will', category: 'estate' },
+  { id: 'estatePlan', name: 'Estate plan', category: 'estate' },
+  { id: 'estatePoa', name: 'Power of attorney', category: 'estate' },
+  { id: 'estateTrust', name: 'Trust', category: 'estate' },
+  { id: 'estateHealthcare', name: 'Healthcare directive', category: 'estate' },
+  { id: 'estateDigitalAssets', name: 'Digital assets', category: 'estate' },
+  { id: 'estateLetterOfIntent', name: 'Letter of intent', category: 'estate' },
+  { id: 'estateLifeInsurance', name: 'Life insurance beneficiary audit', category: 'estate' },
 ]
 
 export const DOC_TYPE_LABEL: Record<ComplianceDocument['category'], string> = {
@@ -204,6 +236,7 @@ export const DOC_TYPE_LABEL: Record<ComplianceDocument['category'], string> = {
   movement: 'Money movement',
   tax: 'Tax',
   audit: 'E-sign',
+  estate: 'Estate',
 }
 
 /**
@@ -266,6 +299,9 @@ export function docStatusLabel(status: DocStatus) {
   if (status === 'pending') return 'In review'
   if (status === 'nigo') return 'NIGO'
   if (status === 'needs_signature') return 'Needs signature'
+  if (status === 'current') return 'Current'
+  if (status === 'stale') return 'Stale'
+  if (status === 'missing') return 'Missing'
   return 'Not started'
 }
 
@@ -592,7 +628,16 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
         billing: { value: '', status: 'missing' },
       },
     }),
-    documents: docs({}),
+    documents: docs({
+      estateWill: { status: 'missing' },
+      estatePlan: { status: 'missing' },
+      estatePoa: { status: 'missing' },
+      estateTrust: { status: 'missing' },
+      estateHealthcare: { status: 'missing' },
+      estateDigitalAssets: { status: 'missing' },
+      estateLetterOfIntent: { status: 'missing' },
+      estateLifeInsurance: { status: 'missing' },
+    }),
     monitor: {
       status: 'not_armed',
       decision: 'Still a prospect. Lifecycle Monitor stays off until funding.',
@@ -688,6 +733,14 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
       ach: { status: 'filed', filedOn: '2026-09-18', notes: 'Chase title matches Maya Chen.' },
       tax: { status: 'filed', filedOn: '2026-09-18' },
       esign: { status: 'filed', filedOn: '2026-09-18', notes: 'New account envelope signed. TOD addendum was not in it.' },
+      estateWill: { status: 'missing' },
+      estatePlan: { status: 'missing' },
+      estatePoa: { status: 'missing' },
+      estateTrust: { status: 'missing' },
+      estateHealthcare: { status: 'missing' },
+      estateDigitalAssets: { status: 'missing' },
+      estateLetterOfIntent: { status: 'missing' },
+      estateLifeInsurance: { status: 'missing' },
     }),
     monitor: {
       status: 'not_armed',
@@ -779,6 +832,14 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
       ach: { status: 'not_started' },
       tax: { status: 'filed', filedOn: '2026-09-20' },
       esign: { status: 'pending', notes: 'IAA complete; custodial packet not sent' },
+      estateWill: { status: 'stale', filedOn: '2019', notes: 'Pre-dates the trust restructure. Counsel has not confirmed it still matches the current plan.' },
+      estatePlan: { status: 'current', notes: 'With counsel' },
+      estatePoa: { status: 'current', filedOn: '2024' },
+      estateTrust: { status: 'current', filedOn: 'This week', notes: 'US beneficiary added this week. Contingent path still open.' },
+      estateHealthcare: { status: 'stale', filedOn: '2021' },
+      estateDigitalAssets: { status: 'missing' },
+      estateLetterOfIntent: { status: 'missing', notes: 'No letter of instruction for the granddaughter or adult children yet.' },
+      estateLifeInsurance: { status: 'stale', filedOn: '2019', notes: 'Beneficiary on the policy has not been checked against the new trust language.' },
     }),
     monitor: {
       status: 'not_armed',
@@ -865,6 +926,14 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
       ach: { status: 'filed', filedOn: '2025-10-30', notes: 'Bank title matches the registration.' },
       tax: { status: 'filed', filedOn: '2025-10-28' },
       esign: { status: 'filed', filedOn: '2025-10-30' },
+      estateWill: { status: 'stale', filedOn: '2018', notes: 'Pre-dates the trust funding. Due for a refresh with counsel.' },
+      estatePlan: { status: 'stale', filedOn: 'Before this RMD year', notes: 'Has not been revisited for the current RMD schedule.' },
+      estatePoa: { status: 'current', filedOn: '2023' },
+      estateTrust: { status: 'current', filedOn: '2022' },
+      estateHealthcare: { status: 'stale', filedOn: '2018' },
+      estateDigitalAssets: { status: 'missing' },
+      estateLetterOfIntent: { status: 'missing', notes: 'No letter of instruction for the daughter yet.' },
+      estateLifeInsurance: { status: 'current', filedOn: '2023' },
     }),
     monitor: {
       status: 'monitoring',
@@ -960,6 +1029,14 @@ export const onboardingByHousehold: Record<string, ClientOnboardingRecord> = {
       ach: { status: 'pending', notes: 'No money movement until the retitle is accepted.' },
       tax: { status: 'pending', notes: 'Estate EIN is on the draft W-9. Not a signature defect.' },
       esign: { status: 'pending' },
+      estateWill: { status: 'current', filedOn: 'On file', notes: "Decedent's will. Admitted to probate." },
+      estatePlan: { status: 'missing', notes: 'Letters testamentary stand in for a living estate plan on a decedent file.' },
+      estatePoa: { status: 'missing', notes: 'POA ends at death — not applicable to this estate file.' },
+      estateTrust: { status: 'missing' },
+      estateHealthcare: { status: 'missing', notes: 'Directive ends at death — not applicable to this estate file.' },
+      estateDigitalAssets: { status: 'missing' },
+      estateLetterOfIntent: { status: 'missing' },
+      estateLifeInsurance: { status: 'current', filedOn: 'August 2026' },
     }),
     monitor: {
       status: 'monitoring',

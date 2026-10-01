@@ -257,7 +257,7 @@ export function answerCoworker(question: string, ctx: CoworkerContext): Coworker
       return {
         text: `${household.name} handoff is ${compositeScore(handoff)}. ${handoff.risk}`,
         action: { type: 'open-client', householdId: household.id, tab: 'status' },
-        did: `Opened ${household.name}. Select Heirs for the handoff.`,
+        did: `Opened ${household.name}. Select Gen. Readiness for the handoff.`,
       }
     }
 
