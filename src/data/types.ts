@@ -77,7 +77,12 @@ export interface ExceptionItem {
   owner: 'advisor' | 'paraplanner' | 'cra' | 'compliance'
   /** Explicit advisor moves shown on the signal card */
   advisorActions: AdvisorAction[]
+  /** ISO date the agent first surfaced this signal — drives the "age" indicator in merged work queues */
+  opened: string
 }
+
+/** Who/what originated a work item — shown as a chip on merged work queues. */
+export type WorkSource = 'client' | 'advisor' | 'agent'
 
 export interface ParaplannerDeliverable {
   id: string

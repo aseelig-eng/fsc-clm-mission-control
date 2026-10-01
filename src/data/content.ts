@@ -38,6 +38,7 @@ export const exceptions: ExceptionItem[] = [
     agentContext: 'Funding Agent drafted client email + correct envelope.',
     stage: 'funding',
     owner: 'advisor',
+    opened: '2026-09-30',
     advisorActions: [
       {
         type: 'review_docs',
@@ -71,6 +72,7 @@ export const exceptions: ExceptionItem[] = [
     agentContext: 'KYC Agent pre-filled principal checklist with evidence links.',
     stage: 'kyc',
     owner: 'compliance',
+    opened: '2026-09-24',
     advisorActions: [
       {
         type: 'review_docs',
@@ -104,6 +106,7 @@ export const exceptions: ExceptionItem[] = [
     agentContext: 'Lifecycle Agent drafted agenda + specialist brief.',
     stage: 'annual_review',
     owner: 'advisor',
+    opened: '2026-09-21',
     advisorActions: [
       {
         type: 'review_docs',
@@ -132,6 +135,7 @@ export const exceptions: ExceptionItem[] = [
     agentContext: 'No goal, horizon, risk, or assets on the Person Account.',
     stage: 'prospect',
     owner: 'paraplanner',
+    opened: '2026-09-16',
     advisorActions: [
       {
         type: 'review_inputs',
@@ -160,6 +164,7 @@ export const exceptions: ExceptionItem[] = [
     agentContext: 'Change Agent mapped UBO graph + document checklist.',
     stage: 'life_event',
     owner: 'cra',
+    opened: '2026-09-25',
     advisorActions: [
       {
         type: 'review_inputs',

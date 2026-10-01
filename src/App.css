@@ -1380,6 +1380,16 @@ h4 {
   color: #8c4b02;
 }
 
+.badge.low {
+  background: var(--sf-gray-5);
+  color: var(--sf-gray-2);
+}
+
+.badge.blocked {
+  background: var(--sf-red-bg);
+  color: var(--sf-red);
+}
+
 /* Main column */
 .main-col {
   display: flex;
@@ -3476,76 +3486,159 @@ button.stage-card.selected {
   padding: 10px 14px;
 }
 
-.para-cases {
-  border: 1px solid var(--sf-blue);
-  border-radius: 10px;
-  background: var(--sf-blue-light);
-  padding: 12px 14px;
-  margin-bottom: 16px;
-}
-
-.para-cases-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.para-cases-head strong {
-  font-size: 13px;
-}
-
-.para-cases-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* Paraplanner Workbench — merged "Needs You" queue (cases, tasks, signals,
+   meeting follow-ups, and client-portal notices all in one strictly
+   prioritized, tiered board instead of separate same-content lists). */
+.work-tiers {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
+  padding: 12px;
 }
 
-.para-case-row {
+.work-tier {
+  border: 1px solid var(--sf-gray-5);
+  border-radius: 10px;
+  background: var(--sf-gray-6);
+  padding: 8px 10px 10px;
+}
+
+.work-tier-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: #fff;
-  border: 1px solid var(--sf-gray-5);
-  border-radius: 9px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 2px 4px 8px;
 }
 
-.para-case-body {
+.work-tier-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sf-gray-2);
+}
+
+.tier-critical .work-tier-label {
+  color: var(--sf-red);
+}
+
+.tier-high .work-tier-label {
+  color: #8c4b02;
+}
+
+.work-tier-count {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--sf-gray-5);
+  color: var(--sf-gray-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.work-tier-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.work-tier-more {
+  margin-top: 6px;
+}
+
+.work-item {
+  background: white;
+  border: 1px solid var(--sf-gray-5);
+  border-radius: 9px;
+}
+
+.work-item-row {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.work-item-row:hover,
+.work-item-row.expanded {
+  background: var(--sf-blue-light);
+}
+
+.work-item-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.work-item-title {
   flex: 1;
   min-width: 0;
-}
-
-.para-case-body strong {
   font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.para-case-body em {
-  font-style: normal;
-  font-size: 12px;
+.work-item-age {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sf-gray-3);
+  white-space: nowrap;
+}
+
+.work-item-caret {
+  flex: none;
+  font-size: 10px;
   color: var(--sf-gray-3);
 }
 
-.para-case-actions {
-  display: flex;
-  gap: 8px;
-  flex: none;
+.work-item-who {
+  font-size: 12px;
+  color: var(--sf-gray-3);
+  padding-left: 1px;
 }
 
-@media (max-width: 720px) {
-  .para-case-row {
-    flex-wrap: wrap;
-  }
-  .para-case-actions {
-    width: 100%;
-  }
+.work-item-detail {
+  padding: 0 10px 10px;
+  cursor: default;
+}
+
+.work-item-detail .signal-recommend {
+  margin-top: 0;
+}
+
+.source-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.source-client {
+  background: var(--sf-blue-light);
+  color: var(--sf-blue-dark);
+}
+
+.source-advisor {
+  background: var(--sf-gray-5);
+  color: var(--sf-gray-1);
+}
+
+.source-agent {
+  background: #f0e6fb;
+  color: #6b2fb3;
 }
 
 .para-table {

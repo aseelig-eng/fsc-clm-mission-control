@@ -12,6 +12,8 @@ export interface ServiceCase {
   origin: 'Phone' | 'Email' | 'Portal' | 'Website'
   type: string
   step?: AgenticStep
+  /** ISO date the client raised this — drives the "age" indicator in merged work queues */
+  opened: string
 }
 
 export interface WorkTask {
@@ -21,6 +23,8 @@ export interface WorkTask {
   status: TaskStatus
   priority: 'Low' | 'Normal' | 'High'
   due: string
+  /** ISO date the task was raised — drives the "age" indicator in merged work queues */
+  opened: string
 }
 
 export interface CollectItem {
@@ -198,6 +202,7 @@ export const serviceCases: ServiceCase[] = [
     priority: 'Medium',
     origin: 'Website',
     type: 'Account support',
+    opened: '2026-09-27',
   },
   {
     id: 'c-maya-tod',
@@ -207,6 +212,7 @@ export const serviceCases: ServiceCase[] = [
     priority: 'High',
     origin: 'Phone',
     type: 'Account support',
+    opened: '2026-09-21',
   },
   {
     id: 'c-maya-ben',
@@ -216,6 +222,7 @@ export const serviceCases: ServiceCase[] = [
     priority: 'Medium',
     origin: 'Portal',
     type: 'Account support',
+    opened: '2026-09-28',
   },
   {
     id: 'c-whit',
@@ -225,6 +232,7 @@ export const serviceCases: ServiceCase[] = [
     priority: 'High',
     origin: 'Phone',
     type: 'Account support',
+    opened: '2026-09-20',
   },
   {
     id: 'c-adams-realloc',
@@ -234,6 +242,7 @@ export const serviceCases: ServiceCase[] = [
     priority: 'High',
     origin: 'Phone',
     type: 'Account support',
+    opened: '2026-09-23',
   },
   {
     id: 'c-adams-ben',
@@ -243,6 +252,7 @@ export const serviceCases: ServiceCase[] = [
     priority: 'Medium',
     origin: 'Email',
     type: 'Account support',
+    opened: '2026-09-26',
   },
   {
     id: 'c-oko-retitle',
@@ -252,6 +262,7 @@ export const serviceCases: ServiceCase[] = [
     priority: 'High',
     origin: 'Phone',
     type: 'Account support',
+    opened: '2026-09-22',
   },
   {
     id: 'c-oko-ein',
@@ -261,24 +272,25 @@ export const serviceCases: ServiceCase[] = [
     priority: 'Medium',
     origin: 'Email',
     type: 'Information request',
+    opened: '2026-09-18',
   },
 ]
 
 export const workTasks: WorkTask[] = [
-  { id: 't-e1', householdId: 'h0', subject: 'Confirm Monday’s intro with Elena', status: 'Not Started', priority: 'High', due: '2026-09-28' },
-  { id: 't-e2', householdId: 'h0', subject: 'Capture a phone number, one goal, and whether assets will move', status: 'Not Started', priority: 'High', due: '2026-09-29' },
-  { id: 't-m1', householdId: 'h1', subject: 'Resolve the TOD case before the funding call', status: 'Not Started', priority: 'High', due: '2026-09-24' },
-  { id: 't-m2', householdId: 'h1', subject: 'Confirm the 3:30 funding call', status: 'Not Started', priority: 'Normal', due: '2026-09-24' },
-  { id: 't-m3', householdId: 'h1', subject: 'Gather the signed TOD addendum', status: 'In Progress', priority: 'High', due: '2026-09-24' },
-  { id: 't-w1', householdId: 'h2', subject: 'Principal approves EDD before Thursday', status: 'Not Started', priority: 'High', due: '2026-09-25' },
-  { id: 't-w2', householdId: 'h2', subject: 'Confirm the W-9 and FATCA list with the client', status: 'Not Started', priority: 'High', due: '2026-09-25' },
-  { id: 't-w3', householdId: 'h2', subject: 'Gather more trust pages only if the principal asks', status: 'On Hold', priority: 'Normal', due: '2026-09-26' },
-  { id: 't-a1', householdId: 'h3', subject: 'Prepare the retirement income projection', status: 'In Progress', priority: 'High', due: '2026-09-25' },
-  { id: 't-a2', householdId: 'h3', subject: 'Review open cases before the annual review', status: 'Not Started', priority: 'High', due: '2026-09-25' },
-  { id: 't-a3', householdId: 'h3', subject: 'Send the annual review reminder', status: 'Not Started', priority: 'Normal', due: '2026-09-25' },
-  { id: 't-o1', householdId: 'h4', subject: 'Confirm Tuesday’s intro with Amara', status: 'Not Started', priority: 'High', due: '2026-09-29' },
-  { id: 't-o2', householdId: 'h4', subject: 'Review the retitle packet before the meeting', status: 'Not Started', priority: 'High', due: '2026-09-29' },
-  { id: 't-o3', householdId: 'h4', subject: 'Collect the estate EIN and successor W-9', status: 'Not Started', priority: 'Normal', due: '2026-09-30' },
+  { id: 't-e1', householdId: 'h0', subject: 'Confirm Monday’s intro with Elena', status: 'Not Started', priority: 'High', due: '2026-09-28', opened: '2026-09-26' },
+  { id: 't-e2', householdId: 'h0', subject: 'Capture a phone number, one goal, and whether assets will move', status: 'Not Started', priority: 'High', due: '2026-09-29', opened: '2026-09-26' },
+  { id: 't-m1', householdId: 'h1', subject: 'Resolve the TOD case before the funding call', status: 'Not Started', priority: 'High', due: '2026-09-24', opened: '2026-09-21' },
+  { id: 't-m2', householdId: 'h1', subject: 'Confirm the 3:30 funding call', status: 'Not Started', priority: 'Normal', due: '2026-09-24', opened: '2026-09-22' },
+  { id: 't-m3', householdId: 'h1', subject: 'Gather the signed TOD addendum', status: 'In Progress', priority: 'High', due: '2026-09-24', opened: '2026-09-21' },
+  { id: 't-w1', householdId: 'h2', subject: 'Principal approves EDD before Thursday', status: 'Not Started', priority: 'High', due: '2026-09-25', opened: '2026-09-22' },
+  { id: 't-w2', householdId: 'h2', subject: 'Confirm the W-9 and FATCA list with the client', status: 'Not Started', priority: 'High', due: '2026-09-25', opened: '2026-09-22' },
+  { id: 't-w3', householdId: 'h2', subject: 'Gather more trust pages only if the principal asks', status: 'On Hold', priority: 'Normal', due: '2026-09-26', opened: '2026-09-23' },
+  { id: 't-a1', householdId: 'h3', subject: 'Prepare the retirement income projection', status: 'In Progress', priority: 'High', due: '2026-09-25', opened: '2026-09-20' },
+  { id: 't-a2', householdId: 'h3', subject: 'Review open cases before the annual review', status: 'Not Started', priority: 'High', due: '2026-09-25', opened: '2026-09-20' },
+  { id: 't-a3', householdId: 'h3', subject: 'Send the annual review reminder', status: 'Not Started', priority: 'Normal', due: '2026-09-25', opened: '2026-09-23' },
+  { id: 't-o1', householdId: 'h4', subject: 'Confirm Tuesday’s intro with Amara', status: 'Not Started', priority: 'High', due: '2026-09-29', opened: '2026-09-26' },
+  { id: 't-o2', householdId: 'h4', subject: 'Review the retitle packet before the meeting', status: 'Not Started', priority: 'High', due: '2026-09-29', opened: '2026-09-26' },
+  { id: 't-o3', householdId: 'h4', subject: 'Collect the estate EIN and successor W-9', status: 'Not Started', priority: 'Normal', due: '2026-09-30', opened: '2026-09-27' },
 ]
 
 export const collectItems: CollectItem[] = [
