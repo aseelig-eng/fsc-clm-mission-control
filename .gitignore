@@ -64,3 +64,6 @@ dist-ssr
 /book-needs-you.png
 /investor-portals.png
 .ghp-deploy/
+
+# Local agent artifacts (screenshots, notes)
+.agents/

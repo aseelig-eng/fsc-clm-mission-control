@@ -348,6 +348,25 @@ function priorityRank(priority: string) {
 
 const PRIORITY_TIER_LABELS = ['Critical', 'High', 'Medium', 'Low']
 
+// Group urgency-sorted work items into Critical / High / Medium / Low tiers
+// (empty tiers dropped). Input order is preserved within a tier, so callers
+// control the in-tier ordering (due date, then oldest-raised first).
+function groupIntoTiers<T extends { priority: string }>(items: T[]) {
+  const tiers: { label: string; items: T[] }[] = PRIORITY_TIER_LABELS.map((label) => ({ label, items: [] }))
+  items.forEach((item) => tiers[priorityRank(item.priority)].items.push(item))
+  return tiers.filter((tier) => tier.items.length > 0)
+}
+
+type WorkKind = 'case' | 'task' | 'signal' | 'meeting' | 'notice'
+
+const WORK_KIND_LABELS: Record<WorkKind, string> = {
+  signal: 'Signal',
+  case: 'Case',
+  task: 'Task',
+  notice: 'Portal',
+  meeting: 'Meeting',
+}
+
 // Milliseconds since an item's `opened` ISO date/datetime — the single source
 // of truth for the "age" indicator on merged work queues. Empty/invalid dates
 // read as 0 (treated as "just raised") rather than throwing.
@@ -464,8 +483,9 @@ function NeedsYouCard({
   )
 }
 
-// Compact, collapsible row used only in the Paraplanner Workbench's merged
-// work queue. Unlike NeedsYouCard (used in the Book / household boards),
+// Compact, collapsible row used in the merged, tiered work queues (Book's
+// Needs You board and the Paraplanner Workbench). Unlike NeedsYouCard (used in
+// the per-household Work queue),
 // this keeps every item to a single glanceable line by default — the
 // "Recommended" context and secondary actions only expand on click — so a
 // book-wide queue of cases + tasks + signals + notices never turns into a
@@ -567,8 +587,8 @@ function WorkItemCard({
   )
 }
 
-// One priority tier (Critical / High / Medium / Low) of the Paraplanner's
-// merged work queue. Caps visible rows so a heavy book doesn't force a long
+// One priority tier (Critical / High / Medium / Low) of a merged work queue
+// (Book's Needs You board or the Paraplanner's). Caps visible rows so a heavy book doesn't force a long
 // scroll — the paraplanner can expand a tier to see everything in it.
 function PriorityTierSection({
   label,
@@ -740,7 +760,7 @@ export default function App() {
   const prioritizedTasks = useMemo(() => {
     type Prioritized = {
       id: string
-      kind: 'case' | 'task' | 'signal' | 'meeting' | 'notice'
+      kind: WorkKind
       householdId: string
       priority: string
       title: string
@@ -1122,16 +1142,33 @@ export default function App() {
   // urgent tier first), and within a tier, oldest-raised item first — so two
   // "high" items don't sit in arbitrary order. Grouping (rather than one long
   // flat list) is also what keeps the board from becoming a long scroll.
-  const paraWorkTiers = useMemo(() => {
-    const tiers: { label: string; items: typeof paraWorkQueue }[] = PRIORITY_TIER_LABELS.map((label) => ({
-      label,
-      items: [],
-    }))
-    paraWorkQueue.forEach((task) => {
-      tiers[priorityRank(task.priority)].items.push(task)
-    })
-    return tiers.filter((tier) => tier.items.length > 0)
-  }, [paraWorkQueue])
+  const paraWorkTiers = useMemo(() => groupIntoTiers(paraWorkQueue), [paraWorkQueue])
+  // The Advisor's Book "Needs You" board gets the same strict, tiered
+  // treatment across every client in the book (no advisor filter here).
+  const bookWorkTiers = useMemo(() => groupIntoTiers(prioritizedTasks), [prioritizedTasks])
+  // Shape a merged-queue item for PriorityTierSection / WorkItemCard — shared by
+  // the Book board and the Paraplanner queue so both render identically.
+  // `runItemActions` lets the Paraplanner queue run item-specific handlers
+  // (e.g. hand a case back to the advisor); the Book board just confirms.
+  const toWorkCardItem = (task: (typeof prioritizedTasks)[number], runItemActions: boolean) => ({
+    id: task.id,
+    source: task.source,
+    queueType: WORK_KIND_LABELS[task.kind],
+    priority: task.priority,
+    title: task.title,
+    who: `${task.who}${task.due ? ` · due ${task.due}` : ''}`,
+    age: ageLabel(task.opened),
+    recommended: task.recommended,
+    actions: task.actions,
+    onOpen: task.onOpen,
+    onAct: (a: AdvisorAction) => {
+      if (runItemActions && task.onAct) {
+        task.onAct(a)
+        return
+      }
+      flash(`${actionTypeLabel(a.type)}: ${a.label}`)
+    },
+  })
   function toggleAdvisorFilter(id: string) {
     setAdvisorFilter((prev) => {
       const next = new Set(prev)
@@ -2126,40 +2163,18 @@ export default function App() {
                 <aside className="panel book-tasks">
                   <div className="panel-header">
                     <span>Needs You</span>
-                    <span className="muted">{prioritizedTasks.length} to do</span>
+                    <span className="muted">{prioritizedTasks.length} to do · strictly prioritized</span>
                   </div>
-                  <ul className="exception-list needs-you-board">
-                    {prioritizedTasks.map((task) => (
-                      <NeedsYouCard
-                        key={task.id}
-                        selected={false}
-                        queueType={
-                          task.kind === 'signal'
-                            ? 'Signal'
-                            : task.kind === 'case'
-                              ? 'Case'
-                              : task.kind === 'task'
-                                ? 'Task'
-                                : task.kind === 'notice'
-                                  ? 'Portal'
-                                  : 'Meeting'
-                        }
-                        priority={task.priority}
-                        title={task.title}
-                        meta={`${task.who}${task.due ? ` · due ${task.due}` : ''}`}
-                        recommended={task.recommended}
-                        actions={task.actions}
-                        onOpen={task.onOpen}
-                        onAct={(a) => {
-                          task.onOpen()
-                          flash(`${actionTypeLabel(a.type)}: ${a.label}`)
-                        }}
+                  <div className="panel-body work-tiers">
+                    {bookWorkTiers.map((tier) => (
+                      <PriorityTierSection
+                        key={tier.label}
+                        label={tier.label}
+                        items={tier.items.map((task) => toWorkCardItem(task, false))}
                       />
                     ))}
-                    {prioritizedTasks.length === 0 && (
-                      <li className="panel-body muted">All clear — nothing needs you right now.</li>
-                    )}
-                  </ul>
+                    {prioritizedTasks.length === 0 && <p className="muted">All clear — nothing needs you right now.</p>}
+                  </div>
                 </aside>
               </div>
             </>
@@ -2743,27 +2758,6 @@ export default function App() {
                     })}
                   </div>
                 </div>
-                <div className="para-quick-create">
-                  <span className="muted">Draft with agent:</span>
-                  {(['IPS', 'Proposal', 'Annual Review', 'Estate Memo'] as const).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      className="btn ghost sm"
-                      onClick={() =>
-                        flash(
-                          `Agent is drafting a new ${t}${
-                            advisorFilter.size === 1
-                              ? ` for ${advisorName([...advisorFilter][0])}’s book`
-                              : ''
-                          } — citations pulled from the fact-find.`,
-                        )
-                      }
-                    >
-                      + {t}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div className="panel book-tasks para-needs-you">
@@ -2778,34 +2772,7 @@ export default function App() {
                     <PriorityTierSection
                       key={tier.label}
                       label={tier.label}
-                      items={tier.items.map((task) => ({
-                        id: task.id,
-                        source: task.source,
-                        queueType:
-                          task.kind === 'signal'
-                            ? 'Signal'
-                            : task.kind === 'case'
-                              ? 'Case'
-                              : task.kind === 'task'
-                                ? 'Task'
-                                : task.kind === 'notice'
-                                  ? 'Portal'
-                                  : 'Meeting',
-                        priority: task.priority,
-                        title: task.title,
-                        who: `${task.who}${task.due ? ` · due ${task.due}` : ''}`,
-                        age: ageLabel(task.opened),
-                        recommended: task.recommended,
-                        actions: task.actions,
-                        onOpen: task.onOpen,
-                        onAct: (a) => {
-                          if (task.onAct) {
-                            task.onAct(a)
-                            return
-                          }
-                          flash(`${actionTypeLabel(a.type)}: ${a.label}`)
-                        },
-                      }))}
+                      items={tier.items.map((task) => toWorkCardItem(task, true))}
                     />
                   ))}
                   {paraWorkQueue.length === 0 && <p className="muted">All clear — nothing needs you right now.</p>}

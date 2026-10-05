@@ -3436,13 +3436,6 @@ button.stage-card.selected {
   white-space: nowrap;
 }
 
-.para-quick-create {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
 .para-row-actions {
   white-space: nowrap;
   text-align: right;
