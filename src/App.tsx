@@ -67,7 +67,7 @@ import {
 import { AccountBook } from './components/AccountBook'
 import { CoworkerPanel } from './components/CoworkerPanel'
 import type { CoworkerAction } from './coworker'
-import { initialAccounts, usd, type ClientNotice, type FinancialAccount } from './data/accounts'
+import { accountBalance, initialAccounts, usd, type ClientNotice, type FinancialAccount } from './data/accounts'
 import { nextConversation } from './data/nextTalk'
 import {
   householdProgress,
@@ -77,6 +77,12 @@ import {
 } from './data/progress'
 import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, LifecycleStageId, Role, WorkSource } from './data/types'
 import { useEngagement } from './useEngagement'
+import { useTransactions } from './useTransactions'
+import { TradingPanel, BookTradingPanel, modelName } from './components/TradingPanels'
+import { ModelMarketplace, DistributionPanel } from './components/PlatformPanels'
+import { BillingPanel } from './components/BillingPanels'
+import { driftRows, needsRebalance } from './data/trading'
+import { isOverdue } from './data/billing'
 import { MessageCenter } from './components/MessageCenter'
 import { SecurityCenter } from './components/SecurityCenter'
 import { PlanningSuite } from './components/PlanningSuite'
@@ -365,7 +371,7 @@ function groupIntoTiers<T extends { priority: string }>(items: T[]) {
   return tiers.filter((tier) => tier.items.length > 0)
 }
 
-type WorkKind = 'case' | 'task' | 'signal' | 'meeting' | 'notice' | 'message'
+type WorkKind = 'case' | 'task' | 'signal' | 'meeting' | 'notice' | 'message' | 'trade'
 
 const WORK_KIND_LABELS: Record<WorkKind, string> = {
   signal: 'Signal',
@@ -374,6 +380,7 @@ const WORK_KIND_LABELS: Record<WorkKind, string> = {
   task: 'Task',
   notice: 'Portal',
   meeting: 'Meeting',
+  trade: 'Trade',
 }
 
 // Milliseconds since an item's `opened` ISO date/datetime — the single source
@@ -747,6 +754,7 @@ export default function App() {
         }
       }),
   })
+  const tx = useTransactions({ accounts, setAccounts, portfolios, households, flash })
   // Agent reply drafts are grounded in the household file: first name, open cases, open transfer/estate/Roth work.
   const draftContextFor = (householdId: string) => {
     const first = (engagement.profiles[householdId]?.primaryName ?? householdName(householdId)).split(' ')[0]
@@ -969,13 +977,53 @@ export default function App() {
         },
         onAct: (action: AdvisorAction) => engagement.resolveAlert(alert.id, action.type === 'escalate' ? 'held' : 'released'),
       }))
-    return [...fromAlerts, ...fromMessages, ...fromCases, ...fromTasks, ...fromExceptions, ...fromMeetings, ...fromNotices].sort(
+    const fromTickets: Prioritized[] = tx.tickets
+      .filter((ticket) => ticket.status === 'proposed')
+      .map((ticket) => ({
+        id: `pt-trade-${ticket.id}`,
+        kind: 'trade',
+        householdId: ticket.householdId,
+        priority: ticket.warnings.length > 0 ? 'high' : 'medium',
+        title: `Approve rebalance · ${ticket.orders.length} orders`,
+        who: `${householdName(ticket.householdId)} · ${ticket.reason} · est. tax ${usd(ticket.netTax)}`,
+        recommended: ticket.warnings.length > 0 ? 'Review the wash-sale warning before approving.' : 'Review the order preview and approve to send to the custodian.',
+        due: '',
+        opened: ticket.createdAt,
+        source: 'agent',
+        actions: [{ type: 'approve_send', label: 'Review ticket', detail: 'Opens Accounts with the order preview, tax impact and compliance checks.' }] as AdvisorAction[],
+        onOpen: () => {
+          selectHousehold(ticket.householdId)
+          setCockpitView('record')
+          setRecordTab('accounts')
+        },
+      }))
+    const fromBilling: Prioritized[] = tx.invoices
+      .filter((invoice) => isOverdue(invoice))
+      .map((invoice) => ({
+        id: `pt-inv-${invoice.id}`,
+        kind: 'task',
+        householdId: invoice.householdId,
+        priority: 'medium',
+        title: `Overdue invoice · ${usd(invoice.amount)}`,
+        who: `${householdName(invoice.householdId)} · ${invoice.basis} · due ${invoice.due}`,
+        recommended: 'Send a reminder or call the client about the unpaid invoice.',
+        due: invoice.due ?? '',
+        opened: invoice.due ?? '',
+        source: 'advisor',
+        actions: [{ type: 'call_client', label: 'Follow up on payment', detail: 'Opens Billing on the Accounts tab.' }] as AdvisorAction[],
+        onOpen: () => {
+          selectHousehold(invoice.householdId)
+          setCockpitView('record')
+          setRecordTab('accounts')
+        },
+      }))
+    return [...fromAlerts, ...fromTickets, ...fromBilling, ...fromMessages, ...fromCases, ...fromTasks, ...fromExceptions, ...fromMeetings, ...fromNotices].sort(
       (a, b) =>
         priorityRank(a.priority) - priorityRank(b.priority) ||
         (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99') ||
         ageMs(b.opened) - ageMs(a.opened),
     )
-  }, [households, openExceptions, meetingList, deskCases, deskTasks, pendingNotices, engagement.threads, engagement.securityAlerts])
+  }, [households, openExceptions, meetingList, deskCases, deskTasks, pendingNotices, engagement.threads, engagement.securityAlerts, tx.tickets, tx.invoices])
   const clientMatches = useMemo(() => {
     const query = clientQuery.trim().toLowerCase()
     const ranked = households
@@ -2189,6 +2237,28 @@ export default function App() {
             <>
               <BookPulse households={households} exceptions={openExceptions} onOpenHousehold={selectHousehold} />
 
+              <BookTradingPanel
+                rows={households.map((h) => {
+                  const rows = driftRows(accounts.filter((a) => a.householdId === h.id), tx.targetFor)
+                  const tradable = rows.filter((r) => r.tradable)
+                  return {
+                    householdId: h.id,
+                    name: h.name,
+                    tradable: tradable.length,
+                    drifted: rows.filter(needsRebalance).length,
+                    maxDrift: Math.max(0, ...tradable.map((r) => Math.abs(r.drift))),
+                    ticket: tx.tickets.find((t) => t.householdId === h.id && t.status !== 'rejected'),
+                  }
+                })}
+                onPropose={(id) => tx.proposeRebalance(id)}
+                onProposeAll={tx.proposeBook}
+                onOpen={(id) => {
+                  selectHousehold(id)
+                  setCockpitView('record')
+                  setRecordTab('accounts')
+                }}
+              />
+
               <div className="book-agenda">
                 <aside className="panel book-meetings">
                   <div className="panel-header">
@@ -2449,6 +2519,44 @@ export default function App() {
                 </div>
               </div>
               )}
+              {recordTab === 'accounts' && (
+              <div className="panel">
+                <div className="panel-header">
+                  <span>Trading</span>
+                  <span className="muted">Drift, order preview and approval</span>
+                </div>
+                <div className="panel-body">
+                  <TradingPanel
+                    accounts={accounts.filter((account) => account.householdId === household.id)}
+                    tickets={tx.tickets.filter((t) => t.householdId === household.id)}
+                    targetFor={tx.targetFor}
+                    programModel={(id) => (tx.programs[id] ? modelName(tx.programs[id].modelId) : undefined)}
+                    onPropose={() => tx.proposeRebalance(household.id, 'Drift outside tolerance')}
+                    onApprove={tx.approveTicket}
+                    onReject={tx.rejectTicket}
+                  />
+                </div>
+              </div>
+              )}
+              {recordTab === 'accounts' && (
+              <div className="panel">
+                <div className="panel-header">
+                  <span>Billing</span>
+                  <span className="muted">AUM, planning fee, subscription, hourly</span>
+                </div>
+                <div className="panel-body">
+                  <BillingPanel
+                    aum={accounts.filter((a) => a.householdId === household.id && a.custody === 'managed').reduce((sum, a) => sum + accountBalance(a), 0)}
+                    agreements={tx.agreements.filter((a) => a.householdId === household.id)}
+                    invoices={tx.invoices.filter((i) => i.householdId === household.id)}
+                    onCreate={(type, amount) => tx.createAgreement(household.id, type, amount)}
+                    onHours={tx.logHours}
+                    onGenerate={() => tx.generateInvoices(household.id)}
+                    onSend={tx.sendInvoice}
+                  />
+                </div>
+              </div>
+              )}
               {recordTab === 'planning' && engagement.profiles[household.id] && (
               <PlanningSuite
                 key={`${household.id}-suite`}
@@ -2458,6 +2566,36 @@ export default function App() {
                 onProfile={(patch) => engagement.updateProfile(household.id, patch)}
                 onReferral={(line) => engagement.refer(household.id, line)}
                 onNote={flash}
+                extraTabs={[
+                  {
+                    id: 'models',
+                    label: 'Model marketplace',
+                    content: (
+                      <ModelMarketplace
+                        accounts={accounts.filter((a) => a.householdId === household.id)}
+                        risk={plans[household.id]?.riskTolerance ?? ''}
+                        programs={tx.programs}
+                        onAssign={tx.assignModel}
+                        onRemove={tx.removeModel}
+                      />
+                    ),
+                  },
+                  {
+                    id: 'distribution',
+                    label: 'Distribution',
+                    content: (
+                      <DistributionPanel
+                        profile={engagement.profiles[household.id]}
+                        portfolio={portfolios[household.id]}
+                        accounts={accounts.filter((a) => a.householdId === household.id)}
+                        onTask={(subject) => {
+                          setDeskTasks((prev) => [{ id: `t-dist-${Date.now()}`, householdId: household.id, subject, status: 'Not Started', priority: 'Normal', due: '2026-11-15', opened: new Date().toISOString().slice(0, 10) }, ...prev])
+                          flash('Roth conversion plan added to the work queue.')
+                        }}
+                      />
+                    ),
+                  },
+                ]}
                 adviceDesk={
                   <AdviceDesk
                     key={`${household.id}-record`}
@@ -3364,6 +3502,7 @@ export default function App() {
           portfolios={portfolios}
           records={records}
           accounts={accounts}
+          transactions={tx}
           coworker={{
             households,
             exceptions: openExceptions,

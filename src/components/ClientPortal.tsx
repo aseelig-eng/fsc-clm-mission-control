@@ -1,3 +1,5 @@
+import { PortalFees } from './BillingPanels'
+import type { useTransactions } from '../useTransactions'
 import { useEffect, useState } from 'react'
 import { personsForHousehold } from '../data/portraits'
 import type { Household } from '../data/types'
@@ -39,7 +41,7 @@ import { PerformancePanel } from './PerformancePanel'
 import { assessMoveRisk, oneTimeCode } from '../data/security'
 import type { useEngagement } from '../useEngagement'
 
-type PortalView = 'home' | 'plan' | 'portfolio' | 'messages' | 'security' | 'request' | 'vault' | 'facts' | 'ask'
+type PortalView = 'home' | 'plan' | 'portfolio' | 'messages' | 'security' | 'request' | 'vault' | 'facts' | 'ask' | 'fees'
 type RangeId = '1D' | '1W' | '1M' | '1Y' | 'All'
 type ActivityFilter = 'all' | 'transfer' | 'trade' | 'income'
 
@@ -238,6 +240,7 @@ export function ClientPortal({
   onServiceRequest,
   serviceRequests,
   engagement,
+  transactions,
 }: {
   households: Household[]
   householdId: string
@@ -255,6 +258,7 @@ export function ClientPortal({
   onServiceRequest: (householdId: string, kind: string, detail: string, actionLabel: string) => void
   serviceRequests: ServiceCase[]
   engagement: ReturnType<typeof useEngagement>
+  transactions: ReturnType<typeof useTransactions>
 }) {
   const household = households.find((item) => item.id === householdId) ?? households[0]
   const plan = plans[household.id]
@@ -285,6 +289,9 @@ export function ClientPortal({
   const [stepUp, setStepUp] = useState<{ amount: number; accountId: string; reasons: string[]; callback: boolean } | null>(null)
   const [stepCode, setStepCode] = useState('')
   const [stepError, setStepError] = useState('')
+  const feeTodo =
+    transactions.agreements.filter((a) => a.householdId === household.id && a.status === 'awaiting_signature').length +
+    transactions.invoices.filter((i) => i.householdId === household.id && i.status === 'sent').length
   const securityProfile = engagement.security[household.id]
   const clientThreads = engagement.threads.filter((thread) => thread.householdId === household.id)
   const unreadMessages = clientThreads.filter((thread) => !thread.clientRead).length
@@ -566,6 +573,7 @@ export function ClientPortal({
               ['portfolio', 'Portfolio Overview'],
               ['messages', 'Messages'],
               ['security', 'Security'],
+              ['fees', 'Fees'],
               ['request', 'Service'],
               ['vault', 'Documents'],
               ['facts', 'Profile'],
@@ -576,6 +584,7 @@ export function ClientPortal({
               {label}
               {id === 'facts' && clientGaps.length > 0 ? ` (${clientGaps.length})` : ''}
               {id === 'vault' && toSign > 0 ? ` (${toSign})` : ''}
+              {id === 'fees' && feeTodo > 0 ? ` (${feeTodo})` : ''}
               {id === 'messages' && unreadMessages > 0 ? ` (${unreadMessages})` : ''}
               {id === 'request' && serviceRequests.some((item) => item.status !== 'Closed')
                 ? ` (${serviceRequests.filter((item) => item.status !== 'Closed').length})`
@@ -956,6 +965,20 @@ export function ClientPortal({
                 onSend={(threadId, body, meta) => engagement.sendMessage(threadId, body, 'client', meta)}
                 onRead={(threadId) => engagement.markRead(threadId, 'client')}
                 onNewThread={(subject, body, channel) => engagement.newClientThread(household.id, subject, body, channel)}
+              />
+            </div>
+          )}
+          {view === 'fees' && (
+            <div className="portal-home">
+              <div className="portal-section-head">
+                <h3>Fees &amp; billing</h3>
+                <p className="muted">Your agreements and invoices, in one place.</p>
+              </div>
+              <PortalFees
+                agreements={transactions.agreements.filter((a) => a.householdId === household.id)}
+                invoices={transactions.invoices.filter((i) => i.householdId === household.id)}
+                onSign={transactions.signAgreement}
+                onPay={transactions.payInvoice}
               />
             </div>
           )}

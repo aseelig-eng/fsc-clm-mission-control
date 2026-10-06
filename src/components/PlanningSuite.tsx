@@ -12,7 +12,7 @@ import {
 } from '../data/financialProfile'
 import { CashFlowChart, FanChart } from './PlanningCharts'
 
-type SuiteTab = 'advice' | 'cashflow' | 'probability' | 'protection'
+type SuiteTab = string
 
 /**
  * Record → Planning. Wraps the existing Advice Desk and adds cash-flow
@@ -28,6 +28,7 @@ export function PlanningSuite({
   onProfile,
   onReferral,
   onNote,
+  extraTabs = [],
 }: {
   profile: FinancialProfile
   portfolio: PortfolioState
@@ -36,6 +37,7 @@ export function PlanningSuite({
   onProfile: (patch: Partial<FinancialProfile>) => void
   onReferral: (line: ProtectionLine) => void
   onNote: (message: string) => void
+  extraTabs?: { id: string; label: string; content: ReactNode }[]
 }) {
   const [tab, setTab] = useState<SuiteTab>('advice')
   return (
@@ -48,7 +50,9 @@ export function PlanningSuite({
             ['probability', 'Probability of success'],
             ['protection', 'Protection'],
           ] as const
-        ).map(([id, label]) => (
+        )
+          .concat(extraTabs.map((t) => [t.id, t.label] as never))
+          .map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
             {label}
           </button>
@@ -57,6 +61,7 @@ export function PlanningSuite({
       {tab === 'advice' && adviceDesk}
       {tab === 'cashflow' && <CashFlowPanel profile={profile} portfolio={portfolio} onProfile={onProfile} />}
       {tab === 'probability' && <ProbabilityPanel profile={profile} portfolio={portfolio} onProfile={onProfile} onNote={onNote} />}
+      {extraTabs.find((t) => t.id === tab)?.content}
       {tab === 'protection' && <ProtectionPanel profile={profile} referred={referred} onReferral={onReferral} />}
     </div>
   )
