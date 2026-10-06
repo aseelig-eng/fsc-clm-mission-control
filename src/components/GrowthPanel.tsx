@@ -36,7 +36,7 @@ export function GrowthPanel({
   onCreateCampaign,
   onEdit,
   onSubmit,
-  onDecide,
+  onOpenCompliance,
   onSend,
   onOpportunity,
   onNudge,
@@ -53,7 +53,7 @@ export function GrowthPanel({
   onCreateCampaign: (contentId: string, segment: Segment) => void
   onEdit: (id: string, body: string) => void
   onSubmit: (id: string) => void
-  onDecide: (id: string, approve: boolean, note?: string) => void
+  onOpenCompliance: () => void
   onSend: (id: string) => void
   onOpportunity: (opportunity: Opportunity) => void
   onNudge: (nudge: Nudge) => void
@@ -219,12 +219,9 @@ export function GrowthPanel({
                     )}
                     {c.status === 'pending_compliance' && (
                       <>
-                        <span className="muted">Simulated principal review (Compliance persona arrives in Phase 4)</span>
-                        <button type="button" className="btn sm" onClick={() => onDecide(c.id, false, c.flags.length ? `Remove: ${c.flags.join('; ')}` : 'Please tighten the wording.')}>
-                          Return
-                        </button>
-                        <button type="button" className="btn primary sm" disabled={c.flags.length > 0} title={c.flags.length ? 'Fix the flagged wording first' : ''} onClick={() => onDecide(c.id, true)}>
-                          Approve
+                        <span className="muted">Waiting on Compliance</span>
+                        <button type="button" className="btn sm" onClick={onOpenCompliance}>
+                          Open Compliance view
                         </button>
                       </>
                     )}

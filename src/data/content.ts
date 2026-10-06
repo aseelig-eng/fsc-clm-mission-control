@@ -711,6 +711,11 @@ export const personaValues: PersonaValue[] = [
       'Meeting Concierge runs pre/post agentic actions (prep brief, notetaker, tasks, writeback); held / actions / next touch stay attached to the household rail',
       'One-click recommended review: agent work, checklist, and CTAs — no swivel-chair hunting',
       'Hours return to client conversations, next-gen cultivation, and practice growth',
+      'Secure messaging with agent-drafted replies, identity-protection callbacks, and cash-flow, Monte Carlo and protection analysis on one household profile',
+      'Rebalance tickets with tax impact, wash-sale and restricted-list checks, model marketplace and tax-efficient distribution planning',
+      'Fee-for-service billing (planning, subscription, hourly) next to the AUM fee, with client e-sign and pay in the portal',
+      'Growth hub: scored lead pipeline, compliant campaigns, book-wide opportunities and predictive nudges in the same queue',
+      'Help desk, ensemble collaboration and tool certifications inside the cockpit',
     ],
     metrics: [
       { label: 'Admin hours / week', before: '10–14 hrs', after: '3–5 hrs' },
@@ -808,6 +813,7 @@ export const personaValues: PersonaValue[] = [
       'One “Needs You” queue per advisor (portal requests + signals + meetings) with recommended actions — scalable judgment, not more tickets',
       'Transition Agent protects AUM during recruiter moves; Estate path protects successor relationships',
       'Standardized CLM stages without killing advisor judgment',
+      'Compliance persona: one supervision queue for marketing (FINRA 2210), trade review, flagged communications and exceptions, with an exportable audit trail',
     ],
     metrics: [
       { label: 'Advisor capacity (clients)', before: 'Constrained', after: '+15–25%' },
@@ -815,6 +821,30 @@ export const personaValues: PersonaValue[] = [
       { label: 'Estate / heir AUM retained', before: '~50–70%', after: '~91%' },
       { label: 'Exam evidence pull', before: 'Days', after: 'Minutes' },
       { label: 'Likeness maturity ≥ Clear', before: 'Unknown / tribal', after: 'Measured per Person Account' },
+    ],
+  },
+  {
+    persona: 'Branch / OSJ Manager',
+    tagline: 'Run the practice, not the paperwork: capacity, pay, recruits and development in one view.',
+    pains: [
+      'No single view of branch AUM, revenue and capacity across ensembles',
+      'Service-model adherence and profitability tracked in spreadsheets',
+      'Monthly compensation statements assembled by hand',
+      'Recruit transitions managed in email',
+      'Training and CE gaps found at exam time',
+    ],
+    valueProps: [
+      'Firm → branch → ensemble → advisor rollups with ensemble revenue splits',
+      'A/B/C segmentation, service-model adherence and household profitability',
+      'Payout grid and fee-based compensation statements (advisory, planning, subscription, hourly; no product commissions)',
+      'Recruit pipeline with a Transition Agent plan and expected transition AUM',
+      'Learning plans, CE tracking and tool-certification prerequisites that gate trading and TAMP use',
+      'Home-office help desk: knowledge base first, tickets only for what is left',
+    ],
+    metrics: [
+      { label: 'Compensation statement prep', before: 'Days each month', after: 'Instant' },
+      { label: 'Questions needing a ticket', before: '100%', after: 'Only unanswered by the KB' },
+      { label: 'Recruit transition planning', before: 'Ad hoc', after: 'Plan on stage entry' },
     ],
   },
   {

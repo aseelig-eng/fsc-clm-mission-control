@@ -84,6 +84,11 @@ import { BillingPanel } from './components/BillingPanels'
 import { driftRows, needsRebalance } from './data/trading'
 import { isOverdue } from './data/billing'
 import { useGrowth } from './useGrowth'
+import { useFirm } from './useFirm'
+import { CompliancePersona } from './components/CompliancePersona'
+import { BranchPersona } from './components/BranchPersona'
+import { HelpDesk, PeerPanel, MyLearning } from './components/AdvisorBusiness'
+import { CURRENT_ADVISOR } from './data/firm'
 import { GrowthPanel } from './components/GrowthPanel'
 import { buildSegments, findOpportunities, predictNudges, type Opportunity, type Nudge } from './data/growth'
 import { MessageCenter } from './components/MessageCenter'
@@ -669,7 +674,8 @@ export default function App() {
   const [cockpitView, setCockpitView] = useState<'status' | 'work' | 'record'>('status')
   const [recordTab, setRecordTab] = useState<'accounts' | 'planning' | 'data' | 'documents'>('accounts')
   const [showingBook, setShowingBook] = useState(true)
-  const [bookTab, setBookTab] = useState<'overview' | 'growth'>('overview')
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [bookTab, setBookTab] = useState<'overview' | 'growth' | 'collab' | 'learning'>('overview')
   const [households, setHouseholds] = useState<Household[]>(() => structuredClone(initialHouseholds))
   const [selectedHhId, setSelectedHhId] = useState(initialHouseholds[0].id)
   const [openTabs, setOpenTabs] = useState<string[]>([])
@@ -764,6 +770,21 @@ export default function App() {
     addTask: (householdId, subject) =>
       setDeskTasks((prev) => [{ id: `t-lead-${Date.now()}`, householdId, subject, status: 'Not Started', priority: 'High', due: '2026-10-20', opened: new Date().toISOString().slice(0, 10) }, ...prev]),
   })
+  const firm = useFirm(flash)
+  const hasTool = (courseId: string) => firm.hasCourse(CURRENT_ADVISOR, courseId)
+  const firmFacts = useMemo(
+    () =>
+      households.map((h) => {
+        const mine = accounts.filter((a) => a.householdId === h.id)
+        return {
+          id: h.id,
+          name: h.name,
+          managedAum: mine.filter((a) => a.custody === 'managed').reduce((s, a) => s + accountBalance(a), 0),
+          heldAway: mine.filter((a) => a.custody !== 'managed').reduce((s, a) => s + accountBalance(a), 0),
+        }
+      }),
+    [households, accounts],
+  )
   const growthSegments = useMemo(() => buildSegments(households, accounts, engagement.profiles, portfolios), [households, accounts, engagement.profiles, portfolios])
   const growthOpportunities = useMemo(() => findOpportunities(households, accounts, engagement.profiles, portfolios), [households, accounts, engagement.profiles, portfolios])
   const growthNudges = useMemo(
@@ -1991,6 +2012,9 @@ export default function App() {
           <button type="button" className={`header-persona ${role === 'value' ? 'active' : ''}`} onClick={() => setRole('value')}>
             Persona Value &amp; Comps
           </button>
+          <button type="button" className="header-persona" onClick={() => setHelpOpen(true)}>
+            Help
+          </button>
         </div>
         <div className="header-main">
         <div className="brand">
@@ -2008,6 +2032,12 @@ export default function App() {
             </button>
             <button type="button" className={`header-pill ${role === 'paraplanner' ? 'active' : ''}`} onClick={() => setRole('paraplanner')}>
               Paraplanner Workbench
+            </button>
+            <button type="button" className={`header-pill ${role === 'compliance' ? 'active' : ''}`} onClick={() => setRole('compliance')}>
+              Compliance
+            </button>
+            <button type="button" className={`header-pill ${role === 'branch' ? 'active' : ''}`} onClick={() => setRole('branch')}>
+              Branch Manager
             </button>
           </nav>
           <button
@@ -2058,6 +2088,33 @@ export default function App() {
           </div>
       )}
 
+      {role === 'compliance' && (
+        <CompliancePersona
+          tickets={tx.tickets}
+          campaigns={growth.campaigns}
+          threads={engagement.threads}
+          exceptions={openExceptions}
+          reviewed={firm.reviewed}
+          audit={firm.audit}
+          nameOf={householdName}
+          onDecideCampaign={growth.decideCampaign}
+          onReview={firm.markReviewed}
+        />
+      )}
+      {role === 'branch' && (
+        <BranchPersona
+          facts={firmFacts}
+          invoices={tx.invoices}
+          recruits={firm.recruits}
+          completed={firm.completed}
+          tickets={firm.tickets}
+          deflected={firm.deflected}
+          onMoveRecruit={firm.moveRecruit}
+          onPlan={firm.buildPlan}
+          onResolve={firm.resolveTicket}
+          onRemind={(a, c) => flash(`Reminder sent to ${a}: ${c}`)}
+        />
+      )}
       {role === 'advisor' && (
         <div className="app-body single">
           <div className="main-col">
@@ -2296,7 +2353,25 @@ export default function App() {
                 <button type="button" role="tab" aria-selected={bookTab === 'growth'} className={bookTab === 'growth' ? 'active' : ''} onClick={() => setBookTab('growth')}>
                   Growth
                 </button>
+                <button type="button" role="tab" aria-selected={bookTab === 'collab'} className={bookTab === 'collab' ? 'active' : ''} onClick={() => setBookTab('collab')}>
+                  Collaboration ({firm.peer.filter((t) => !t.resolved).length})
+                </button>
+                <button type="button" role="tab" aria-selected={bookTab === 'learning'} className={bookTab === 'learning' ? 'active' : ''} onClick={() => setBookTab('learning')}>
+                  My learning
+                </button>
               </div>
+              {bookTab === 'collab' && (
+                <PeerPanel
+                  threads={firm.peer}
+                  nameOf={householdName}
+                  households={households.filter((h) => h.id !== 'h0')}
+                  author="Ana Rivera"
+                  onStart={(title, text, hh, expert) => firm.startThread(title, text, 'Ana Rivera', hh, expert)}
+                  onReply={(id, text) => firm.replyThread(id, 'Ana Rivera', text)}
+                  onResolve={firm.resolveThread}
+                />
+              )}
+              {bookTab === 'learning' && <MyLearning done={firm.completed[CURRENT_ADVISOR] ?? []} onComplete={(id) => firm.completeCourse(CURRENT_ADVISOR, id)} />}
               {bookTab === 'growth' && (
                 <GrowthPanel
                   leads={growth.leads}
@@ -2310,7 +2385,7 @@ export default function App() {
                   onCreateCampaign={growth.createCampaign}
                   onEdit={growth.editCampaign}
                   onSubmit={growth.submitCampaign}
-                  onDecide={growth.decideCampaign}
+                  onOpenCompliance={() => setRole('compliance')}
                   onSend={growth.sendCampaign}
                   onOpportunity={openOpportunity}
                   onNudge={openNudge}
@@ -2616,6 +2691,7 @@ export default function App() {
                     targetFor={tx.targetFor}
                     programModel={(id) => (tx.programs[id] ? modelName(tx.programs[id].modelId) : undefined)}
                     onPropose={() => tx.proposeRebalance(household.id, 'Drift outside tolerance')}
+                    canApprove={hasTool('co-trade')}
                     onApprove={tx.approveTicket}
                     onReject={tx.rejectTicket}
                   />
@@ -2659,6 +2735,7 @@ export default function App() {
                         accounts={accounts.filter((a) => a.householdId === household.id)}
                         risk={plans[household.id]?.riskTolerance ?? ''}
                         programs={tx.programs}
+                        canAssign={hasTool('co-tamp')}
                         onAssign={tx.assignModel}
                         onRemove={tx.removeModel}
                       />
@@ -3577,6 +3654,9 @@ export default function App() {
         <div className="toast" role="status">
           {toast}
         </div>
+      )}
+      {helpOpen && (
+        <HelpDesk advisorId={CURRENT_ADVISOR} tickets={firm.tickets} onTicket={(c, q) => firm.openTicket(CURRENT_ADVISOR, c, q)} onDeflect={firm.deflect} onClose={() => setHelpOpen(false)} />
       )}
       {portalOpen && (
         <ClientPortal

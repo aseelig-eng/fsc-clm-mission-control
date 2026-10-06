@@ -1,4 +1,4 @@
-export type Role = 'advisor' | 'paraplanner' | 'value'
+export type Role = 'advisor' | 'paraplanner' | 'value' | 'compliance' | 'branch'
 
 export type StageStatus = 'complete' | 'active' | 'blocked' | 'upcoming' | 'agent-running'
 

@@ -7,10 +7,12 @@ const pct = (n: number) => `${(n * 100).toFixed(0)}%`
 
 /** Order ticket: buys and sells per account with tax impact and compliance checks. */
 function TicketView({
+  canApprove = true,
   ticket,
   onApprove,
   onReject,
 }: {
+  canApprove?: boolean
   ticket: TradeTicket
   onApprove: () => void
   onReject: () => void
@@ -100,9 +102,10 @@ function TicketView({
           <button type="button" className="btn sm" onClick={onReject}>
             Discard
           </button>
-          <button type="button" className="btn primary sm" disabled={needsAck && !ack} onClick={onApprove}>
+          <button type="button" className="btn primary sm" disabled={(needsAck && !ack) || !canApprove} onClick={onApprove}>
             Approve &amp; send to custodian
           </button>
+          {!canApprove && <span className="muted">Complete the Trading platform certification (Book → My learning) first.</span>}
         </div>
       )}
     </div>
@@ -118,6 +121,7 @@ export function TradingPanel({
   onPropose,
   onApprove,
   onReject,
+  canApprove = true,
 }: {
   accounts: FinancialAccount[]
   tickets: TradeTicket[]
@@ -126,6 +130,7 @@ export function TradingPanel({
   onPropose: () => void
   onApprove: (id: string) => void
   onReject: (id: string) => void
+  canApprove?: boolean
 }) {
   const rows = driftRows(accounts, targetFor)
   const open = tickets.find((t) => t.status === 'proposed' || t.status === 'working')
@@ -164,7 +169,7 @@ export function TradingPanel({
           Draft rebalance ticket
         </button>
       )}
-      {open && <TicketView ticket={open} onApprove={() => onApprove(open.id)} onReject={() => onReject(open.id)} />}
+      {open && <TicketView canApprove={canApprove} ticket={open} onApprove={() => onApprove(open.id)} onReject={() => onReject(open.id)} />}
       {done.map((t) => (
         <TicketView key={t.id} ticket={t} onApprove={() => {}} onReject={() => {}} />
       ))}

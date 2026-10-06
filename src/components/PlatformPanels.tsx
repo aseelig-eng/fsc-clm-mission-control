@@ -13,12 +13,14 @@ export function ModelMarketplace({
   programs,
   onAssign,
   onRemove,
+  canAssign = true,
 }: {
   accounts: FinancialAccount[]
   risk: RiskLevel | ''
   programs: Record<string, Program>
   onAssign: (account: FinancialAccount, modelId: string) => void
   onRemove: (accountId: string) => void
+  canAssign?: boolean
 }) {
   const managed = accounts.filter((a) => a.custody === 'managed' && a.holdings.length > 0 && !/frozen|tod claim/i.test(a.status))
   const [accountId, setAccountId] = useState(managed[0]?.id ?? '')
@@ -108,7 +110,7 @@ export function ModelMarketplace({
                   Remove from program
                 </button>
               ) : (
-                <button type="button" className="btn primary sm" disabled={!eligible} onClick={() => onAssign(account, model.id)}>
+                <button type="button" className="btn primary sm" disabled={!eligible || !canAssign} title={canAssign ? '' : 'Complete the TAMP / UMA certification in Book → My learning'} onClick={() => onAssign(account, model.id)}>
                   Assign to this account
                 </button>
               )}

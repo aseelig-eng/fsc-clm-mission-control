@@ -189,3 +189,13 @@
 .campaign-flags ul { margin: 4px 0 0; padding-left: 16px; }
 .opp-value { font-weight: 600; color: var(--sf-green); font-size: 12px; }
 .portal-insights { display: grid; gap: 8px; }
+
+/* ── Phase 4: personas ────────────────────────────────────────────────── */
+.persona-page { padding: 16px; display: grid; gap: 14px; max-width: 1280px; margin: 0 auto; }
+.comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 14px; align-items: start; }
+.comp-note { width: 100%; }
+.util-bar { height: 8px; width: 120px; background: var(--sf-gray-2); border-radius: 4px; overflow: hidden; }
+.util-bar i { display: block; height: 100%; background: var(--sf-green); }
+.util-bar i.hot { background: var(--sf-red); }
+.help-modal { max-width: 640px; width: 92vw; }
+tr.sel td { background: var(--sf-blue-bg); }
