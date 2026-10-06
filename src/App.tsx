@@ -76,7 +76,15 @@ import {
   selectedStageProgress,
 } from './data/progress'
 import type { AdvisorAction, ExceptionItem, Household, LifecycleStage, LifecycleStageId, Role, WorkSource } from './data/types'
+import { useEngagement } from './useEngagement'
+import { MessageCenter } from './components/MessageCenter'
+import { SecurityCenter } from './components/SecurityCenter'
+import { PlanningSuite } from './components/PlanningSuite'
+import { PerformancePanel } from './components/PerformancePanel'
+import { GoalsReport, WellbeingCard } from './components/ClientOutcomes'
+import { lastClientMessage, needsReply } from './data/messages'
 import './App.css'
+import './capabilities.css'
 
 // Persist only each integration's connected/available status by id, keyed off the
 // live catalog so new/removed sources still flow through on the next load.
@@ -357,10 +365,11 @@ function groupIntoTiers<T extends { priority: string }>(items: T[]) {
   return tiers.filter((tier) => tier.items.length > 0)
 }
 
-type WorkKind = 'case' | 'task' | 'signal' | 'meeting' | 'notice'
+type WorkKind = 'case' | 'task' | 'signal' | 'meeting' | 'notice' | 'message'
 
 const WORK_KIND_LABELS: Record<WorkKind, string> = {
   signal: 'Signal',
+  message: 'Message',
   case: 'Case',
   task: 'Task',
   notice: 'Portal',
@@ -719,6 +728,36 @@ export default function App() {
   const clientProgress = useMemo(() => householdProgress(household), [household])
   const bookProgress = useMemo(() => overallProgress(households), [households])
   const householdName = (id: string) => households.find((h) => h.id === id)?.name ?? 'Household'
+  const engagement = useEngagement({
+    householdName,
+    flash,
+    addTask: (task) => setDeskTasks((prev) => [task, ...prev]),
+    setMoveCaseStatus: (householdId, status) =>
+      setDeskCases((prev) => {
+        const target = prev.find((row) => row.householdId === householdId && row.subject === 'Move money' && row.status !== 'Closed')
+        return target ? prev.map((row) => (row.id === target.id ? { ...row, status } : row)) : prev
+      }),
+    publishDocument: (householdId, doc) =>
+      setRecords((prev) => {
+        const record = prev[householdId]
+        if (!record) return prev
+        return {
+          ...prev,
+          [householdId]: { ...record, documents: [...record.documents.filter((item) => item.id !== doc.id), doc] },
+        }
+      }),
+  })
+  // Agent reply drafts are grounded in the household file: first name, open cases, open transfer/estate/Roth work.
+  const draftContextFor = (householdId: string) => {
+    const first = (engagement.profiles[householdId]?.primaryName ?? householdName(householdId)).split(' ')[0]
+    return {
+      firstName: first,
+      openCases: deskCases.filter((row) => row.householdId === householdId && row.status !== 'Closed').map((row) => row.subject),
+      acatOpen: accounts.some((account) => account.householdId === householdId && /acat/i.test(account.status)),
+      estateOpen: householdId === 'h4',
+      roth: (plans[householdId]?.goals ?? []).some((goal) => /roth/i.test(goal.name)),
+    }
+  }
   // Book-wide upcoming meetings, soonest first, each with its lead pre-meeting agent action.
   const upcomingMeetings = useMemo(
     () =>
@@ -885,13 +924,58 @@ export default function App() {
       ] as AdvisorAction[],
       onOpen: () => openNotice(notice, false),
     }))
-    return [...fromCases, ...fromTasks, ...fromExceptions, ...fromMeetings, ...fromNotices].sort(
+    const fromMessages: Prioritized[] = engagement.threads
+      .filter((thread) => needsReply(thread))
+      .map((thread) => {
+        const last = lastClientMessage(thread)
+        return {
+          id: `pt-msg-${thread.id}`,
+          kind: 'message',
+          householdId: thread.householdId,
+          priority: thread.channel === 'sms' ? 'high' : 'medium',
+          title: `${thread.channel === 'sms' ? 'Text' : 'Message'} · ${thread.subject}`,
+          who: `${householdName(thread.householdId)} · “${(last?.body ?? '').slice(0, 70)}${(last?.body.length ?? 0) > 70 ? '…' : ''}”`,
+          recommended: 'Review the agent’s drafted reply, edit it, and send.',
+          due: '',
+          opened: last?.at ?? '',
+          source: 'client',
+          actions: [{ type: 'call_client', label: 'Open the thread', detail: 'Opens Messages with a drafted reply ready to review.' }] as AdvisorAction[],
+          onOpen: () => {
+            selectHousehold(thread.householdId)
+            setCockpitView('work')
+          },
+        } as Prioritized
+      })
+    const fromAlerts: Prioritized[] = engagement.securityAlerts
+      .filter((alert) => alert.status === 'open')
+      .map((alert) => ({
+        id: `pt-sec-${alert.id}`,
+        kind: 'signal',
+        householdId: alert.householdId,
+        priority: 'critical',
+        title: `Verify ${usd(alert.amount)} money movement · ${alert.accountLabel}`,
+        who: `${householdName(alert.householdId)} · ${alert.reasons.join('; ')}`,
+        recommended: 'Call the client back on the number on file before releasing. Hold and escalate if they do not confirm.',
+        due: '',
+        opened: alert.opened,
+        source: 'agent',
+        actions: [
+          { type: 'call_client', label: 'Release (callback verified)', detail: 'Client confirmed by phone on the number on file. Releases the move to operations.' },
+          { type: 'escalate', label: 'Hold & escalate', detail: 'Hold the move, escalate to Compliance, and offer trusted-contact outreach (FINRA 2165).' },
+        ] as AdvisorAction[],
+        onOpen: () => {
+          selectHousehold(alert.householdId)
+          setCockpitView('work')
+        },
+        onAct: (action: AdvisorAction) => engagement.resolveAlert(alert.id, action.type === 'escalate' ? 'held' : 'released'),
+      }))
+    return [...fromAlerts, ...fromMessages, ...fromCases, ...fromTasks, ...fromExceptions, ...fromMeetings, ...fromNotices].sort(
       (a, b) =>
         priorityRank(a.priority) - priorityRank(b.priority) ||
         (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99') ||
         ageMs(b.opened) - ageMs(a.opened),
     )
-  }, [households, openExceptions, meetingList, deskCases, deskTasks, pendingNotices])
+  }, [households, openExceptions, meetingList, deskCases, deskTasks, pendingNotices, engagement.threads, engagement.securityAlerts])
   const clientMatches = useMemo(() => {
     const query = clientQuery.trim().toLowerCase()
     const ranked = households
@@ -2348,17 +2432,45 @@ export default function App() {
                 </div>
               </div>
               )}
-              {recordTab === 'planning' && (
-              <AdviceDesk
-                key={`${household.id}-record`}
-                householdId={household.id}
-                plan={plans[household.id]}
+              {recordTab === 'accounts' && (
+              <div className="panel">
+                <div className="panel-header">
+                  <span>Performance</span>
+                  <span className="muted">TWR / IRR vs benchmark</span>
+                </div>
+                <div className="panel-body">
+                  <PerformancePanel
+                    accounts={accounts.filter((account) => account.householdId === household.id)}
+                    householdName={household.name}
+                    audience="advisor"
+                    published={engagement.published.has(`${household.id}-qr-2026q3`)}
+                    onPublish={(report) => engagement.publishReport(household.id, report)}
+                  />
+                </div>
+              </div>
+              )}
+              {recordTab === 'planning' && engagement.profiles[household.id] && (
+              <PlanningSuite
+                key={`${household.id}-suite`}
+                profile={engagement.profiles[household.id]}
                 portfolio={portfolios[household.id]}
-                showPlan
-                showPortfolio
-                onPlan={(patch) => setPlans((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))}
-                onPortfolio={(patch) =>
-                  setPortfolios((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
+                referred={engagement.referred}
+                onProfile={(patch) => engagement.updateProfile(household.id, patch)}
+                onReferral={(line) => engagement.refer(household.id, line)}
+                onNote={flash}
+                adviceDesk={
+                  <AdviceDesk
+                    key={`${household.id}-record`}
+                    householdId={household.id}
+                    plan={plans[household.id]}
+                    portfolio={portfolios[household.id]}
+                    showPlan
+                    showPortfolio
+                    onPlan={(patch) => setPlans((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))}
+                    onPortfolio={(patch) =>
+                      setPortfolios((prev) => ({ ...prev, [household.id]: { ...prev[household.id], ...patch } }))
+                    }
+                  />
                 }
               />
               )}
@@ -2557,6 +2669,24 @@ export default function App() {
               </>
             )}
 
+            {!showingBook && cockpitView === 'status' && engagement.profiles[household.id] && (
+            <div className="panel">
+              <div className="panel-header">
+                <span>Client outcomes</span>
+                <span className="muted">Goals-based progress and financial well-being</span>
+              </div>
+              <div className="panel-body outcomes-grid">
+                <GoalsReport plan={plans[household.id]} portfolio={portfolios[household.id]} profile={engagement.profiles[household.id]} audience="advisor" />
+                <WellbeingCard
+                  profile={engagement.profiles[household.id]}
+                  audience="advisor"
+                  stepsTaken={new Set([...engagement.stepsTaken].filter((key) => key.startsWith(`${household.id}-`)).map((key) => key.slice(household.id.length + 1)))}
+                  onStep={(pillarId, pillarLabel, step) => engagement.takeStep(household.id, pillarId, pillarLabel, step, 'advisor')}
+                />
+              </div>
+            </div>
+            )}
+
             {!showingBook && cockpitView === 'status' && (
             <div className="panel">
               <div className="panel-header">
@@ -2654,6 +2784,35 @@ export default function App() {
 
             {!showingBook && cockpitView === 'work' && (
               <>
+              <div className="panel">
+                <div className="panel-header">
+                  <span>Messages &amp; texts</span>
+                  <span className="muted">
+                    {engagement.threads.filter((t) => t.householdId === household.id && needsReply(t)).length} waiting on you · archived &amp; supervised
+                  </span>
+                </div>
+                <div className="panel-body">
+                  <MessageCenter
+                    key={household.id}
+                    audience="advisor"
+                    threads={engagement.threads.filter((t) => t.householdId === household.id)}
+                    draftContext={draftContextFor(household.id)}
+                    onSend={(threadId, body, meta) => engagement.sendMessage(threadId, body, 'advisor', meta)}
+                    onRead={(threadId) => engagement.markRead(threadId, 'advisor')}
+                  />
+                </div>
+              </div>
+              {engagement.security[household.id] && (
+              <div className="panel">
+                <div className="panel-header">
+                  <span>Identity protection</span>
+                  <span className="muted">What the client has turned on</span>
+                </div>
+                <div className="panel-body">
+                  <SecurityCenter profile={engagement.security[household.id]} audience="advisor" />
+                </div>
+              </div>
+              )}
               <div className="work-split">
                 <div className="panel">
                   <div className="panel-header">
@@ -3222,6 +3381,7 @@ export default function App() {
           onClientRequest={acceptClientRequest}
           onServiceRequest={acceptServiceRequest}
           serviceRequests={deskCases.filter((item) => item.householdId === portalHouseholdId && item.type === 'Service request')}
+          engagement={engagement}
         />
       )}
       {portalSetupOpen && <PortalSetup household={household} onClose={() => setPortalSetupOpen(false)} />}

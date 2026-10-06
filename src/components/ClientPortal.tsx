@@ -31,8 +31,15 @@ import type { CoworkerContext } from '../coworker'
 import { AccountBook } from './AccountBook'
 import { CoworkerPanel } from './CoworkerPanel'
 import { FileDrop, type UploadedFile } from './FileDrop'
+import { MessageCenter } from './MessageCenter'
+import { SecurityCenter } from './SecurityCenter'
+import { CashFlowPanel } from './PlanningSuite'
+import { GoalsReport, WellbeingCard } from './ClientOutcomes'
+import { PerformancePanel } from './PerformancePanel'
+import { assessMoveRisk, oneTimeCode } from '../data/security'
+import type { useEngagement } from '../useEngagement'
 
-type PortalView = 'home' | 'plan' | 'portfolio' | 'request' | 'vault' | 'facts' | 'ask'
+type PortalView = 'home' | 'plan' | 'portfolio' | 'messages' | 'security' | 'request' | 'vault' | 'facts' | 'ask'
 type RangeId = '1D' | '1W' | '1M' | '1Y' | 'All'
 type ActivityFilter = 'all' | 'transfer' | 'trade' | 'income'
 
@@ -230,6 +237,7 @@ export function ClientPortal({
   onSignDocument,
   onServiceRequest,
   serviceRequests,
+  engagement,
 }: {
   households: Household[]
   householdId: string
@@ -246,6 +254,7 @@ export function ClientPortal({
   onClientRequest: (householdId: string, title: string, detail: string) => void
   onServiceRequest: (householdId: string, kind: string, detail: string, actionLabel: string) => void
   serviceRequests: ServiceCase[]
+  engagement: ReturnType<typeof useEngagement>
 }) {
   const household = households.find((item) => item.id === householdId) ?? households[0]
   const plan = plans[household.id]
@@ -273,6 +282,12 @@ export function ClientPortal({
   const [moveFrom, setMoveFrom] = useState('')
   const [moveAmount, setMoveAmount] = useState('')
   const [moveNote, setMoveNote] = useState('')
+  const [stepUp, setStepUp] = useState<{ amount: number; accountId: string; reasons: string[]; callback: boolean } | null>(null)
+  const [stepCode, setStepCode] = useState('')
+  const [stepError, setStepError] = useState('')
+  const securityProfile = engagement.security[household.id]
+  const clientThreads = engagement.threads.filter((thread) => thread.householdId === household.id)
+  const unreadMessages = clientThreads.filter((thread) => !thread.clientRead).length
   const [requestKind, setRequestKind] = useState<(typeof SERVICE_KINDS)[number]['id']>('address')
   const [requestDetail, setRequestDetail] = useState('')
   const [requestSent, setRequestSent] = useState('')
@@ -549,6 +564,8 @@ export function ClientPortal({
               ['home', 'Home'],
               ['plan', 'Plan'],
               ['portfolio', 'Portfolio Overview'],
+              ['messages', 'Messages'],
+              ['security', 'Security'],
               ['request', 'Service'],
               ['vault', 'Documents'],
               ['facts', 'Profile'],
@@ -559,6 +576,7 @@ export function ClientPortal({
               {label}
               {id === 'facts' && clientGaps.length > 0 ? ` (${clientGaps.length})` : ''}
               {id === 'vault' && toSign > 0 ? ` (${toSign})` : ''}
+              {id === 'messages' && unreadMessages > 0 ? ` (${unreadMessages})` : ''}
               {id === 'request' && serviceRequests.some((item) => item.status !== 'Closed')
                 ? ` (${serviceRequests.filter((item) => item.status !== 'Closed').length})`
                 : ''}
@@ -919,7 +937,39 @@ export function ClientPortal({
                 <ActivityList rows={visibleActivity} />
                 {visibleActivity.length === 0 && <p className="muted">Nothing in this view yet.</p>}
               </section>
+              <section className="portal-section">
+                <h3>How your investments are doing</h3>
+                <PerformancePanel accounts={mine} householdName={household.name} audience="client" />
+              </section>
               </div>
+            </div>
+          )}
+          {view === 'messages' && (
+            <div className="portal-home">
+              <div className="portal-section-head">
+                <h3>Messages</h3>
+                <p className="muted">Secure messages and texts with your advisor team. Everything is kept on record.</p>
+              </div>
+              <MessageCenter
+                audience="client"
+                threads={clientThreads}
+                onSend={(threadId, body, meta) => engagement.sendMessage(threadId, body, 'client', meta)}
+                onRead={(threadId) => engagement.markRead(threadId, 'client')}
+                onNewThread={(subject, body, channel) => engagement.newClientThread(household.id, subject, body, channel)}
+              />
+            </div>
+          )}
+          {view === 'security' && (
+            <div className="portal-home">
+              <div className="portal-section-head">
+                <h3>Security</h3>
+                <p className="muted">Protect your accounts and tell us who to call if we cannot reach you.</p>
+              </div>
+              {securityProfile ? (
+                <SecurityCenter profile={securityProfile} audience="client" onChange={(patch) => engagement.updateSecurity(household.id, patch)} />
+              ) : (
+                <p className="muted">Security settings are not available yet.</p>
+              )}
             </div>
           )}
           {view === 'plan' && (
@@ -940,6 +990,27 @@ export function ClientPortal({
                 />
               ) : (
                 <p className="muted">Your advisor is still preparing your plan.</p>
+              )}
+              {plan && portfolio && engagement.profiles[household.id] && (
+                <>
+                  <section className="portal-section">
+                    <h3>Are you on track?</h3>
+                    <GoalsReport plan={plan} portfolio={portfolio} profile={engagement.profiles[household.id]} audience="client" />
+                  </section>
+                  <section className="portal-section">
+                    <h3>Your money over time</h3>
+                    <CashFlowPanel profile={engagement.profiles[household.id]} portfolio={portfolio} compact />
+                  </section>
+                  <section className="portal-section">
+                    <h3>Financial well-being</h3>
+                    <WellbeingCard
+                      profile={engagement.profiles[household.id]}
+                      audience="client"
+                      stepsTaken={new Set([...engagement.stepsTaken].filter((key) => key.startsWith(`${household.id}-`)).map((key) => key.slice(household.id.length + 1)))}
+                      onStep={(pillarId, pillarLabel, step) => engagement.takeStep(household.id, pillarId, pillarLabel, step, 'client')}
+                    />
+                  </section>
+                </>
               )}
             </div>
           )}
@@ -975,9 +1046,25 @@ export function ClientPortal({
                       const account = mine.find((item) => item.id === moveFrom)
                       const amount = Number(moveAmount.replace(/[^0-9.]/g, ''))
                       if (!account || !Number.isFinite(amount) || amount <= 0) return
-                      const detail = `${usd(amount)} from ${account.institution} ${account.name} ···${account.mask}${moveNote.trim() ? `. ${moveNote.trim()}` : ''}. Client request. Nothing was sent to the custodian.${attachSuffix}`
+                      const risk = securityProfile ? assessMoveRisk(securityProfile, amount, accountBalance(account)) : null
+                      if (risk?.stepUp && !stepUp) {
+                        setStepUp({ amount, accountId: account.id, reasons: risk.reasons, callback: risk.callback })
+                        setStepCode('')
+                        setStepError('')
+                        return
+                      }
+                      if (stepUp && stepCode.trim() !== oneTimeCode(household.id)) {
+                        setStepError('That code does not match. Check the code we sent and try again.')
+                        return
+                      }
+                      const verifiedNote = stepUp ? ' Identity verified with a one-time code.' : ''
+                      const callbackNote = stepUp?.callback ? ' Flagged for a callback before release.' : ''
+                      const detail = `${usd(amount)} from ${account.institution} ${account.name} ···${account.mask}${moveNote.trim() ? `. ${moveNote.trim()}` : ''}. Client request. Nothing was sent to the custodian.${verifiedNote}${callbackNote}${attachSuffix}`
                       onServiceRequest(household.id, kind.label, detail, kind.action)
-                      setRequestSent(`Sent. Move money is a new case for your advisor: ${usd(amount)} from ···${account.mask}.${attachSent}`)
+                      if (stepUp?.callback) engagement.raiseMoveAlert(household.id, amount, `${account.institution} ···${account.mask}`, stepUp.reasons)
+                      setStepUp(null)
+                      setStepCode('')
+                      setRequestSent(`Sent. Move money is a new case for your advisor: ${usd(amount)} from ···${account.mask}.${stepUp?.callback ? ' Because of the size, your advisor will call you to confirm before anything moves.' : ''}${attachSent}`)
                       setMoveAmount('')
                       setMoveNote('')
                       setRequestFiles([])
@@ -1050,7 +1137,7 @@ export function ClientPortal({
                     <>
                       <label>
                         From
-                        <select value={moveFrom} onChange={(event) => setMoveFrom(event.target.value)} required>
+                        <select value={moveFrom} onChange={(event) => { setMoveFrom(event.target.value); setStepUp(null) }} required>
                           <option value="">Choose an account</option>
                           {mine.map((account) => (
                             <option key={account.id} value={account.id}>
@@ -1061,12 +1148,31 @@ export function ClientPortal({
                       </label>
                       <label>
                         Amount
-                        <input value={moveAmount} onChange={(event) => setMoveAmount(event.target.value)} inputMode="decimal" placeholder="5000" required />
+                        <input value={moveAmount} onChange={(event) => { setMoveAmount(event.target.value); setStepUp(null) }} inputMode="decimal" placeholder="5000" required />
                       </label>
                       <label>
                         Note for your advisor
                         <input value={moveNote} onChange={(event) => setMoveNote(event.target.value)} placeholder="Fund the Roth, or leave this blank" />
                       </label>
+                      {stepUp && (
+                        <div className="sec-stepup" role="group" aria-label="Verify it is you">
+                          <strong>Extra check for this request</strong>
+                          <ul>
+                            {stepUp.reasons.map((reason) => (
+                              <li key={reason}>{reason}</li>
+                            ))}
+                          </ul>
+                          <p className="muted">We sent a 6-digit code to your phone. (Demo code: <code>{oneTimeCode(household.id)}</code>)</p>
+                          <label>
+                            Enter the code
+                            <input value={stepCode} onChange={(event) => setStepCode(event.target.value)} inputMode="numeric" maxLength={6} autoFocus />
+                          </label>
+                          {stepError && <p className="sec-error">{stepError}</p>}
+                          <button type="button" className="btn sm" onClick={() => setStepUp(null)}>
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </>
                   ) : requestKind === 'meeting' ? (
                     <>

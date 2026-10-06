@@ -101,7 +101,21 @@ export function DocumentPreview({
           </div>
         </div>
 
-        {!template && (
+        {!template && doc.body && (
+          <div className="doc-paper is-filed">
+            <div className="doc-letterhead">
+              <div className="doc-title">{doc.name}</div>
+              <div className="doc-issuer">{householdName}</div>
+            </div>
+            {doc.body.map((paragraph, index) => (
+              <p key={index} className="doc-body-para">
+                {paragraph}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {!template && !doc.body && (
           <div className="doc-paper">
             <p className="muted">No mockup is available for this document type yet.</p>
           </div>

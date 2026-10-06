@@ -41,12 +41,14 @@ export interface FormSection {
 export interface ComplianceDocument {
   id: string
   name: string
-  category: 'legal' | 'disclosure' | 'suitability' | 'custodial' | 'tax' | 'audit' | 'transfer' | 'movement' | 'estate'
+  category: 'legal' | 'disclosure' | 'suitability' | 'custodial' | 'tax' | 'audit' | 'transfer' | 'movement' | 'estate' | 'report'
   status: DocStatus
   filedOn?: string
   notes?: string
   signerName?: string
   packet?: string[]
+  /** Free-form body for generated documents (e.g. agent-drafted reports) that have no form template. */
+  body?: string[]
 }
 
 /** Lifecycle stage a document/data item belongs to, in logical order. */
@@ -115,6 +117,7 @@ export const DOC_PROVENANCE: Record<string, DocProvenance> = {
   estateDigitalAssets: { stage: 'estate', source: 'Digital asset inventory · firm template' },
   estateLetterOfIntent: { stage: 'estate', source: 'Advisor-drafted · letter of intent / instruction' },
   estateLifeInsurance: { stage: 'estate', source: 'Carrier portal · beneficiary audit' },
+  'qr-2026q3': { stage: 'review', source: 'Reporting agent · advisor-approved' },
 }
 
 export function docProvenance(id: string): DocProvenance {
@@ -237,6 +240,7 @@ export const DOC_TYPE_LABEL: Record<ComplianceDocument['category'], string> = {
   tax: 'Tax',
   audit: 'E-sign',
   estate: 'Estate',
+  report: 'Report',
 }
 
 /**
