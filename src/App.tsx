@@ -83,6 +83,9 @@ import { ModelMarketplace, DistributionPanel } from './components/PlatformPanels
 import { BillingPanel } from './components/BillingPanels'
 import { driftRows, needsRebalance } from './data/trading'
 import { isOverdue } from './data/billing'
+import { useGrowth } from './useGrowth'
+import { GrowthPanel } from './components/GrowthPanel'
+import { buildSegments, findOpportunities, predictNudges, type Opportunity, type Nudge } from './data/growth'
 import { MessageCenter } from './components/MessageCenter'
 import { SecurityCenter } from './components/SecurityCenter'
 import { PlanningSuite } from './components/PlanningSuite'
@@ -666,6 +669,7 @@ export default function App() {
   const [cockpitView, setCockpitView] = useState<'status' | 'work' | 'record'>('status')
   const [recordTab, setRecordTab] = useState<'accounts' | 'planning' | 'data' | 'documents'>('accounts')
   const [showingBook, setShowingBook] = useState(true)
+  const [bookTab, setBookTab] = useState<'overview' | 'growth'>('overview')
   const [households, setHouseholds] = useState<Household[]>(() => structuredClone(initialHouseholds))
   const [selectedHhId, setSelectedHhId] = useState(initialHouseholds[0].id)
   const [openTabs, setOpenTabs] = useState<string[]>([])
@@ -755,6 +759,40 @@ export default function App() {
       }),
   })
   const tx = useTransactions({ accounts, setAccounts, portfolios, households, flash })
+  const growth = useGrowth({
+    flash,
+    addTask: (householdId, subject) =>
+      setDeskTasks((prev) => [{ id: `t-lead-${Date.now()}`, householdId, subject, status: 'Not Started', priority: 'High', due: '2026-10-20', opened: new Date().toISOString().slice(0, 10) }, ...prev]),
+  })
+  const growthSegments = useMemo(() => buildSegments(households, accounts, engagement.profiles, portfolios), [households, accounts, engagement.profiles, portfolios])
+  const growthOpportunities = useMemo(() => findOpportunities(households, accounts, engagement.profiles, portfolios), [households, accounts, engagement.profiles, portfolios])
+  const growthNudges = useMemo(
+    () =>
+      predictNudges(
+        households,
+        accounts,
+        engagement.profiles,
+        new Set(engagement.threads.filter((t) => needsReply(t)).map((t) => t.householdId)),
+      ).filter((n) => !growth.dismissed.has(n.id)),
+    [households, accounts, engagement.profiles, engagement.threads, growth.dismissed],
+  )
+  const goToRecord = (householdId: string, tab: 'accounts' | 'planning') => {
+    selectHousehold(householdId)
+    setCockpitView('record')
+    setRecordTab(tab)
+  }
+  const openOpportunity = (o: Opportunity) =>
+    o.kind === 'consolidate' ? goToRecord(o.householdId, 'accounts') : o.kind === 'nextgen' ? (selectHousehold(o.householdId), setCockpitView('status')) : goToRecord(o.householdId, 'planning')
+  const openNudge = (n: Nudge) => {
+    if (n.kind === 'cash') {
+      tx.proposeRebalance(n.householdId, 'Cash drag')
+      goToRecord(n.householdId, 'accounts')
+    } else if (n.kind === 'rmd') goToRecord(n.householdId, 'planning')
+    else {
+      selectHousehold(n.householdId)
+      setCockpitView('work')
+    }
+  }
   // Agent reply drafts are grounded in the household file: first name, open cases, open transfer/estate/Roth work.
   const draftContextFor = (householdId: string) => {
     const first = (engagement.profiles[householdId]?.primaryName ?? householdName(householdId)).split(' ')[0]
@@ -1017,13 +1055,27 @@ export default function App() {
           setRecordTab('accounts')
         },
       }))
-    return [...fromAlerts, ...fromTickets, ...fromBilling, ...fromMessages, ...fromCases, ...fromTasks, ...fromExceptions, ...fromMeetings, ...fromNotices].sort(
+    const fromNudges: Prioritized[] = growthNudges.map((nudge) => ({
+      id: `pt-${nudge.id}`,
+      kind: 'signal',
+      householdId: nudge.householdId,
+      priority: nudge.kind === 'attrition' ? 'high' : 'medium',
+      title: nudge.title,
+      who: `${householdName(nudge.householdId)} · ${nudge.reasoning}`,
+      recommended: nudge.action,
+      due: '',
+      opened: '2026-10-06',
+      source: 'agent',
+      actions: [{ type: 'review_inputs', label: nudge.action, detail: nudge.reasoning }] as AdvisorAction[],
+      onOpen: () => openNudge(nudge),
+    }))
+    return [...fromAlerts, ...fromNudges, ...fromTickets, ...fromBilling, ...fromMessages, ...fromCases, ...fromTasks, ...fromExceptions, ...fromMeetings, ...fromNotices].sort(
       (a, b) =>
         priorityRank(a.priority) - priorityRank(b.priority) ||
         (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99') ||
         ageMs(b.opened) - ageMs(a.opened),
     )
-  }, [households, openExceptions, meetingList, deskCases, deskTasks, pendingNotices, engagement.threads, engagement.securityAlerts, tx.tickets, tx.invoices])
+  }, [households, openExceptions, meetingList, deskCases, deskTasks, pendingNotices, engagement.threads, engagement.securityAlerts, tx.tickets, tx.invoices, growthNudges])
   const clientMatches = useMemo(() => {
     const query = clientQuery.trim().toLowerCase()
     const ranked = households
@@ -2237,6 +2289,36 @@ export default function App() {
             <>
               <BookPulse households={households} exceptions={openExceptions} onOpenHousehold={selectHousehold} />
 
+              <div className="planning-tabs" role="tablist" aria-label="Book sections">
+                <button type="button" role="tab" aria-selected={bookTab === 'overview'} className={bookTab === 'overview' ? 'active' : ''} onClick={() => setBookTab('overview')}>
+                  Overview
+                </button>
+                <button type="button" role="tab" aria-selected={bookTab === 'growth'} className={bookTab === 'growth' ? 'active' : ''} onClick={() => setBookTab('growth')}>
+                  Growth
+                </button>
+              </div>
+              {bookTab === 'growth' && (
+                <GrowthPanel
+                  leads={growth.leads}
+                  campaigns={growth.campaigns}
+                  segments={growthSegments}
+                  opportunities={growthOpportunities}
+                  nudges={growthNudges}
+                  nameOf={householdName}
+                  onMove={growth.moveLead}
+                  onConvert={growth.convertLead}
+                  onCreateCampaign={growth.createCampaign}
+                  onEdit={growth.editCampaign}
+                  onSubmit={growth.submitCampaign}
+                  onDecide={growth.decideCampaign}
+                  onSend={growth.sendCampaign}
+                  onOpportunity={openOpportunity}
+                  onNudge={openNudge}
+                  onDismiss={growth.dismissNudge}
+                />
+              )}
+              {bookTab === 'overview' && (
+              <>
               <BookTradingPanel
                 rows={households.map((h) => {
                   const rows = driftRows(accounts.filter((a) => a.householdId === h.id), tx.targetFor)
@@ -2331,6 +2413,8 @@ export default function App() {
                   </div>
                 </aside>
               </div>
+              </>
+              )}
             </>
           )}
 
@@ -3503,6 +3587,7 @@ export default function App() {
           records={records}
           accounts={accounts}
           transactions={tx}
+          growth={growth}
           coworker={{
             households,
             exceptions: openExceptions,

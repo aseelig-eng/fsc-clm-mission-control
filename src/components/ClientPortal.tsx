@@ -1,5 +1,7 @@
 import { PortalFees } from './BillingPanels'
 import type { useTransactions } from '../useTransactions'
+import type { useGrowth } from '../useGrowth'
+import { CONTENT } from '../data/growth'
 import { useEffect, useState } from 'react'
 import { personsForHousehold } from '../data/portraits'
 import type { Household } from '../data/types'
@@ -241,6 +243,7 @@ export function ClientPortal({
   serviceRequests,
   engagement,
   transactions,
+  growth,
 }: {
   households: Household[]
   householdId: string
@@ -259,6 +262,7 @@ export function ClientPortal({
   serviceRequests: ServiceCase[]
   engagement: ReturnType<typeof useEngagement>
   transactions: ReturnType<typeof useTransactions>
+  growth: ReturnType<typeof useGrowth>
 }) {
   const household = households.find((item) => item.id === householdId) ?? households[0]
   const plan = plans[household.id]
@@ -595,6 +599,22 @@ export function ClientPortal({
         <main className={`portal-main ${view === 'ask' ? 'portal-main-ask' : ''}`}>
           {view === 'home' && (
             <div className="portal-home juniper">
+              {growth.campaigns.filter((c) => c.status === 'sent' && c.audience.includes(household.id)).length > 0 && (
+                <section className="portal-section portal-insights">
+                  <h3>Insights for you</h3>
+                  {growth.campaigns
+                    .filter((c) => c.status === 'sent' && c.audience.includes(household.id))
+                    .map((c) => (
+                      <div key={c.id} className="portal-spotlight static">
+                        <strong>{c.subject}</strong>
+                        <span>{CONTENT.find((x) => x.id === c.contentId)?.summary}</span>
+                        <button type="button" className="btn sm" onClick={() => setView('messages')}>
+                          Ask your advisor about this
+                        </button>
+                      </div>
+                    ))}
+                </section>
+              )}
               <div className="portal-stats">
                 <div className="portal-stat wide">
                   <strong>{usd(totals.total)}</strong>
