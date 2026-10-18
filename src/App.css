@@ -8446,3 +8446,71 @@ button.stage-card.selected {
   }
 }
 
+
+/* Account Opening Agent run */
+.modal-card.ao-run {
+  width: min(680px, 100%);
+}
+.ao-checks {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.ao-check {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--sf-gray-6);
+  animation: ao-in 0.25s ease-out;
+}
+.ao-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  background: var(--sf-gray-3);
+}
+.ao-check.is-pass .ao-mark { background: var(--sf-green); }
+.ao-check.is-fixed .ao-mark { background: var(--sf-blue); }
+.ao-check.is-warn .ao-mark { background: var(--sf-orange); }
+.ao-check.is-fail .ao-mark { background: var(--sf-red); }
+.ao-check.is-fixed { background: var(--sf-blue-light); }
+.ao-check.is-warn { background: var(--sf-orange-bg); }
+.ao-check.is-fail { background: var(--sf-red-bg); }
+.ao-check.is-running .ao-label { color: var(--sf-gray-3); font-style: italic; }
+.ao-body { display: grid; gap: 2px; }
+.ao-label { font-weight: 600; font-size: 13px; }
+.ao-detail { font-size: 12px; color: var(--sf-gray-2); line-height: 1.4; }
+.ao-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sf-gray-3);
+  white-space: nowrap;
+  padding-top: 3px;
+}
+.ao-check.is-pass .ao-tag { color: var(--sf-green); }
+.ao-check.is-fixed .ao-tag { color: var(--sf-blue); }
+.ao-check.is-warn .ao-tag { color: var(--sf-orange); }
+.ao-check.is-fail .ao-tag { color: var(--sf-red); }
+.ao-callout { margin-bottom: 10px; animation: ao-in 0.25s ease-out; }
+.ao-issued { background: var(--sf-green-bg); }
+.ao-held { background: var(--sf-red-bg); }
+.ao-accounts { margin: 0; padding-left: 18px; }
+.ao-accounts b { font-variant-numeric: tabular-nums; }
+.ao-next { margin-top: 8px; font-size: 12px; color: var(--sf-gray-2); }
+.ao-actions { display: flex; gap: 8px; justify-content: flex-end; }
+@keyframes ao-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}

@@ -381,7 +381,10 @@ export function ClientPortal({
   // A near-complete earlier phase (e.g. 98%) should not steal the highlight from
   // the phase the client is genuinely in. Fall back to first-incomplete if the
   // current stage can't be located in any phase.
-  const phaseForCurrentStage = onboardingPhases.find((entry) =>
+  // A stage can appear in more than one phase (e.g. account_open is tagged on a
+  // Phase 1 product-selection section and on Phase 3 custody), so take the
+  // latest phase that claims it, or the tracker would regress after approval.
+  const phaseForCurrentStage = [...onboardingPhases].reverse().find((entry) =>
     entry.sections.some((section) => section.stageIds.includes(household.stage)),
   )
   const activePhase =
@@ -1532,10 +1535,14 @@ export function ClientPortal({
                       <span>
                         <strong>{account.institution} statement</strong>
                         <em>
-                          ···{account.mask} · posted {account.asOf}
+                          ···{account.mask} · {/^Opened /.test(account.status) && account.balance === 0 ? `opened ${account.asOf}` : `posted ${account.asOf}`}
                         </em>
                       </span>
-                      <span className="doc-status status-filed">Posted</span>
+                      {/^Opened /.test(account.status) && account.balance === 0 ? (
+                        <span className="doc-status status-pending">First statement after funding</span>
+                      ) : (
+                        <span className="doc-status status-filed">Posted</span>
+                      )}
                     </li>
                   ))}
                 </ul>

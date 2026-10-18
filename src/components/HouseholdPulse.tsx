@@ -83,6 +83,10 @@ export function HouseholdPulse({
       ((activeStage.status === 'active' || activeStage.status === 'agent-running') && !!activeStage.unblock))
 
   const topEx = exceptions[0]
+  // Custodian node only goes NIGO for custody-side signals, not for any open item.
+  const custodianEx = exceptions.find(
+    (ex) => ex.stage === 'account_open' || ex.stage === 'funding' || /nigo|custodian|acat/i.test(ex.title),
+  )
   const signalCount = Math.max(exceptions.length, household.exceptions)
   const stagesCleared = household.stages.filter((s) => s.status === 'complete').length
 
@@ -136,10 +140,10 @@ export function HouseholdPulse({
     },
     {
       id: 'custodian',
-      tone: topEx ? 'danger' : 'ok',
+      tone: custodianEx ? 'danger' : 'ok',
       k: 'Custodian',
-      v: topEx ? 'NIGO' : 'Clear',
-      s: topEx ? 'STP broken' : 'STP',
+      v: custodianEx ? 'NIGO' : 'Clear',
+      s: custodianEx ? 'STP broken' : 'STP',
     },
   ]
 
@@ -193,7 +197,7 @@ export function HouseholdPulse({
             <line x1="248" y1="230" x2="332" y2="168" stroke={needsResolution ? '#ffb347' : '#5ad7ff'} strokeOpacity="0.55" strokeWidth="1.5" strokeDasharray="5 4" />
             <line x1="236" y1="286" x2="312" y2="292" stroke={heirScore < 45 ? '#ff4d5e' : '#5ad7ff'} strokeOpacity="0.55" strokeWidth="1.5" strokeDasharray="5 4" />
             <line x1="152" y1="236" x2="86" y2="252" stroke={likeness < 45 ? '#ffb347' : '#5ad7ff'} strokeOpacity="0.55" strokeWidth="1.5" strokeDasharray="5 4" />
-            <line x1="188" y1="292" x2="168" y2="348" stroke={topEx ? '#ff4d5e' : '#5ad7ff'} strokeOpacity="0.7" strokeWidth="2" />
+            <line x1="188" y1="292" x2="168" y2="348" stroke={custodianEx ? '#ff4d5e' : '#5ad7ff'} strokeOpacity="0.7" strokeWidth="2" />
             <HouseholdFigures persons={persons} />
           </svg>
           {plan.goals.length > 0 && (

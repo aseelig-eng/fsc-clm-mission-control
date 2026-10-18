@@ -91,7 +91,7 @@ const FACTS: Record<string, StageFacts> = {
     nextTouch: 'Not scheduled',
   },
   'h2:funding': {
-    aum: '$3.1M ACAT not started',
+    aum: '$0 · $3.1M arrives by ACAT',
     risk: 'IPS not locked',
     nextTouch: 'Not scheduled',
   },
@@ -306,7 +306,7 @@ const STAGE_METRIC_DEFS: Record<LifecycleStageId, MetricDef[]> = {
   funding: [
     { label: 'Funding method', key: 'fundMethod', fallback: () => 'Not selected' },
     { label: 'ACAT status', key: 'acat', fallback: (f) => f.nextTouch },
-    { label: 'Amount funded', key: 'fundAmt', format: currency, fallback: (f) => f.aum },
+    { label: 'Funding target', key: 'fundAmt', format: currency, fallback: (f) => f.aum },
     { label: 'Managed AUM', fallback: (f) => f.aum },
   ],
   welcome: [

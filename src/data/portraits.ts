@@ -396,7 +396,7 @@ export const personsByHousehold: Record<string, PersonLikeness[]> = {
           id: 'wallet',
           label: 'Share-of-wallet signal',
           score: 8,
-          blurb: 'None of the $5.2M is on the firm’s books. The ACAT has not been submitted.',
+          blurb: 'None of the $5.2M is on the firm’s books yet. It arrives with the ACAT.',
           evidence: ['Held-away trust, holdco, and cash', 'Custodian account not opened'],
           inferredBy: 'agent',
           recommendedReview: 'Do not pitch alts until EDD/principal is green.',

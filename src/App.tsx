@@ -40,6 +40,8 @@ import { MeetingWorkspace } from './components/MeetingWorkspace'
 import { MeetingPrepBrief, type PrepSignal } from './components/MeetingPrepBrief'
 import { ScheduleMeeting } from './components/ScheduleMeeting'
 import { DocumentPreview } from './components/DocumentPreview'
+import { AccountOpeningRun } from './components/AccountOpeningRun'
+import { recordPrincipalApproval, runAccountOpening, type AccountOpeningResult } from './data/accountOpening'
 import type { ComplianceDocument } from './data/onboardingFramework'
 import { LIKENESS_FACET_IDS, MATURITY_LABELS, likenessScore, personsForHousehold, type ContactChannel } from './data/portraits'
 import { exceptionsForHousehold, HouseholdPulse, type PulseNodeId } from './components/HouseholdPulse'
@@ -102,7 +104,7 @@ import './capabilities.css'
 
 // Persist only each integration's connected/available status by id, keyed off the
 // live catalog so new/removed sources still flow through on the next load.
-const INTEGRATION_STATUS_KEY = 'fsc-clm.integration-status.v1'
+const INTEGRATION_STATUS_KEY = 'fsc-clm.integration-status.v2'
 
 function loadIntegrationList(): Integration[] {
   let saved: Record<string, IntegrationStatus> = {}
@@ -723,6 +725,7 @@ export default function App() {
   const [records, setRecords] = useState<Record<string, ClientOnboardingRecord>>(() => structuredClone(onboardingByHousehold))
   const [deskCases, setDeskCases] = useState(() => structuredClone(serviceCases))
   const [deskTasks, setDeskTasks] = useState(() => structuredClone(workTasks))
+  const [accountOpening, setAccountOpening] = useState<{ householdId: string; result: AccountOpeningResult } | null>(null)
   // Checklist state is written by agentic steps (runAgenticStep) but no longer
   // rendered (the Record-page "Checklist and goals" panel was removed).
   const [, setDeskChecklist] = useState(() => structuredClone(collectItems))
@@ -1653,6 +1656,142 @@ export default function App() {
     flash(nextLabel ? `${approvalLabel} — advanced to ${nextLabel}` : `${approvalLabel} — stage complete`)
   }
 
+  // Principal clears the KYC/EDD gate → record the approval on the file, clear
+  // the gate's signal + task, then hand off to the Account Opening Agent.
+  function approvePrincipalGate(householdId: string, approvalLabel: string) {
+    const hh = households.find((item) => item.id === householdId)
+    advanceStage(householdId, 'kyc', approvalLabel)
+    const gateSignals = exceptions.filter((ex) => ex.stage === 'kyc' && hh && exceptionsForHousehold(hh, [ex]).length > 0)
+    if (gateSignals.length) {
+      setResolved((prev) => new Set([...prev, ...gateSignals.map((ex) => ex.id)]))
+      setHouseholds((prev) =>
+        prev.map((item) => (item.id === householdId ? { ...item, exceptions: Math.max(0, item.exceptions - gateSignals.length) } : item)),
+      )
+    }
+    setDeskTasks((prev) =>
+      prev.map((task) =>
+        task.householdId === householdId && /principal/i.test(task.subject) && task.status !== 'Completed'
+          ? { ...task, status: 'Completed' as TaskStatus }
+          : task,
+      ),
+    )
+    // Upcoming meeting prep: close the principal action and drop the "not approved" warning.
+    setMeetingList((prev) =>
+      prev.map((m) =>
+        m.householdId !== householdId || m.status !== 'scheduled'
+          ? m
+          : {
+              ...m,
+              actions: m.actions.map((a) => (a.relatedStage === 'kyc' && a.status === 'open' ? { ...a, status: 'done' as const } : a)),
+              preBrief: m.preBrief?.map((line) =>
+                /principal has not approved/i.test(line)
+                  ? 'Principal approved EDD. The Account Opening Agent opened the custodian accounts and the ACAT is in flight.'
+                  : line,
+              ),
+            },
+      ),
+    )
+    const record = records[householdId]
+    if (!record || !hh) return
+    const approved = recordPrincipalApproval(record)
+    setRecords((prev) => ({ ...prev, [householdId]: approved }))
+    const connectedCustodians = integrationList
+      .filter((item) => item.category === 'Custodians' && item.status === 'connected')
+      .map((item) => item.name)
+    setAccountOpening({ householdId, result: runAccountOpening(approved, hh.name, connectedCustodians) })
+  }
+
+  // The agent run finished on screen — write what it did back to the household.
+  function completeAccountOpening(householdId: string, result: AccountOpeningResult) {
+    if (!result.submitted) {
+      setHouseholds((prev) =>
+        prev.map((h) =>
+          h.id !== householdId
+            ? h
+            : {
+                ...h,
+                events: [
+                  {
+                    id: `ao-held-${h.id}-${Date.now()}`,
+                    time: 'Just now',
+                    agent: 'Account Opening Agent',
+                    action: 'Held before custodian submit',
+                    detail: result.summary,
+                    outcome: 'needs_you' as const,
+                    stage: 'account_open' as const,
+                  },
+                  ...h.events,
+                ],
+              },
+        ),
+      )
+      flash(result.summary)
+      return
+    }
+    setRecords((prev) => ({ ...prev, [householdId]: result.record }))
+    setAccounts((prev) => [...prev.filter((a) => !result.accounts.some((n) => n.id === a.id)), ...result.accounts])
+    const numbers = result.opened.map((o) => `···${o.mask}`).join(' + ')
+    setHouseholds((prev) =>
+      prev.map((h) => {
+        if (h.id !== householdId) return h
+        const stages = h.stages.map((s) => {
+          if (s.id === 'account_open') {
+            return { ...s, status: 'complete' as const, agentSummary: `${result.custodian} ${numbers}`, humanAction: undefined, unblock: undefined }
+          }
+          if (s.id === 'funding' && s.status === 'upcoming') {
+            return {
+              ...s,
+              status: 'agent-running' as const,
+              agentSummary: result.acatNumber ? `ACAT #${result.acatNumber} at DTCC` : 'Awaiting funding',
+            }
+          }
+          return s
+        })
+        const funding = stages.find((s) => s.id === 'funding')
+        const fixed = result.checks.filter((c) => c.status === 'fixed').map((c) => c.label.toLowerCase())
+        const carried = result.checks.filter((c) => c.status === 'warn').map((c) => c.label)
+        return {
+          ...h,
+          stages,
+          stage: funding?.status === 'agent-running' ? ('funding' as const) : h.stage,
+          stageLabel: funding?.status === 'agent-running' ? funding.label : h.stageLabel,
+          activeAgents: [
+            { name: 'Account Opening Agent', doing: `Opened ${numbers} at ${result.custodian}` },
+            ...(result.acatNumber ? [{ name: 'Funding Agent', doing: `Tracking ACAT #${result.acatNumber} from ${result.deliveringFirm}` }] : []),
+            ...h.activeAgents.filter((a) => !/EDD|Compliance|Account Opening|Funding/.test(a.name)),
+          ],
+          events: [
+            ...(result.acatNumber
+              ? [
+                  {
+                    id: `ao-acat-${h.id}`,
+                    time: 'Just now',
+                    agent: 'Funding Agent',
+                    action: `ACAT #${result.acatNumber} submitted to DTCC`,
+                    detail: `Transfer from ${result.deliveringFirm} into ${result.custodian} ${result.opened[0].registration} ···${result.opened[0].mask}. The registration matches, so it should not come back NIGO.`,
+                    outcome: 'running' as const,
+                    stage: 'funding' as const,
+                  },
+                ]
+              : []),
+            {
+              id: `ao-open-${h.id}`,
+              time: 'Just now',
+              agent: 'Account Opening Agent',
+              action: `${result.custodian} accounts opened · ${numbers}`,
+              detail: `Ran ${result.checks.length} pre-submission checks${fixed.length ? `, filled the ${fixed.join(', ')}` : ''}${carried.length ? `, and carried ${carried.join(', ')} forward` : ''}. Submitted by API in good order. Account numbers are on the record and ${result.custodian} sent the agreement for e-signature.`,
+              outcome: 'done' as const,
+              stage: 'account_open' as const,
+            },
+            ...h.events,
+          ],
+        }
+      }),
+    )
+    if (result.acatNumber) setSelectedStageId('funding')
+    flash(`Account opened at ${result.custodian}: ${numbers}`)
+  }
+
   function focusException(ex: ExceptionItem, stayOnClient = false) {
     setSelectedExId(ex.id)
     const match = households.find((h) => ex.household.includes(h.name.split(' ')[0]) || h.name.includes(ex.household.split(' ')[0]))
@@ -1918,7 +2057,14 @@ export default function App() {
       }
     }
     if (documentId === 'custodial') {
-      setField('custody', 'custAcct', `Retitle e-signed by ${signedName}`, 'partial')
+      const custAcct = record.sections.find((section) => section.id === 'custody')?.fields.find((item) => item.key === 'custAcct')
+      if (custAcct && custAcct.status === 'complete' && custAcct.value) {
+        // Account was already opened by the Account Opening Agent — the
+        // signature completes the agreement; keep the issued account numbers.
+        doc.notes = `Account agreement e-signed by ${signedName}. ${custAcct.value}`
+      } else {
+        setField('custody', 'custAcct', `Retitle e-signed by ${signedName}`, 'partial')
+      }
     }
     setRecords(next)
     setClientNotices((prev) => [
@@ -3581,9 +3727,26 @@ export default function App() {
           stage={stageModal}
           onClose={() => setStageModal(null)}
           onAct={(action) => {
-            if (action.resolves) advanceStage(household.id, stageModal.id, action.label)
+            if (action.resolves && stageModal.id === 'kyc') approvePrincipalGate(household.id, action.label)
+            else if (action.resolves) advanceStage(household.id, stageModal.id, action.label)
             else flash(action.label)
             setStageModal(null)
+          }}
+        />
+      )}
+
+      {accountOpening && (
+        <AccountOpeningRun
+          householdName={households.find((h) => h.id === accountOpening.householdId)?.name ?? 'Client'}
+          result={accountOpening.result}
+          onComplete={() => completeAccountOpening(accountOpening.householdId, accountOpening.result)}
+          onClose={() => setAccountOpening(null)}
+          onOpenRecord={() => {
+            setAccountOpening(null)
+            setCockpitView('record')
+            setRecordTab('data')
+            setOpenSectionId('custody')
+            window.scrollTo({ top: 0 })
           }}
         />
       )}
